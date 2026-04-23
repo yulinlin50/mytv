@@ -813,14 +813,7 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     public native boolean isPlaying();
 
     @Override
-    public void seekTo(long msec) throws IllegalStateException {
-        if (msec < 0) {
-            throw new IllegalArgumentException("Seek position cannot be negative: " + msec);
-        }
-        _seekTo(msec);
-    }
-    
-    private native void _seekTo(long msec) throws IllegalStateException;
+    public native void seekTo(long msec) throws IllegalStateException;
 
     @Override
     public native long getCurrentPosition();
@@ -1014,16 +1007,7 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     }
 
     @Override
-    public void setVolume(float leftVolume, float rightVolume) {
-        if (leftVolume < 0.0f || leftVolume > 1.0f ||
-            rightVolume < 0.0f || rightVolume > 1.0f) {
-            throw new IllegalArgumentException(
-                "Volume must be between 0.0 and 1.0, got: left=" + leftVolume + ", right=" + rightVolume);
-        }
-        _setVolume(leftVolume, rightVolume);
-    }
-    
-    private native void _setVolume(float leftVolume, float rightVolume);
+    public native void setVolume(float leftVolume, float rightVolume);
 
     @Override
     public native int getAudioSessionId();
