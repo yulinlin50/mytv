@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import top.yogiczy.mytv.core.data.entities.channel.ChannelLine
@@ -196,43 +198,45 @@ fun rememberVideoPlayerStateNew(
     }
 
     LaunchedEffect(state) {
-        launch { state.instance.state.isPlaying.collect { state.isPlaying = it } }
-        launch { state.instance.state.isBuffering.collect {
-            state.isBuffering = it
-            state.onIsBufferingListeners.forEach { listener -> listener(it) }
-        } }
-        launch { state.instance.state.error.collect {
-            state.error = it
-            if (it != null) {
-                state.onErrorListeners.forEach { listener -> listener() }
-            }
-        } }
-        launch { state.instance.state.duration.collect { state.duration = it } }
-        launch { state.instance.state.currentPosition.collect { state.currentPosition = it } }
-        launch { state.instance.state.metadata.collect {
-            state.metadata = it
-            if (it.video?.width != null && it.video.height != null) {
-                if (it.video.width > 0 && it.video.height > 0) {
-                    state.aspectRatio = it.video.width.toFloat() / it.video.height
+        coroutineScope {
+            launch { state.instance.state.isPlaying.collect { state.isPlaying = it } }
+            launch { state.instance.state.isBuffering.collect {
+                state.isBuffering = it
+                state.onIsBufferingListeners.forEach { listener -> listener(it) }
+            } }
+            launch { state.instance.state.error.collect {
+                state.error = it
+                if (it != null) {
+                    state.onErrorListeners.forEach { listener -> listener() }
                 }
-            }
-            if (it.video != null) {
-                state.onReadyListeners.forEach { listener -> listener() }
-                state.error = null
-                state.displayMode = state.defaultDisplayModeProvider()
-            }
-        } }
-        launch { state.instance.state.isPlaybackMode.collect { state.isPlaybackMode = it } }
-        launch { state.instance.state.playbackTimeRange.collect {
-            if (it != null) {
-                state.playbackStartTime = it.first
-                state.playbackEndTime = it.second
-            } else {
-                state.playbackStartTime = 0L
-                state.playbackEndTime = 0L
-            }
-        } }
-        launch { state.instance.state.volume.collect { state._volume = it } }
+            } }
+            launch { state.instance.state.duration.collect { state.duration = it } }
+            launch { state.instance.state.currentPosition.collect { state.currentPosition = it } }
+            launch { state.instance.state.metadata.collect {
+                state.metadata = it
+                if (it.video?.width != null && it.video.height != null) {
+                    if (it.video.width > 0 && it.video.height > 0) {
+                        state.aspectRatio = it.video.width.toFloat() / it.video.height
+                    }
+                }
+                if (it.video != null) {
+                    state.onReadyListeners.forEach { listener -> listener() }
+                    state.error = null
+                    state.displayMode = state.defaultDisplayModeProvider()
+                }
+            } }
+            launch { state.instance.state.isPlaybackMode.collect { state.isPlaybackMode = it } }
+            launch { state.instance.state.playbackTimeRange.collect {
+                if (it != null) {
+                    state.playbackStartTime = it.first
+                    state.playbackEndTime = it.second
+                } else {
+                    state.playbackStartTime = 0L
+                    state.playbackEndTime = 0L
+                }
+            } }
+            launch { state.instance.state.volume.collect { state._volume = it } }
+        }
     }
     
     DisposableEffect(lifecycleOwner, videoPlayerCore) {
