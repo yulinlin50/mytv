@@ -86,7 +86,6 @@ class Media3VideoPlayerNew(
     private val extractorsFactory = DefaultExtractorsFactory()
         .setTsExtractorTimestampSearchBytes(TS_TIMESTAMP_SEARCH_BYTES)
         .setConstantBitrateSeekingEnabled(true)
-        .setConstantBitrateSeekingAfterFrameOffsetEnabled(true)
     
     init {
         videoPlayer = createPlayer()
@@ -306,7 +305,7 @@ class Media3VideoPlayerNew(
             C.CONTENT_TYPE_DASH -> createDashMediaSource(mediaItem, dataSourceFactory)
             C.CONTENT_TYPE_RTSP -> RtspMediaSource.Factory().createMediaSource(mediaItem)
             C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory)
-                .setExtractorsFactory(extractorsFactory)
+                .setExtractorsFactory { extractorsFactory }
                 .createMediaSource(mediaItem)
             else -> {
                 errorHandler.handleError(
@@ -657,7 +656,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        if (retryCount > MAX_RETRY_COUNT) {
+        if (retryCount >= MAX_RETRY_COUNT) {
             errorHandler.handleError(
                 PlayerErrorType.UnknownError(errorCode = 10005, message = "重试次数已用尽")
             )
