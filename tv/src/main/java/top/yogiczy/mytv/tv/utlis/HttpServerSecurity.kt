@@ -67,12 +67,12 @@ object HttpServerSecurity {
         migrateFromPlaintext(context)
         
         if (_accessToken == null) {
-            _accessToken = getEncryptedPrefs(context).getString(KEY_SERVER_TOKEN, "").ifBlank {
-                generateToken().also { 
-                    getEncryptedPrefs(context).edit()
-                        .putString(KEY_SERVER_TOKEN, it)
-                        .apply()
-                }
+            _accessToken = getEncryptedPrefs(context).getString(KEY_SERVER_TOKEN, null)?.ifBlank {
+                null
+            } ?: generateToken().also { 
+                getEncryptedPrefs(context).edit()
+                    .putString(KEY_SERVER_TOKEN, it)
+                    .apply()
             }
         }
         return _accessToken!!

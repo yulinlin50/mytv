@@ -23,6 +23,51 @@ import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.VideoPlayerDisplayMode
 import top.yogiczy.mytv.tv.ui.utils.Configs
 
+private data class Tuple4<T1, T2, T3, T4>(
+    val component1: T1,
+    val component2: T2,
+    val component3: T3,
+    val component4: T4
+)
+
+private data class Tuple5<T1, T2, T3, T4, T5>(
+    val component1: T1,
+    val component2: T2,
+    val component3: T3,
+    val component4: T4,
+    val component5: T5
+)
+
+private data class Tuple6<T1, T2, T3, T4, T5, T6>(
+    val component1: T1,
+    val component2: T2,
+    val component3: T3,
+    val component4: T4,
+    val component5: T5,
+    val component6: T6
+)
+
+private data class Tuple7<T1, T2, T3, T4, T5, T6, T7>(
+    val component1: T1,
+    val component2: T2,
+    val component3: T3,
+    val component4: T4,
+    val component5: T5,
+    val component6: T6,
+    val component7: T7
+)
+
+private data class Tuple8<T1, T2, T3, T4, T5, T6, T7, T8>(
+    val component1: T1,
+    val component2: T2,
+    val component3: T3,
+    val component4: T4,
+    val component5: T5,
+    val component6: T6,
+    val component7: T7,
+    val component8: T8
+)
+
 @Stable
 class VideoPlayerStateNew(
     val instance: IVideoPlayer,
@@ -196,67 +241,79 @@ fun rememberVideoPlayerStateNew(
     }
 
     LaunchedEffect(state) {
-        kotlinx.coroutines.flow.combine(
-            state.instance.state.isPlaying,
-            state.instance.state.isBuffering,
-            state.instance.state.error,
-            state.instance.state.duration,
-            state.instance.state.currentPosition,
-            state.instance.state.metadata,
-            state.instance.state.isPlaybackMode,
-            state.instance.state.playbackTimeRange,
-            state.instance.state.volume
-        ) { isPlaying, isBuffering, error, duration, currentPosition, metadata, isPlaybackMode, playbackTimeRange, volume ->
-            StateBundle(
-                isPlaying = isPlaying,
-                isBuffering = isBuffering,
-                error = error,
-                duration = duration,
-                currentPosition = currentPosition,
-                metadata = metadata,
-                isPlaybackMode = isPlaybackMode,
-                playbackTimeRange = playbackTimeRange,
-                volume = volume
-            )
-        }.collect { bundle ->
-            state.isPlaying = bundle.isPlaying
-            state.isBuffering = bundle.isBuffering
-            state.onIsBufferingListeners.forEach { it(bundle.isBuffering) }
-            
-            state.error = bundle.error
-            if (bundle.error != null) {
-                state.onErrorListeners.forEach { it.invoke() }
+        state.instance.state.isPlaying
+            .combine(state.instance.state.isBuffering) { isPlaying, isBuffering -> 
+                Pair(isPlaying, isBuffering) 
             }
-            
-            state.duration = bundle.duration
-            state.currentPosition = bundle.currentPosition
-            
-            state.metadata = bundle.metadata
-            if (bundle.metadata.video?.width != null && bundle.metadata.video.height != null) {
-                if (bundle.metadata.video.width > 0 && bundle.metadata.video.height > 0) {
-                    state.aspectRatio = bundle.metadata.video.width.toFloat() / bundle.metadata.video.height
+            .combine(state.instance.state.error) { (isPlaying, isBuffering), error -> 
+                Triple(isPlaying, isBuffering, error) 
+            }
+            .combine(state.instance.state.duration) { (isPlaying, isBuffering, error), duration ->
+                Tuple4(isPlaying, isBuffering, error, duration)
+            }
+            .combine(state.instance.state.currentPosition) { (isPlaying, isBuffering, error, duration), currentPosition ->
+                Tuple5(isPlaying, isBuffering, error, duration, currentPosition)
+            }
+            .combine(state.instance.state.metadata) { (isPlaying, isBuffering, error, duration, currentPosition), metadata ->
+                Tuple6(isPlaying, isBuffering, error, duration, currentPosition, metadata)
+            }
+            .combine(state.instance.state.isPlaybackMode) { (isPlaying, isBuffering, error, duration, currentPosition, metadata), isPlaybackMode ->
+                Tuple7(isPlaying, isBuffering, error, duration, currentPosition, metadata, isPlaybackMode)
+            }
+            .combine(state.instance.state.playbackTimeRange) { (isPlaying, isBuffering, error, duration, currentPosition, metadata, isPlaybackMode), playbackTimeRange ->
+                Tuple8(isPlaying, isBuffering, error, duration, currentPosition, metadata, isPlaybackMode, playbackTimeRange)
+            }
+            .combine(state.instance.state.volume) { (isPlaying, isBuffering, error, duration, currentPosition, metadata, isPlaybackMode, playbackTimeRange), volume ->
+                StateBundle(
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    error = error,
+                    duration = duration,
+                    currentPosition = currentPosition,
+                    metadata = metadata,
+                    isPlaybackMode = isPlaybackMode,
+                    playbackTimeRange = playbackTimeRange,
+                    volume = volume
+                )
+            }.collect { bundle ->
+                state.isPlaying = bundle.isPlaying
+                state.isBuffering = bundle.isBuffering
+                state.onIsBufferingListeners.forEach { it(bundle.isBuffering) }
+                
+                state.error = bundle.error
+                if (bundle.error != null) {
+                    state.onErrorListeners.forEach { it.invoke() }
                 }
+                
+                state.duration = bundle.duration
+                state.currentPosition = bundle.currentPosition
+                
+                state.metadata = bundle.metadata
+                if (bundle.metadata.video?.width != null && bundle.metadata.video.height != null) {
+                    if (bundle.metadata.video.width > 0 && bundle.metadata.video.height > 0) {
+                        state.aspectRatio = bundle.metadata.video.width.toFloat() / bundle.metadata.video.height
+                    }
+                }
+                if (bundle.metadata.video != null) {
+                    state.onReadyListeners.forEach { it.invoke() }
+                    state.error = null
+                    state.displayMode = state.defaultDisplayModeProvider()
+                }
+                
+                state.isPlaybackMode = bundle.isPlaybackMode
+                if (bundle.playbackTimeRange != null) {
+                    state.playbackStartTime = bundle.playbackTimeRange.first
+                    state.playbackEndTime = bundle.playbackTimeRange.second
+                } else {
+                    state.playbackStartTime = 0L
+                    state.playbackEndTime = 0L
+                }
+                
+                state._volume = bundle.volume
             }
-            if (bundle.metadata.video != null) {
-                state.onReadyListeners.forEach { it.invoke() }
-                state.error = null
-                state.displayMode = state.defaultDisplayModeProvider()
-            }
-            
-            state.isPlaybackMode = bundle.isPlaybackMode
-            if (bundle.playbackTimeRange != null) {
-                state.playbackStartTime = bundle.playbackTimeRange.first
-                state.playbackEndTime = bundle.playbackTimeRange.second
-            } else {
-                state.playbackStartTime = 0L
-                state.playbackEndTime = 0L
-            }
-            
-            state._volume = bundle.volume
-        }
     }
     
-    private data class StateBundle(
+    data class StateBundle(
         val isPlaying: Boolean,
         val isBuffering: Boolean,
         val error: String?,

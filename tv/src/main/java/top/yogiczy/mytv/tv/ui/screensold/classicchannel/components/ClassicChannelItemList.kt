@@ -197,7 +197,7 @@ fun ClassicChannelItemList(
                 },
                 onChannelFocused = {
                     focusedChannel = channel
-                    onChannelFocusedDebounce.send()
+                    onChannelFocusedDebounce.sendImmediate()
                 },
                 recentEpgProgrammeProvider = { epgList.recentProgramme(channel) },
                 useCache = true,

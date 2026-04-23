@@ -129,7 +129,7 @@ fun ClassicChannelGroupItemList(
                 isSelectedProvider = { isSelected },
                 onFocused = {
                     focusedChannelGroup = channelGroup
-                    onChannelGroupFocusedDebounce.send()
+                    onChannelGroupFocusedDebounce.sendImmediate()
                 },
             )
         }

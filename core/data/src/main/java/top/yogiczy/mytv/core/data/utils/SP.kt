@@ -53,4 +53,6 @@ object SP {
         runCatching { sp.edit().putBoolean(key, value).apply() }.getOrElse { }
 
     fun clear() = runCatching { sp.edit().clear().apply() }.getOrElse { }
+
+    fun remove(key: String) = runCatching { sp.edit().remove(key).apply() }.getOrElse { }
 }

@@ -80,10 +80,10 @@ fun MultiViewItem(
     var changeChannelVisible by remember { mutableStateOf(false) }
 
     val player = rememberVideoPlayerStateNew()
-    player.onReady { channelInfoHide.send() }
+    player.onReady { channelInfoHide.sendImmediate() }
     player.onIsBuffering { isBuffering ->
         if (isBuffering) channelInfoVisible = true
-        channelInfoHide.send()
+        channelInfoHide.sendImmediate()
     }
 
     LaunchedEffect(channel) {
