@@ -187,8 +187,7 @@ object HttpServer : Loggable("HttpServer") {
     }
 
     private fun responseError(response: AsyncHttpServerResponse, code: Int, message: String) {
-        wrapResponse(response).apply {
-            response.code = code
+        wrapResponse(response).code(code).apply {
             setContentType("application/json")
             send("{\"code\": $code, \"error\": \"$message\"}")
         }
