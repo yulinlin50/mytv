@@ -655,12 +655,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        if (retryCount >= MAX_RETRY_COUNT) {
-            errorHandler.handleError(
-                PlayerErrorType.UnknownError(errorCode = 10005, message = "重试次数已用尽")
-            )
-            return
-        }
+        // Retry boundary is checked in onPlayerError(); other callers (live reconnect) should not be throttled
         coroutineScope.launch {
             delay(1000L * retryCount)
             if (!isReleased.get()) {
@@ -924,6 +919,8 @@ class Media3VideoPlayerNew(
         private const val POSITION_UPDATE_INTERVAL_MS = 500L
         private const val SEEK_INCREMENT_MS = 10000L
         private const val TS_TIMESTAMP_SEARCH_BYTES = 1000 * 1024
+        // 4 retries: provides enough recovery attempts for transient failures while preventing infinite loops;
+        // boundary check is centralized in onPlayerError() so live-stream reconnects via retryPlayback() are not throttled
         private const val MAX_RETRY_COUNT = 4
     }
 }
