@@ -16,9 +16,12 @@ data class Epg(
     companion object {
         private val log = Logger.create("Epg")
         
+        private const val CACHE_DURATION_MS = 5_000L
+        
         private data class CacheEntry(
             val result: EpgProgrammeRecent,
-            val liveIndex: Int = -1
+            val liveIndex: Int = -1,
+            val timestamp: Long = System.currentTimeMillis()
         )
 
         fun Epg.recentProgramme(): EpgProgrammeRecent {
@@ -32,7 +35,24 @@ data class Epg(
                 UnifiedCacheManager.CacheNames.RECENT_PROGRAMME, 
                 cacheKey
             )?.let { entry ->
-                return entry.result
+                // 检查缓存是否过期（5秒）
+                if (now - entry.timestamp < CACHE_DURATION_MS) {
+                    return entry.result
+                }
+                
+                // 检查直播节目是否仍在播放
+                if (entry.liveIndex >= 0 && entry.liveIndex < programmeList.size) {
+                    val liveProg = programmeList[entry.liveIndex]
+                    if (now >= liveProg.startAt && now < liveProg.endAt) {
+                        // 节目仍在播放，更新时间戳并返回
+                        UnifiedCacheManager.put(
+                            UnifiedCacheManager.CacheNames.RECENT_PROGRAMME,
+                            cacheKey,
+                            entry.copy(timestamp = now)
+                        )
+                        return entry.result
+                    }
+                }
             }
 
             val t = measureTimedValue {
@@ -82,7 +102,7 @@ data class Epg(
                         UnifiedCacheManager.put(
                             UnifiedCacheManager.CacheNames.RECENT_PROGRAMME,
                             cacheKey,
-                            CacheEntry(it, liveIndex)
+                            CacheEntry(it, liveIndex, System.currentTimeMillis())
                         )
                     }
                 }
