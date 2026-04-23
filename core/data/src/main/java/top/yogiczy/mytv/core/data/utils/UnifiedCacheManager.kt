@@ -59,7 +59,7 @@ object UnifiedCacheManager {
             cache[key] = CacheEntry(value)
         }
         
-        override fun remove(key: String) = synchronized(lock) {
+        override fun remove(key: String): Unit = synchronized(lock) {
             cache.remove(key)
         }
         
