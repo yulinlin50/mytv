@@ -1,5 +1,10 @@
 package top.yogiczy.mytv.core.data.utils
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
+
 sealed class DataResult<out T> {
     data class Success<T>(val data: T) : DataResult<T>()
     data class Error(
@@ -41,6 +46,8 @@ object DataResultHelper {
     ): DataResult<T> {
         return try {
             DataResult.Success(block())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             log.e("$operation 失败", e)
             DataResult.Error(e, "$operation 失败: ${e.message}")
@@ -59,11 +66,14 @@ object DataResultHelper {
         repeat(maxRetries) { attempt ->
             try {
                 return DataResult.Success(block())
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 lastException = e
                 log.w("$operation 失败 (尝试 ${attempt + 1}/$maxRetries)", e)
                 if (attempt < maxRetries - 1) {
-                    kotlinx.coroutines.delay(delayMs)
+                    delay(delayMs)
+                    coroutineContext.ensureActive()
                 }
             }
         }

@@ -28,6 +28,7 @@ object HttpClient {
     }
     
     private val clients = ConcurrentHashMap<SslMode, OkHttpClient>()
+    private val epgClients = ConcurrentHashMap<SslMode, OkHttpClient>()
     
     private var _defaultSslMode: SslMode = SslMode.TRUST_ALL
     
@@ -45,13 +46,13 @@ object HttpClient {
         }
     }
     
-    val sharedClient: OkHttpClient by lazy {
-        getSharedClient(_defaultSslMode)
-    }
+    val sharedClient: OkHttpClient
+        get() = getSharedClient(_defaultSslMode)
     
-    val epgClient: OkHttpClient by lazy {
-        createEpgClient(_defaultSslMode)
-    }
+    val epgClient: OkHttpClient
+        get() = epgClients.getOrPut(_defaultSslMode) {
+            createEpgClient(_defaultSslMode)
+        }
     
     private fun createClient(sslMode: SslMode): OkHttpClient {
         val trustAll = sslMode == SslMode.TRUST_ALL
@@ -67,6 +68,7 @@ object HttpClient {
                     Log.w(TAG, "Created OkHttpClient with SSL verification disabled")
                 }
             }
+            .addInterceptor(RetryInterceptor(maxRetry = 3))
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -88,6 +90,7 @@ object HttpClient {
                     Log.w(TAG, "Created EpgClient with SSL verification disabled")
                 }
             }
+            .addInterceptor(RetryInterceptor(maxRetry = 3))
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)

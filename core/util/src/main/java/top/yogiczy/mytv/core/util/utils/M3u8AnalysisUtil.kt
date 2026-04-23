@@ -53,7 +53,7 @@ object M3u8AnalysisUtil {
                 
                 val lines = m3u8Content.lines()
                 for (line in lines) {
-                    if (line.isNotEmpty() && !line.startsWith("#")) {
+                    if (line.isNotEmpty() && !line.startsWith("#") && line.contains(".ts", ignoreCase = true)) {
                         return@withContext resolveUrl(m3u8Url, line)
                     }
                 }

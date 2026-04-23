@@ -22,12 +22,11 @@ fun Long.humanizeMs(): String {
 fun Long.humanizeBytes(): String {
     if (this < 0) return "0B"
     
-    return when {
-        this < 1024 -> "${this}B"
-        this < 1024 * 1024 -> String.format("%.1fKB", this / 1024.0)
-        this < 1024 * 1024 * 1024 -> String.format("%.1fMB", this / (1024.0 * 1024))
-        this < 1024L * 1024 * 1024 * 1024 -> String.format("%.1fGB", this / (1024.0 * 1024 * 1024))
-        else -> String.format("%.1fTB", this / (1024.0 * 1024 * 1024 * 1024))
+    return when (this) {
+        in 0..<1024 -> "${this}B"
+        in 1024..<1048576 -> "${this / 1024}KB"
+        in 1048576..<1073741824 -> "${this / 1048576}MB"
+        else -> "${this / 1073741824}GB"
     }
 }
 
@@ -40,19 +39,32 @@ fun String.isIPv6(): Boolean {
 
 fun String.compareVersion(version2: String): Int {
     return try {
-        val parts1 = this.split(".").map { it.toIntOrNull() ?: 0 }
-        val parts2 = version2.split(".").map { it.toIntOrNull() ?: 0 }
-        
-        val maxLen = maxOf(parts1.size, parts2.size)
-        
-        for (i in 0 until maxLen) {
-            val v1 = parts1.getOrElse(i) { 0 }
-            val v2 = parts2.getOrElse(i) { 0 }
-            
-            if (v1 != v2) return v1.compareTo(v2)
+        fun parseVersion(version: String): Pair<List<Int>, String?> {
+            val mainParts = version.split("-", limit = 2)
+            val versionNumbers = mainParts[0].split(".").map { it.toIntOrNull() ?: 0 }
+            val preReleaseLabel = mainParts.getOrNull(1)
+            return versionNumbers to preReleaseLabel
         }
-        
-        0
+
+        fun comparePreRelease(label1: String?, label2: String?): Int {
+            if (label1 == null && label2 == null) return 0
+            if (label1 == null) return 1
+            if (label2 == null) return -1
+            return label1.compareTo(label2)
+        }
+
+        val (v1, preRelease1) = parseVersion(this)
+        val (v2, preRelease2) = parseVersion(version2)
+        val maxLength = maxOf(v1.size, v2.size)
+
+        for (i in 0 until maxLength) {
+            val part1 = v1.getOrElse(i) { 0 }
+            val part2 = v2.getOrElse(i) { 0 }
+            if (part1 > part2) return 1
+            if (part1 < part2) return -1
+        }
+
+        comparePreRelease(preRelease1, preRelease2)
     } catch (e: Exception) {
         Log.w("ExtensionUtils", "Invalid version comparison: $this vs $version2")
         0
@@ -91,11 +103,10 @@ fun String.headersValid(): Boolean {
 fun Int.humanizeBitrate(base: Int = 1000): String {
     if (this < 0) return "0bps"
     
-    return when {
-        this < base -> "${this}bps"
-        this < base * base -> String.format("%.1fKbps", this / base.toDouble())
-        this < base * base * base -> String.format("%.1fMbps", this / (base.toDouble() * base))
-        else -> String.format("%.1fGbps", this / (base.toDouble() * base * base))
+    return when (val value = max(0, this)) {
+        in 0..<base -> "${value}bps"
+        in base..<base * base -> "${value / base}Kbps"
+        else -> "${String.format(Locale.getDefault(), "%.2f", value.toFloat() / base / base)}Mbps"
     }
 }
 

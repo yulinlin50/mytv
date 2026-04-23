@@ -1,11 +1,11 @@
 package top.yogiczy.mytv.tv.utlis
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import top.yogiczy.mytv.core.data.utils.Globals
 import top.yogiczy.mytv.core.data.utils.SP
-import top.yogiczy.mytv.tv.ui.utils.Configs
 import java.io.File
 import java.security.SecureRandom
 import java.util.Base64
@@ -25,10 +25,11 @@ object HttpServerSecurity {
     private const val MAX_UPLOAD_SIZE = 100 * 1024 * 1024L  // 100MB
     private const val ENCRYPTED_PREFS_NAME = "secure_http_server_prefs"
     
+    @Volatile
     private var _accessToken: String? = null
-    private var encryptedPrefs: EncryptedSharedPreferences? = null
+    private var encryptedPrefs: SharedPreferences? = null
     
-    private fun getEncryptedPrefs(context: Context): EncryptedSharedPreferences {
+    private fun getEncryptedPrefs(context: Context): SharedPreferences {
         if (encryptedPrefs == null) {
             val masterKey = MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -40,7 +41,7 @@ object HttpServerSecurity {
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            ) as EncryptedSharedPreferences
+            )
         }
         return encryptedPrefs!!
     }

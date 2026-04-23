@@ -49,6 +49,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -203,7 +204,7 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
                 if (libLoader == null)
                     libLoader = sLocalLibLoader;
 
-                java.util.List<String> loadedLibraries = new java.util.ArrayList<>();
+                List<String> loadedLibraries = new ArrayList<>();
                 try {
                     String[] libraries = {
                         "wsrtcsdk",
@@ -771,8 +772,7 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     // experimental, should set DEFAULT_MIN_FRAMES and MAX_MIN_FRAMES to 25
     // TODO: @Override
     public void selectTrack(int track) {
-        ITrackInfo[] tracks = getTrackInfo();
-        if (tracks == null || track < 0 || track >= tracks.length) {
+        if (track < 0) {
             throw new IllegalArgumentException("Invalid track index: " + track);
         }
         _setStreamSelected(track, true);
@@ -781,8 +781,7 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     // experimental, should set DEFAULT_MIN_FRAMES and MAX_MIN_FRAMES to 25
     // TODO: @Override
     public void deselectTrack(int track) {
-        ITrackInfo[] tracks = getTrackInfo();
-        if (tracks == null || track < 0 || track >= tracks.length) {
+        if (track < 0) {
             throw new IllegalArgumentException("Invalid track index: " + track);
         }
         _setStreamSelected(track, false);
@@ -818,12 +817,6 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
         if (msec < 0) {
             throw new IllegalArgumentException("Seek position cannot be negative: " + msec);
         }
-        
-        long duration = getDuration();
-        if (duration > 0 && msec > duration) {
-            msec = duration;
-        }
-        
         _seekTo(msec);
     }
     
@@ -869,11 +862,15 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     public void reset() {
         stayAwake(false);
         _reset();
-        // make sure none of the listeners get called anymore
-        mEventHandler.removeCallbacksAndMessages(null);
+        synchronized (mEventHandlerLock) {
+            if (mEventHandler != null) {
+                mEventHandler.removeCallbacksAndMessages(null);
+            }
+        }
 
         mVideoWidth = 0;
         mVideoHeight = 0;
+        mIsReleased = false;
     }
 
     private native void _reset();

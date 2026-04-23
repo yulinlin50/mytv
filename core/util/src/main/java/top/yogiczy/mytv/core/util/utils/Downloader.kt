@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.core.util.utils
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,23 +22,16 @@ object Downloader {
             .writeTimeout(60, TimeUnit.SECONDS)
             .build()
     }
-    
-    data class DownloadState(
-        val url: String,
-        val filePath: String,
-        val downloadedBytes: Long,
-        val totalBytes: Long,
-        val lastModified: String?
-    )
 
     suspend fun downloadTo(
         url: String,
         filePath: String,
         onProgressCb: ((Int) -> Unit)? = null,
-        supportResume: Boolean = true
+        supportResume: Boolean = true,
+        context: Context? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val file = validateAndPrepareFile(filePath)
+            val file = validateAndPrepareFile(filePath, context)
             val downloadedBytes = if (supportResume && file.exists()) file.length() else 0L
             
             val request = Request.Builder()
@@ -56,17 +50,19 @@ object Downloader {
                     )
                 }
                 
+                val isResume = response.code == 206
                 val contentLength = response.body?.contentLength() ?: 0L
-                val totalBytes = if (response.code == 206) {
+                val totalBytes = if (isResume) {
                     contentLength + downloadedBytes
                 } else {
                     contentLength
                 }
                 
                 response.body?.byteStream()?.use { input ->
-                    FileOutputStream(file, response.code == 206).use { output ->
-                        val buffer = ByteArray(Buffer_Size)
-                        var currentBytes = downloadedBytes
+                    FileOutputStream(file, isResume).use { output ->
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        var currentBytes = if (isResume) downloadedBytes else 0L
+                        var lastReportedProgress = -1
                         var bytesRead: Int
                         
                         while (input.read(buffer).also { bytesRead = it } != -1) {
@@ -75,8 +71,11 @@ object Downloader {
                             
                             if (totalBytes > 0) {
                                 val progress = ((currentBytes * 100) / totalBytes).toInt()
-                                withContext(Dispatchers.Main) {
-                                    onProgressCb?.invoke(progress)
+                                if (progress != lastReportedProgress) {
+                                    lastReportedProgress = progress
+                                    withContext(Dispatchers.Main) {
+                                        onProgressCb?.invoke(progress)
+                                    }
                                 }
                             }
                         }
@@ -91,10 +90,10 @@ object Downloader {
         }
     }
     
-    private fun validateAndPrepareFile(filePath: String): File {
+    private fun validateAndPrepareFile(filePath: String, context: Context?): File {
         val file = File(filePath).canonicalFile
         
-        if (!isPathSafe(file)) {
+        if (!isPathSafe(file, context)) {
             throw SecurityException("非法的文件路径: $filePath")
         }
         
@@ -103,28 +102,27 @@ object Downloader {
         return file
     }
     
-    private fun isPathSafe(file: File): Boolean {
+    private fun isPathSafe(file: File, context: Context?): Boolean {
         val canonicalPath = try {
             file.canonicalPath
         } catch (e: Exception) {
             return false
         }
         
-        return !canonicalPath.contains("..")
-    }
-    
-    fun getDownloadState(filePath: String): DownloadState? {
-        val file = File(filePath)
-        if (!file.exists()) return null
+        if (canonicalPath.contains("..")) return false
         
-        return DownloadState(
-            url = "",
-            filePath = filePath,
-            downloadedBytes = file.length(),
-            totalBytes = file.length(),
-            lastModified = null
-        )
+        if (context != null) {
+            val allowedDirs = listOfNotNull(
+                context.cacheDir,
+                context.filesDir,
+                context.externalCacheDir,
+                context.getExternalFilesDir(null)
+            )
+            return allowedDirs.any { dir ->
+                canonicalPath.startsWith(dir.canonicalPath)
+            }
+        }
+        
+        return true
     }
-    
-    private const val Buffer_Size = 8192
 }

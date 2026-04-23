@@ -36,6 +36,8 @@ object UnifiedCacheManager {
         private val expiryMs: Long
     ) : Cache<V> {
         
+        private val lock = Any()
+        
         private val cache = object : LinkedHashMap<String, CacheEntry<V>>(
             16, 0.75f, true
         ) {
@@ -44,28 +46,30 @@ object UnifiedCacheManager {
             }
         }
         
-        override fun get(key: String): V? {
+        override fun get(key: String): V? = synchronized(lock) {
             val entry = cache[key] ?: return null
             if (System.currentTimeMillis() - entry.timestamp > expiryMs) {
                 cache.remove(key)
                 return null
             }
-            return entry.value
+            entry.value
         }
         
-        override fun put(key: String, value: V) {
+        override fun put(key: String, value: V) = synchronized(lock) {
             cache[key] = CacheEntry(value)
         }
         
-        override fun remove(key: String) {
+        override fun remove(key: String) = synchronized(lock) {
             cache.remove(key)
         }
         
-        override fun clear() {
+        override fun clear() = synchronized(lock) {
             cache.clear()
         }
         
-        override fun size(): Int = cache.size
+        override fun size(): Int = synchronized(lock) {
+            cache.size
+        }
     }
     
     private val caches = ConcurrentHashMap<String, Cache<*>>()
@@ -196,7 +200,7 @@ object UnifiedCacheManager {
     }
     
     init {
-        registerCache<String>(CacheNames.RECENT_PROGRAMME, CacheConfig(maxSize = 200, expiryMs = 5_000L))
+        registerCache<String>(CacheNames.RECENT_PROGRAMME, CacheConfig(maxSize = 200, expiryMs = 30 * 60 * 1000L))
         registerCache<String>(CacheNames.CHANNEL_MATCH, CacheConfig(maxSize = 4096))
         registerCache<Long>(CacheNames.TIME_PARSE, CacheConfig(maxSize = 10000))
         registerCache<String>(CacheNames.EPG_DATA, CacheConfig(maxSize = 100, expiryMs = 300_000L))

@@ -112,7 +112,8 @@ object ApkInstaller {
         val apkInfo = getApkInfo(context, filePath)
             ?: return InstallResult(false, "无法读取 APK 信息")
         
-        if (expectedSignature != null && !verifySignature(context, filePath, expectedSignature)) {
+        if (expectedSignature != null && apkInfo.signature != expectedSignature) {
+            Log.e(TAG, "Signature mismatch! Expected: $expectedSignature, Actual: ${apkInfo.signature}")
             return InstallResult(false, "APK 签名验证失败")
         }
         
@@ -159,9 +160,20 @@ object ApkInstaller {
         }
     }
     
+    private fun cleanOldInstallFiles(cacheDir: File) {
+        try {
+            cacheDir.listFiles()?.filter { 
+                it.name.startsWith("install_") && it.name.endsWith(".apk") 
+            }?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to clean old install files: ${e.message}")
+        }
+    }
+    
     @SuppressLint("SetWorldReadable")
     private fun performInstall(context: Context, file: File) {
         val cacheDir = context.externalCacheDir ?: context.cacheDir
+        cleanOldInstallFiles(cacheDir)
         val cachedApkFile = File(cacheDir, "install_${System.currentTimeMillis()}.apk")
         
         try {

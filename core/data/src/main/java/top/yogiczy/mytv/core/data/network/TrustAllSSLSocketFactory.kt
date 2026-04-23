@@ -33,7 +33,8 @@ object TrustAllSSLSocketFactory {
     private val safeTrustManager: X509TrustManager by lazy {
         val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         factory.init(null as KeyStore?)
-        factory.trustManagers.filterIsInstance<X509TrustManager>().first()
+        factory.trustManagers.filterIsInstance<X509TrustManager>().firstOrNull()
+            ?: throw IllegalStateException("No X509TrustManager found in default TrustManagerFactory")
     }
     
     private val unsafeSslSocketFactory: SSLSocketFactory by lazy {

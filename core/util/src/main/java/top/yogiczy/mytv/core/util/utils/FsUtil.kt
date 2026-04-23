@@ -62,7 +62,7 @@ object FsUtil {
     private fun isPathSafe(dir: File): Boolean {
         return try {
             val canonicalPath = dir.canonicalPath
-            canonicalPath.startsWith("/") && !canonicalPath.contains("..")
+            !canonicalPath.contains("..")
         } catch (e: Exception) {
             false
         }

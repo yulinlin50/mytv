@@ -76,7 +76,7 @@ fun Modifier.enhancedFocus(
         label = "focus_alpha"
     )
     
-    val animatedProgress = if (enableAnimation && isFocused) {
+    val animatedProgressValue by if (enableAnimation && isFocused) {
         val infiniteTransition = rememberInfiniteTransition(label = "focus_animation")
         infiniteTransition.animateFloat(
             initialValue = 0f,
@@ -92,7 +92,7 @@ fun Modifier.enhancedFocus(
     }
     
     val finalAlpha = if (enableAnimation && isFocused) {
-        0.6f + animatedProgress.value * 0.4f
+        0.6f + animatedProgressValue * 0.4f
     } else if (isFocused) {
         1f
     } else {
@@ -148,7 +148,7 @@ fun Modifier.focusGlow(
     glowRadius: Dp = FocusDefaults.glowRadius,
     glowColor: Color = Color.Unspecified,
 ): Modifier = composed {
-    if (!Configs.uiFocusOptimize || !isFocused) {
+    if (!Configs.uiFocusOptimize) {
         return@composed this
     }
     
@@ -158,16 +158,32 @@ fun Modifier.focusGlow(
         glowColor
     }
     
-    val infiniteTransition = rememberInfiniteTransition(label = "glow_animation")
-    val animatedAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glow_progress"
+    val animatedEnterAlpha by animateFloatAsState(
+        targetValue = if (isFocused) 1f else 0f,
+        animationSpec = tween(300),
+        label = "glow_enter_alpha"
     )
+    
+    if (!isFocused && animatedEnterAlpha <= 0.01f) {
+        return@composed this
+    }
+    
+    val animatedGlowAlpha by if (isFocused) {
+        val infiniteTransition = rememberInfiniteTransition(label = "glow_animation")
+        infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 0.6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "glow_progress"
+        )
+    } else {
+        remember { mutableStateOf(0.3f) }
+    }
+    
+    val finalAlpha = animatedGlowAlpha * animatedEnterAlpha
     
     this.drawBehind {
         drawIntoCanvas { canvas ->
@@ -178,7 +194,7 @@ fun Modifier.focusGlow(
                         glowRadius.toPx(),
                         0f,
                         0f,
-                        actualGlowColor.copy(alpha = animatedAlpha).toArgb()
+                        actualGlowColor.copy(alpha = finalAlpha).toArgb()
                     )
                 }
             }

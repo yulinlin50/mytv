@@ -524,13 +524,25 @@ object HttpServer : Loggable("HttpServer") {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse
     ) {
+        if (!validateRequest(request, response)) return
+        
         val body = request.getBody<JSONObjectBody>().get()
-        val data = Globals.json.decodeFromString<CloudSyncData>(body.toString())
-        serverScope.launch(Dispatchers.Main) {
-            data.apply()
+        val bodyString = body.toString()
+        if (bodyString.length > 5 * 1024 * 1024) {
+            return responseError(response, 413, "Cloud sync data too large: maximum 5MB")
         }
-
-        responseSuccess(response)
+        
+        runCatching {
+            Globals.json.decodeFromString<CloudSyncData>(bodyString)
+        }.fold(
+            onSuccess = { data ->
+                serverScope.launch(Dispatchers.Main) { data.apply() }
+                responseSuccess(response)
+            },
+            onFailure = { error ->
+                responseError(response, 400, "Invalid cloud sync data: ${error.message}")
+            }
+        )
     }
 
     private fun handleAboutGet(response: AsyncHttpServerResponse) {
@@ -588,6 +600,10 @@ object HttpServer : Loggable("HttpServer") {
         val path = body.get("path").toString()
         val content = body.get("content").toString()
         
+        if (content.length > 1024 * 1024) {
+            return responseError(response, 413, "Content too large: maximum 1MB")
+        }
+        
         if (!HttpServerSecurity.isPathAllowed(path)) {
             return responseError(response, 403, "Access denied: Path not allowed")
         }
@@ -614,6 +630,10 @@ object HttpServer : Loggable("HttpServer") {
         val dir = body.get("dir").toString()
         val filename = HttpServerSecurity.sanitizeFilename(body.get("filename").toString())
         val content = body.get("content").toString()
+        
+        if (content.length > 1024 * 1024) {
+            return responseError(response, 413, "Content too large: maximum 1MB")
+        }
 
         val file = when (dir) {
             "cache" -> File(Globals.cacheDir, filename)

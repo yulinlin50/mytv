@@ -57,7 +57,7 @@ fun ClassicChannelGroupItemList(
 ) {
     val channelGroupList = channelGroupListProvider()
     val initialChannelGroup = initialChannelGroupProvider()
-    val itemFocusRequesterList = List(channelGroupList.size) { FocusRequester() }
+    val itemFocusRequesterList = remember(channelGroupList) { List(channelGroupList.size) { FocusRequester() } }
 
     var focusedChannelGroup by remember { mutableStateOf(initialChannelGroup) }
     val onChannelGroupFocusedDebounce = rememberDebounceState(wait = 100L) {
