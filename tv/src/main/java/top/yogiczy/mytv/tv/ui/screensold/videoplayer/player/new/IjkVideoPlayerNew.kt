@@ -162,6 +162,7 @@ class IjkVideoPlayerNew(
     
     override fun seekTo(position: Long) {
         if (isReleased.get()) return
+        if (position < 0) return
         player?.seekTo(position)
     }
     
