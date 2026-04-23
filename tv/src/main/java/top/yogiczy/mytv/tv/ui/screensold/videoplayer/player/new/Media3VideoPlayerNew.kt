@@ -554,7 +554,7 @@ class Media3VideoPlayerNew(
             when (ex.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> handleBehindLiveWindowError()
                 androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                    if (retryCount < MAX_RETRY_COUNT) retryPlayback()
+                    if (retryCount <= MAX_RETRY_COUNT) retryPlayback()
                     else errorHandler.handleMedia3Error(ex)
                 }
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
@@ -563,7 +563,7 @@ class Media3VideoPlayerNew(
                     if (!hasAttemptedFormatFallback) {
                         hasAttemptedFormatFallback = true
                         handleParsingError(ex)
-                    } else if (retryCount < MAX_RETRY_COUNT) {
+                    } else if (retryCount <= MAX_RETRY_COUNT) {
                         retryPlayback()
                     } else {
                         errorHandler.handleMedia3Error(ex)
@@ -655,7 +655,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        if (retryCount >= MAX_RETRY_COUNT) {
+        if (retryCount > MAX_RETRY_COUNT) {
             errorHandler.handleError(
                 PlayerErrorType.UnknownError(errorCode = 10005, message = "重试次数已用尽")
             )
