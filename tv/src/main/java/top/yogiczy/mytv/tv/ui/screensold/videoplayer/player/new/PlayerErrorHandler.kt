@@ -81,7 +81,13 @@ class PlayerErrorHandler(
                 )
             }
             
-            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> {
+                PlayerErrorType.FormatError(
+                    errorCode = ex.errorCode,
+                    message = ex.message ?: "Source error"
+                )
+            }
+            
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> {
                 PlayerErrorType.NetworkError(
                     errorCode = ex.errorCode,

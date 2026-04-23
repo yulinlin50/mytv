@@ -32,6 +32,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
+import androidx.media3.extractor.DefaultExtractorsFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +44,7 @@ import top.yogiczy.mytv.core.data.entities.channel.ChannelLine
 import top.yogiczy.mytv.core.data.utils.PlaybackUtil
 import top.yogiczy.mytv.core.util.utils.toHeaders
 import top.yogiczy.mytv.tv.ui.utils.Configs
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -62,8 +64,11 @@ class Media3VideoPlayerNew(
     private var textureView: TextureView? = null
     
     private var currentChannelLine = ChannelLine()
-    private val contentTypeAttempts = mutableMapOf<Int, Boolean>()
+    private val contentTypeAttempts = ConcurrentHashMap<Int, Boolean>()
     private var forcedContentType: Int? = null
+    private var isFormatFallback = false
+    private var retryCount = 0
+    private var hasAttemptedFormatFallback = false
     
     private val jobs = mutableListOf<Job>()
     private val jobsLock = Any()
@@ -77,6 +82,11 @@ class Media3VideoPlayerNew(
     private var cachedUriString: String? = null
     
     private val eventLogger = EventLogger()
+    
+    private val extractorsFactory = DefaultExtractorsFactory()
+        .setTsExtractorTimestampSearchBytes(TS_TIMESTAMP_SEARCH_BYTES)
+        .setConstantBitrateSeekingEnabled(true)
+        .setConstantBitrateSeekingAfterFrameOffsetEnabled(true)
     
     init {
         videoPlayer = createPlayer()
@@ -118,8 +128,13 @@ class Media3VideoPlayerNew(
         if (isReleased.get()) return
         
         currentChannelLine = line
-        contentTypeAttempts.clear()
+        if (!isFormatFallback) {
+            contentTypeAttempts.clear()
+            hasAttemptedFormatFallback = false
+        }
+        isFormatFallback = false
         forcedContentType = null
+        retryCount = 0
         
         updatePlaybackModeState(line)
         
@@ -290,7 +305,9 @@ class Media3VideoPlayerNew(
             C.CONTENT_TYPE_HLS -> createHlsMediaSource(mediaItem, dataSourceFactory)
             C.CONTENT_TYPE_DASH -> createDashMediaSource(mediaItem, dataSourceFactory)
             C.CONTENT_TYPE_RTSP -> RtspMediaSource.Factory().createMediaSource(mediaItem)
-            C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
+            C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory)
+                .setExtractorsFactory(extractorsFactory)
+                .createMediaSource(mediaItem)
             else -> {
                 errorHandler.handleError(
                     PlayerErrorType.FormatError(
@@ -317,12 +334,14 @@ class Media3VideoPlayerNew(
         when {
             urlLower.contains(".m3u8") -> return C.CONTENT_TYPE_HLS
             urlLower.contains(".mpd") -> return C.CONTENT_TYPE_DASH
+            urlLower.contains(".flv") -> return C.CONTENT_TYPE_OTHER
+            urlLower.startsWith("rtmp://") || urlLower.startsWith("rtmps://") -> return C.CONTENT_TYPE_OTHER
         }
         
         val inferredType = Util.inferContentType(getCachedUri(uriString))
         if (inferredType != C.CONTENT_TYPE_OTHER) return inferredType
         
-        return C.CONTENT_TYPE_HLS
+        return C.CONTENT_TYPE_OTHER
     }
     
     private fun createMediaItem(uri: Uri, contentType: Int): MediaItem {
@@ -533,12 +552,25 @@ class Media3VideoPlayerNew(
         }
         
         override fun onPlayerError(ex: androidx.media3.common.PlaybackException) {
+            retryCount++
             when (ex.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> handleBehindLiveWindowError()
-                androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED,
+                androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED -> {
+                    if (retryCount <= MAX_RETRY_COUNT) retryPlayback()
+                    else errorHandler.handleMedia3Error(ex)
+                }
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> retryPlayback()
+                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> {
+                    if (!hasAttemptedFormatFallback) {
+                        hasAttemptedFormatFallback = true
+                        handleParsingError(ex)
+                    } else if (retryCount <= MAX_RETRY_COUNT) {
+                        retryPlayback()
+                    } else {
+                        errorHandler.handleMedia3Error(ex)
+                    }
+                }
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED -> handleParsingError(ex)
@@ -561,7 +593,7 @@ class Media3VideoPlayerNew(
                     startPositionUpdate()
                 }
                 Player.STATE_ENDED -> {
-                    if (!playbackModeState.get().isPlayback) retryPlayback()
+                    if (!playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
                 }
             }
         }
@@ -584,25 +616,34 @@ class Media3VideoPlayerNew(
     }
     
     private fun handleParsingError(ex: androidx.media3.common.PlaybackException) {
-        videoPlayer?.currentMediaItem?.localConfiguration?.uri?.let {
-            when {
-                contentTypeAttempts[C.CONTENT_TYPE_HLS] != true -> {
-                    contentTypeAttempts[C.CONTENT_TYPE_HLS] = true
-                    forcedContentType = C.CONTENT_TYPE_HLS
-                    prepare(currentChannelLine)
-                }
-                contentTypeAttempts[C.CONTENT_TYPE_DASH] != true -> {
-                    contentTypeAttempts[C.CONTENT_TYPE_DASH] = true
-                    forcedContentType = C.CONTENT_TYPE_DASH
-                    prepare(currentChannelLine)
-                }
-                contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true -> {
-                    contentTypeAttempts[C.CONTENT_TYPE_OTHER] = true
-                    forcedContentType = C.CONTENT_TYPE_OTHER
-                    prepare(currentChannelLine)
-                }
-                else -> errorHandler.handleMedia3Error(ex)
+        val currentUriString = if (playbackModeState.get().isPlayback) {
+            currentChannelLine.url
+        } else {
+            currentChannelLine.playableUrl
+        }
+        val currentContentType = detectContentType(currentUriString)
+        contentTypeAttempts[currentContentType] = true
+
+        when {
+            contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true -> {
+                contentTypeAttempts[C.CONTENT_TYPE_OTHER] = true
+                forcedContentType = C.CONTENT_TYPE_OTHER
+                isFormatFallback = true
+                prepare(currentChannelLine)
             }
+            contentTypeAttempts[C.CONTENT_TYPE_HLS] != true -> {
+                contentTypeAttempts[C.CONTENT_TYPE_HLS] = true
+                forcedContentType = C.CONTENT_TYPE_HLS
+                isFormatFallback = true
+                prepare(currentChannelLine)
+            }
+            contentTypeAttempts[C.CONTENT_TYPE_DASH] != true -> {
+                contentTypeAttempts[C.CONTENT_TYPE_DASH] = true
+                forcedContentType = C.CONTENT_TYPE_DASH
+                isFormatFallback = true
+                prepare(currentChannelLine)
+            }
+            else -> errorHandler.handleMedia3Error(ex)
         }
     }
     
@@ -616,8 +657,24 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        videoPlayer?.seekToDefaultPosition()
-        videoPlayer?.prepare()
+        if (retryCount > MAX_RETRY_COUNT) {
+            errorHandler.handleError(
+                PlayerErrorType.UnknownError(errorCode = 10005, message = "重试次数已用尽")
+            )
+            return
+        }
+        coroutineScope.launch {
+            delay(1000L * retryCount)
+            if (!isReleased.get()) {
+                videoPlayer?.seekToDefaultPosition()
+                videoPlayer?.prepare()
+            }
+        }
+    }
+    
+    private fun isLiveStream(): Boolean {
+        val duration = videoPlayer?.duration ?: C.TIME_UNSET
+        return duration == C.TIME_UNSET || duration <= 0
     }
     
     private fun updateDuration() {
@@ -868,5 +925,7 @@ class Media3VideoPlayerNew(
         private const val HLS_TIMESTAMP_TIMEOUT_MS = 30000L
         private const val POSITION_UPDATE_INTERVAL_MS = 500L
         private const val SEEK_INCREMENT_MS = 10000L
+        private const val TS_TIMESTAMP_SEARCH_BYTES = 1000 * 1024
+        private const val MAX_RETRY_COUNT = 3
     }
 }
