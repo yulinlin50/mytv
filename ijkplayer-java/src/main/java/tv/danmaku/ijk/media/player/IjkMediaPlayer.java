@@ -1366,7 +1366,7 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
             MediaCodecInfo[] codecInfos;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 @SuppressWarnings("deprecation")
-                MediaCodecList mediaCodecList = new MediaCodecList(MediaCodecList.ALL_CODECS);
+                MediaCodecList mediaCodecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
                 codecInfos = mediaCodecList.getCodecInfos();
             } else {
                 @SuppressWarnings("deprecation")
