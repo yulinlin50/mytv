@@ -1,0 +1,191 @@
+{
+  "description": "EPG 频道映射配置 - 用于手动指定频道与节目单的映射关系",
+  "usage": "当自动匹配失败时，可以在此手动配置频道名称到 EPG 频道名称的映射",
+  "mappings": [
+    {
+      "channel": "美亞電影台 (粵語)",
+      "epgName": "美亚电影",
+      "epgId": "meiyamovie"
+    },
+    {
+      "channel": "美亞電影台 (國語)",
+      "epgName": "美亚电影",
+      "epgId": "meiyamovie"
+    },
+    {
+      "channel": "美亞電影 HD",
+      "epgName": "美亚电影",
+      "epgId": "meiyamovie"
+    },
+    {
+      "channel": "美亞電影",
+      "epgName": "美亚电影",
+      "epgId": "meiyamovie"
+    },
+    {
+      "channel": "鳳凰衛視中文臺",
+      "epgName": "凤凰卫视中文台",
+      "epgId": "phoenixcn"
+    },
+    {
+      "channel": "鳳凰衛視資訊臺",
+      "epgName": "凤凰卫视资讯台",
+      "epgId": "phoenixinfo"
+    },
+    {
+      "channel": "廣東衛視 HD",
+      "epgName": "广东卫视",
+      "epgId": "gdtv1"
+    },
+    {
+      "channel": "廣東電視臺珠江頻道",
+      "epgName": "珠江频道",
+      "epgId": "gdtv2"
+    },
+    {
+      "channel": "湖南衛視 HD",
+      "epgName": "湖南卫视",
+      "epgId": "hntv"
+    },
+    {
+      "channel": "浙江衛視 HD",
+      "epgName": "浙江卫视",
+      "epgId": "zjtv"
+    },
+    {
+      "channel": "江蘇衛視 HD",
+      "epgName": "江苏卫视",
+      "epgId": "jstv"
+    },
+    {
+      "channel": "東方衛視 HD",
+      "epgName": "东方卫视",
+      "epgId": "dftv"
+    },
+    {
+      "channel": "北京衛視 HD",
+      "epgName": "北京卫视",
+      "epgId": "bjtv"
+    },
+    {
+      "channel": "山東衛視 HD",
+      "epgName": "山东卫视",
+      "epgId": "sdtv"
+    },
+    {
+      "channel": "深圳衛視 HD",
+      "epgName": "深圳卫视",
+      "epgId": "sztv"
+    },
+    {
+      "channel": "東南衛視 HD",
+      "epgName": "东南卫视",
+      "epgId": "fjtv"
+    },
+    {
+      "channel": "海峽衛視",
+      "epgName": "海峡卫视",
+      "epgId": "hx.tv"
+    },
+    {
+      "channel": "廈門衛視",
+      "epgName": "厦门卫视",
+      "epgId": "xmtv"
+    },
+    {
+      "channel": "香港衛視",
+      "epgName": "香港卫视",
+      "epgId": "hktv"
+    },
+    {
+      "channel": "ViuTV",
+      "epgName": "ViuTV",
+      "epgId": "viutv"
+    },
+    {
+      "channel": "HOY TV",
+      "epgName": "HOY TV",
+      "epgId": "hoytv"
+    },
+    {
+      "channel": "無綫新聞臺",
+      "epgName": "无线新闻台",
+      "epgId": "tvbnews"
+    },
+    {
+      "channel": "無綫財經體育資訊臺",
+      "epgName": "无线财经体育资讯台",
+      "epgId": "tvbfinance"
+    },
+    {
+      "channel": "翡翠臺",
+      "epgName": "翡翠台",
+      "epgId": "jade"
+    },
+    {
+      "channel": "明珠臺",
+      "epgName": "明珠台",
+      "epgId": "pearl"
+    },
+    {
+      "channel": "J2",
+      "epgName": "J2",
+      "epgId": "j2"
+    },
+    {
+      "channel": "TVB Plus",
+      "epgName": "TVB Plus",
+      "epgId": "tvbplus"
+    },
+    {
+      "channel": "鳳凰衛視香港臺",
+      "epgName": "凤凰卫视香港台",
+      "epgId": "phoenixhk"
+    },
+    {
+      "channel": "有線新聞臺",
+      "epgName": "有线新闻台",
+      "epgId": "i-cable news"
+    },
+    {
+      "channel": "有線財經資訊臺",
+      "epgName": "有线财经资讯台",
+      "epgId": "i-cable finance"
+    },
+    {
+      "channel": "now 新聞臺",
+      "epgName": "now 新闻台",
+      "epgId": "now news"
+    },
+    {
+      "channel": "now 直播臺",
+      "epgName": "now 直播台",
+      "epgId": "now live"
+    },
+    {
+      "channel": "now 劇集臺",
+      "epgName": "now 剧集台",
+      "epgId": "now drama"
+    },
+    {
+      "channel": "now 電影臺",
+      "epgName": "now 电影台",
+      "epgId": "now movie"
+    },
+    {
+      "channel": "HMC",
+      "epgName": "HMC",
+      "epgId": "hmc"
+    },
+    {
+      "channel": "HLS",
+      "epgName": "HLS",
+      "epgId": "hls"
+    },
+    {
+      "channel": "HSTV",
+      "epgName": "HSTV",
+      "epgId": "hstv"
+    }
+  ]
+}
