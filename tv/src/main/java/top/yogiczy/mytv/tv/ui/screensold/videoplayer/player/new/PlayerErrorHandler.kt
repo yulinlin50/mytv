@@ -95,6 +95,13 @@ class PlayerErrorHandler(
                 )
             }
             
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> {
+                PlayerErrorType.TimeoutError(
+                    errorCode = ex.errorCode,
+                    message = ex.message ?: "Connection timeout"
+                )
+            }
+            
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED -> {

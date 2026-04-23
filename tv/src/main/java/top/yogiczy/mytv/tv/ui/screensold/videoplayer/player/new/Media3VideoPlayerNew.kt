@@ -68,7 +68,7 @@ class Media3VideoPlayerNew(
     private var forcedContentType: Int? = null
     private var isFormatFallback = false
     private var retryCount = 0
-    private var hasAttemptedFormatFallback = false
+    private var lastUsedContentType: Int = C.CONTENT_TYPE_OTHER
     
     private val jobs = mutableListOf<Job>()
     private val jobsLock = Any()
@@ -129,11 +129,10 @@ class Media3VideoPlayerNew(
         currentChannelLine = line
         if (!isFormatFallback) {
             contentTypeAttempts.clear()
-            hasAttemptedFormatFallback = false
+            forcedContentType = null
+            retryCount = 0
         }
         isFormatFallback = false
-        forcedContentType = null
-        retryCount = 0
         
         updatePlaybackModeState(line)
         
@@ -297,6 +296,7 @@ class Media3VideoPlayerNew(
         }
         val uri = getCachedUri(uriString)
         val contentType = detectContentType(uriString)
+        lastUsedContentType = contentType
         val mediaItem = createMediaItem(uri, contentType)
         val dataSourceFactory = getDataSourceFactory()
         
@@ -560,8 +560,13 @@ class Media3VideoPlayerNew(
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> {
-                    if (!hasAttemptedFormatFallback) {
-                        hasAttemptedFormatFallback = true
+                    val hasMoreFormats = listOf(
+                        C.CONTENT_TYPE_OTHER,
+                        C.CONTENT_TYPE_HLS,
+                        C.CONTENT_TYPE_DASH
+                    ).any { contentTypeAttempts[it] != true }
+                    
+                    if (hasMoreFormats) {
                         handleParsingError(ex)
                     } else if (retryCount < MAX_RETRY_COUNT) {
                         retryPlayback()
@@ -591,7 +596,7 @@ class Media3VideoPlayerNew(
                     startPositionUpdate()
                 }
                 Player.STATE_ENDED -> {
-                    if (!playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
+                    if (retryCount < MAX_RETRY_COUNT && !playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
                 }
             }
         }
@@ -614,13 +619,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun handleParsingError(ex: androidx.media3.common.PlaybackException) {
-        val currentUriString = if (playbackModeState.get().isPlayback) {
-            currentChannelLine.url
-        } else {
-            currentChannelLine.playableUrl
-        }
-        val currentContentType = detectContentType(currentUriString)
-        contentTypeAttempts[currentContentType] = true
+        contentTypeAttempts[lastUsedContentType] = true
 
         when {
             contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true -> {
