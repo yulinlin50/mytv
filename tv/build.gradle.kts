@@ -156,6 +156,8 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.androidasync)
+    
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     implementation(libs.tinypinyin)
 

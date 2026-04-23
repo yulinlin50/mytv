@@ -2,15 +2,32 @@ package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.launch
 import androidx.media3.common.text.Cue
 
 class VideoPlayerStateManager(
     private val coroutineScope: CoroutineScope
 ) : IVideoPlayerState {
+    
+    private sealed class StateUpdate {
+        data class IsPlaying(val value: Boolean) : StateUpdate()
+        data class IsBuffering(val value: Boolean) : StateUpdate()
+        data class Error(val value: String?) : StateUpdate()
+        data class Duration(val value: Long) : StateUpdate()
+        data class CurrentPosition(val value: Long) : StateUpdate()
+        data class Metadata(val value: PlayerMetadata) : StateUpdate()
+        data class PlaybackMode(val isPlayback: Boolean, val startTime: Long, val endTime: Long) : StateUpdate()
+        data class Volume(val value: Float) : StateUpdate()
+        data class Cues(val value: List<Cue>) : StateUpdate()
+        object Reset : StateUpdate()
+    }
+    
+    private val updateChannel = Channel<StateUpdate>(Channel.UNLIMITED)
     
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -42,76 +59,79 @@ class VideoPlayerStateManager(
     private val _cues = MutableStateFlow<List<Cue>>(emptyList())
     val cues: StateFlow<List<Cue>> = _cues.asStateFlow()
     
-    fun updateIsPlaying(value: Boolean) {
+    init {
         coroutineScope.launch(Dispatchers.Main) {
-            _isPlaying.value = value
-        }
-    }
-    
-    fun updateIsBuffering(value: Boolean) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _isBuffering.value = value
-        }
-    }
-    
-    fun updateError(value: String?) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _error.value = value
-        }
-    }
-    
-    fun updateDuration(value: Long) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _duration.value = value
-        }
-    }
-    
-    fun updateCurrentPosition(value: Long) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _currentPosition.value = value
-        }
-    }
-    
-    fun updateMetadata(value: PlayerMetadata) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _metadata.value = value
-        }
-    }
-    
-    fun updatePlaybackMode(isPlayback: Boolean, startTime: Long, endTime: Long) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _isPlaybackMode.value = isPlayback
-            _playbackTimeRange.value = if (isPlayback && startTime > 0 && endTime > 0) {
-                Pair(startTime, endTime)
-            } else {
-                null
+            updateChannel.consumeAsFlow().collect { update ->
+                when (update) {
+                    is StateUpdate.IsPlaying -> _isPlaying.value = update.value
+                    is StateUpdate.IsBuffering -> _isBuffering.value = update.value
+                    is StateUpdate.Error -> _error.value = update.value
+                    is StateUpdate.Duration -> _duration.value = update.value
+                    is StateUpdate.CurrentPosition -> _currentPosition.value = update.value
+                    is StateUpdate.Metadata -> _metadata.value = update.value
+                    is StateUpdate.PlaybackMode -> {
+                        _isPlaybackMode.value = update.isPlayback
+                        _playbackTimeRange.value = if (update.isPlayback && update.startTime > 0 && update.endTime > 0) {
+                            Pair(update.startTime, update.endTime)
+                        } else {
+                            null
+                        }
+                    }
+                    is StateUpdate.Volume -> _volume.value = update.value
+                    is StateUpdate.Cues -> _cues.value = update.value
+                    is StateUpdate.Reset -> {
+                        _isPlaying.value = false
+                        _isBuffering.value = false
+                        _error.value = null
+                        _duration.value = 0L
+                        _currentPosition.value = 0L
+                        _metadata.value = PlayerMetadata()
+                        _isPlaybackMode.value = false
+                        _playbackTimeRange.value = null
+                        _cues.value = emptyList()
+                    }
+                }
             }
         }
     }
     
+    fun updateIsPlaying(value: Boolean) {
+        updateChannel.trySend(StateUpdate.IsPlaying(value))
+    }
+    
+    fun updateIsBuffering(value: Boolean) {
+        updateChannel.trySend(StateUpdate.IsBuffering(value))
+    }
+    
+    fun updateError(value: String?) {
+        updateChannel.trySend(StateUpdate.Error(value))
+    }
+    
+    fun updateDuration(value: Long) {
+        updateChannel.trySend(StateUpdate.Duration(value))
+    }
+    
+    fun updateCurrentPosition(value: Long) {
+        updateChannel.trySend(StateUpdate.CurrentPosition(value))
+    }
+    
+    fun updateMetadata(value: PlayerMetadata) {
+        updateChannel.trySend(StateUpdate.Metadata(value))
+    }
+    
+    fun updatePlaybackMode(isPlayback: Boolean, startTime: Long, endTime: Long) {
+        updateChannel.trySend(StateUpdate.PlaybackMode(isPlayback, startTime, endTime))
+    }
+    
     fun updateVolume(value: Float) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _volume.value = value
-        }
+        updateChannel.trySend(StateUpdate.Volume(value))
     }
     
     fun updateCues(value: List<Cue>) {
-        coroutineScope.launch(Dispatchers.Main) {
-            _cues.value = value
-        }
+        updateChannel.trySend(StateUpdate.Cues(value))
     }
 
     fun reset() {
-        coroutineScope.launch(Dispatchers.Main) {
-            _isPlaying.value = false
-            _isBuffering.value = false
-            _error.value = null
-            _duration.value = 0L
-            _currentPosition.value = 0L
-            _metadata.value = PlayerMetadata()
-            _isPlaybackMode.value = false
-            _playbackTimeRange.value = null
-            _cues.value = emptyList()
-        }
+        updateChannel.trySend(StateUpdate.Reset)
     }
 }

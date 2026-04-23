@@ -1,25 +1,22 @@
 package top.yogiczy.mytv.core.data.network
 
 import android.annotation.SuppressLint
+import android.util.Log
+import java.net.HttpURLConnection
+import java.security.KeyStore
 import java.security.cert.X509Certificate
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
-/**
- * 不安全的 SSL Socket Factory
- * 
- * 警告：此实现禁用了 SSL 证书验证，存在安全风险。
- * 仅应在以下情况使用：
- * 1. 开发/测试环境
- * 2. 需要访问自签名证书的直播源
- * 
- * 生产环境应使用 Network Security Config 或 Certificate Pinning
- * 
- * @see <a href="https://developer.android.com/training/articles/security-config">Network Security Config</a>
- */
 object TrustAllSSLSocketFactory {
-    @SuppressLint("CustomX509TrustManager")
-    val trustManager = object : X509TrustManager {
+    
+    private const val TAG = "TrustAllSSLSocketFactory"
+    
+    private val unsafeTrustManager = object : X509TrustManager {
         @SuppressLint("TrustAllX509TrustManager")
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
         }
@@ -32,10 +29,41 @@ object TrustAllSSLSocketFactory {
             return arrayOf()
         }
     }
-
-    val sslSocketFactory by lazy {
+    
+    private val safeTrustManager: X509TrustManager by lazy {
+        val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        factory.init(null as KeyStore?)
+        factory.trustManagers.filterIsInstance<X509TrustManager>().first()
+    }
+    
+    private val unsafeSslSocketFactory: SSLSocketFactory by lazy {
         val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, arrayOf(trustManager), null)
+        sslContext.init(null, arrayOf(unsafeTrustManager), null)
         sslContext.socketFactory!!
+    }
+    
+    fun getSSLSocketFactory(trustAll: Boolean): SSLSocketFactory {
+        return if (trustAll) {
+            Log.w(TAG, "Using unsafe SSL configuration - certificate validation disabled")
+            unsafeSslSocketFactory
+        } else {
+            SSLContext.getDefault().socketFactory
+        }
+    }
+    
+    fun getTrustManager(trustAll: Boolean): X509TrustManager {
+        return if (trustAll) {
+            unsafeTrustManager
+        } else {
+            safeTrustManager
+        }
+    }
+    
+    fun getHostnameVerifier(trustAll: Boolean): HostnameVerifier {
+        return if (trustAll) {
+            HostnameVerifier { _, _ -> true }
+        } else {
+            HttpsURLConnection.getDefaultHostnameVerifier()
+        }
     }
 }

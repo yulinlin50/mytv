@@ -3,8 +3,7 @@ package top.yogiczy.mytv.core.data.entities.epg
 import kotlinx.serialization.Serializable
 import top.yogiczy.mytv.core.data.entities.channel.Channel
 import top.yogiczy.mytv.core.data.utils.Logger
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
+import top.yogiczy.mytv.core.data.utils.UnifiedCacheManager
 import kotlin.time.measureTimedValue
 
 @Serializable
@@ -17,16 +16,10 @@ data class Epg(
     companion object {
         private val log = Logger.create("Epg")
         
-        private val recentProgrammeCache = ConcurrentHashMap<String, CacheEntry>()
         private data class CacheEntry(
-            val timestamp: Long,
             val result: EpgProgrammeRecent,
             val liveIndex: Int = -1
         )
-        private const val CACHE_DURATION_MS = 5_000L
-        private const val MAX_CACHE_SIZE = 200
-        private val trimLock = Any()
-        private val isTrimming = AtomicBoolean(false)
 
         fun Epg.recentProgramme(): EpgProgrammeRecent {
             if (this == Epg()) return EpgProgrammeRecent()
@@ -35,18 +28,11 @@ data class Epg(
             val cacheKey = channelList.firstOrNull() ?: ""
             val now = System.currentTimeMillis()
             
-            recentProgrammeCache[cacheKey]?.let { entry ->
-                if (now - entry.timestamp < CACHE_DURATION_MS) {
-                    return entry.result
-                }
-                
-                if (entry.liveIndex >= 0 && entry.liveIndex < programmeList.size) {
-                    val liveProg = programmeList[entry.liveIndex]
-                    if (now >= liveProg.startAt && now < liveProg.endAt) {
-                        recentProgrammeCache[cacheKey] = CacheEntry(now, entry.result, entry.liveIndex)
-                        return entry.result
-                    }
-                }
+            UnifiedCacheManager.get<CacheEntry>(
+                UnifiedCacheManager.CacheNames.RECENT_PROGRAMME, 
+                cacheKey
+            )?.let { entry ->
+                return entry.result
             }
 
             val t = measureTimedValue {
@@ -93,8 +79,11 @@ data class Epg(
                     next = sortedProgrammes.getOrNull(liveIndex + 1)
                 ).also {
                     if (cacheKey.isNotEmpty()) {
-                        recentProgrammeCache[cacheKey] = CacheEntry(now, it, liveIndex)
-                        trimCacheIfNeeded()
+                        UnifiedCacheManager.put(
+                            UnifiedCacheManager.CacheNames.RECENT_PROGRAMME,
+                            cacheKey,
+                            CacheEntry(it, liveIndex)
+                        )
                     }
                 }
                 else EpgProgrammeRecent()
@@ -104,38 +93,8 @@ data class Epg(
             return t.value
         }
         
-        private fun trimCacheIfNeeded() {
-            if (recentProgrammeCache.size <= MAX_CACHE_SIZE) return
-            
-            if (!isTrimming.compareAndSet(false, true)) return
-            
-            try {
-                synchronized(trimLock) {
-                    val currentSize = recentProgrammeCache.size
-                    if (currentSize <= MAX_CACHE_SIZE) return
-                    
-                    val targetSize = MAX_CACHE_SIZE / 2
-                    val entriesToRemove = currentSize - targetSize
-                    
-                    val sortedEntries = recentProgrammeCache.entries
-                        .sortedBy { it.value.timestamp }
-                        .take(entriesToRemove)
-                    
-                    sortedEntries.forEach { entry ->
-                        recentProgrammeCache.remove(entry.key, entry.value)
-                    }
-                    
-                    log.d("缓存清理: $currentSize -> ${recentProgrammeCache.size}")
-                }
-            } finally {
-                isTrimming.set(false)
-            }
-        }
-        
         fun clearRecentProgrammeCache() {
-            synchronized(trimLock) {
-                recentProgrammeCache.clear()
-            }
+            UnifiedCacheManager.clearCache(UnifiedCacheManager.CacheNames.RECENT_PROGRAMME)
         }
 
         fun example(channel: Channel): Epg {

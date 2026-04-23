@@ -69,19 +69,29 @@ fun Modifier.enhancedFocus(
         glowColor
     }
     
-    val infiniteTransition = rememberInfiniteTransition(label = "focus_animation")
-    val animatedProgress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(FocusDefaults.animationDuration, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "focus_progress"
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isFocused) 1f else 0f,
+        animationSpec = tween(300),
+        label = "focus_alpha"
     )
     
-    val animatedAlpha = if (enableAnimation && isFocused) {
-        0.6f + animatedProgress * 0.4f
+    val animatedProgress = if (enableAnimation && isFocused) {
+        val infiniteTransition = rememberInfiniteTransition(label = "focus_animation")
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(FocusDefaults.animationDuration, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "focus_progress"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+    
+    val finalAlpha = if (enableAnimation && isFocused) {
+        0.6f + animatedProgress.value * 0.4f
     } else if (isFocused) {
         1f
     } else {
@@ -99,7 +109,7 @@ fun Modifier.enhancedFocus(
                                 glowRadius.toPx(),
                                 0f,
                                 0f,
-                                actualGlowColor.copy(alpha = animatedAlpha).toArgb()
+                                actualGlowColor.copy(alpha = finalAlpha).toArgb()
                             )
                         }
                     }
@@ -120,9 +130,9 @@ fun Modifier.enhancedFocus(
             brush = Brush.linearGradient(
                 colors = if (isFocused) {
                     listOf(
-                        actualFocusColor.copy(alpha = animatedAlpha),
-                        actualFocusColor.copy(alpha = animatedAlpha * 0.8f),
-                        actualFocusColor.copy(alpha = animatedAlpha)
+                        actualFocusColor.copy(alpha = finalAlpha),
+                        actualFocusColor.copy(alpha = finalAlpha * 0.8f),
+                        actualFocusColor.copy(alpha = finalAlpha)
                     )
                 } else {
                     listOf(Color.Transparent, Color.Transparent, Color.Transparent)

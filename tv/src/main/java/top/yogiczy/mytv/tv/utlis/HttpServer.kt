@@ -52,8 +52,10 @@ object HttpServer : Loggable("HttpServer") {
 
     private var serverJob: Job? = null
     private val serverScope = CoroutineScope(Dispatchers.IO)
+    private var appContext: Context? = null
 
     fun start(context: Context) {
+        appContext = context.applicationContext
         serverJob = serverScope.launch {
             try {
                 val server = AsyncHttpServer()
@@ -193,8 +195,9 @@ object HttpServer : Loggable("HttpServer") {
     }
 
     private fun validateRequest(request: AsyncHttpServerRequest, response: AsyncHttpServerResponse): Boolean {
+        val context = appContext ?: return false
         val authHeader = request.headers.get("Authorization")
-        if (!HttpServerSecurity.validateToken(authHeader)) {
+        if (!HttpServerSecurity.validateToken(authHeader, context)) {
             responseError(response, 401, "Unauthorized: Invalid or missing token")
             return false
         }
@@ -243,25 +246,48 @@ object HttpServer : Loggable("HttpServer") {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
+        if (!validateRequest(request, response)) return
+        
         val body = request.getBody<JSONObjectBody>().get()
-        val name = body.get("name").toString()
-        val type = body.get("type").toString()
-        val url = body.get("url").toString()
-        val filePath = body.get("filePath").toString()
-        val content = body.get("content").toString()
-
+        val name = body.get("name")?.toString()?.trim()?.takeIf { 
+            it.isNotBlank() && it.length <= 100 
+        } ?: return responseError(response, 400, "Invalid name: must be non-empty and <= 100 characters")
+        
+        val type = body.get("type")?.toString()
+        if (type !in listOf("url", "file", "content")) {
+            return responseError(response, 400, "Invalid type: must be 'url', 'file', or 'content'")
+        }
+        
         var newIptvSource: IptvSource? = null
 
         when (type) {
             "url" -> {
+                val url = body.get("url")?.toString()?.trim()
+                if (url.isNullOrBlank() || url.length > 2000) {
+                    return responseError(response, 400, "Invalid URL: must be non-empty and <= 2000 characters")
+                }
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    return responseError(response, 400, "Invalid URL: must start with http:// or https://")
+                }
                 newIptvSource = IptvSource(name, url)
             }
 
             "file" -> {
+                val filePath = body.get("filePath")?.toString()?.trim()
+                if (filePath.isNullOrBlank()) {
+                    return responseError(response, 400, "Invalid file path")
+                }
                 newIptvSource = IptvSource(name, filePath, true)
             }
 
             "content" -> {
+                val content = body.get("content")?.toString()
+                if (content.isNullOrBlank()) {
+                    return responseError(response, 400, "Invalid content: must be non-empty")
+                }
+                if (content.length > 10 * 1024 * 1024) {
+                    return responseError(response, 413, "Content too large: maximum 10MB")
+                }
                 val file =
                     File(Globals.fileDir, "iptv_source_local_${System.currentTimeMillis()}.txt")
                 file.writeText(content)
@@ -282,9 +308,17 @@ object HttpServer : Loggable("HttpServer") {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
+        if (!validateRequest(request, response)) return
+        
         val body = request.getBody<JSONObjectBody>().get()
-        val name = body.get("name").toString()
-        val url = body.get("url").toString()
+        val name = body.get("name")?.toString()?.trim()?.takeIf { 
+            it.isNotBlank() && it.length <= 100 
+        } ?: return responseError(response, 400, "Invalid name")
+        
+        val url = body.get("url")?.toString()?.trim()
+        if (url.isNullOrBlank() || url.length > 2000) {
+            return responseError(response, 400, "Invalid URL")
+        }
 
         log.i("节目单推送已弃用，请在直播源中配置节目单")
 
@@ -301,7 +335,12 @@ object HttpServer : Loggable("HttpServer") {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
+        if (!validateRequest(request, response)) return
+        
         val alias = request.getBody<StringBody>().get()
+        if (alias.length > 1024 * 1024) {
+            return responseError(response, 413, "Alias content too large: maximum 1MB")
+        }
 
         ChannelAlias.aliasFile.writeText(alias)
         serverScope.launch {
@@ -323,13 +362,27 @@ object HttpServer : Loggable("HttpServer") {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
+        if (!validateRequest(request, response)) return
+        
         val body = request.getBody<JSONObjectBody>().get()
-        val configs = Globals.json.decodeFromString<Configs.Partial>(body.toString())
-        serverScope.launch(Dispatchers.Main) {
-            Configs.fromPartial(configs)
+        val bodyString = body.toString()
+        if (bodyString.length > 1024 * 1024) {
+            return responseError(response, 413, "Config data too large: maximum 1MB")
         }
-
-        responseSuccess(response)
+        
+        runCatching {
+            Globals.json.decodeFromString<Configs.Partial>(bodyString)
+        }.fold(
+            onSuccess = { configs ->
+                serverScope.launch(Dispatchers.Main) {
+                    Configs.fromPartial(configs)
+                }
+                responseSuccess(response)
+            },
+            onFailure = { error ->
+                responseError(response, 400, "Invalid config format: ${error.message}")
+            }
+        )
     }
 
     private fun handleUploadApk(
@@ -374,7 +427,13 @@ object HttpServer : Loggable("HttpServer") {
             body.dataEmitter.close()
             os.flush()
             os.close()
-            ApkInstaller.installApk(context, uploadedApkFile.path)
+            
+            val result = ApkInstaller.installApk(context, uploadedApkFile.path)
+            if (!result.success) {
+                serverScope.launch(Dispatchers.Main) {
+                    Snackbar.show("安装失败: ${result.error}", type = SnackbarType.ERROR)
+                }
+            }
         }
 
         responseSuccess(response)
@@ -384,15 +443,32 @@ object HttpServer : Loggable("HttpServer") {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
+        if (!validateRequest(request, response)) return
+        
+        val contentLength = request.headers["Content-Length"]?.toLong() ?: 0
+        if (contentLength <= 0) {
+            return responseError(response, 400, "Invalid content length")
+        }
+        if (contentLength > 100 * 1024 * 1024) {
+            return responseError(response, 413, "File too large: maximum 100MB")
+        }
+        
         val body = request.getBody<MultipartFormDataBody>()
-
-        val contentLength = request.headers["Content-Length"]?.toLong() ?: 1
         var hasReceived = 0L
+        var isValidFile = false
 
         val allinoneFile = File(Globals.fileDir, "uploads/allinone").apply { parentFile?.mkdirs() }
 
         body.setMultipartCallback { part ->
             if (part.isFile) {
+                val filename = part.name ?: ""
+                if (!filename.endsWith(".txt", ignoreCase = true) && 
+                    !filename.endsWith(".m3u", ignoreCase = true) &&
+                    !filename.endsWith(".m3u8", ignoreCase = true)) {
+                    return@setMultipartCallback
+                }
+                
+                isValidFile = true
                 with(allinoneFile.outputStream()) {
 
                     body.setDataCallback { _, bb ->
@@ -413,6 +489,13 @@ object HttpServer : Loggable("HttpServer") {
 
         body.setEndCallback {
             body.dataEmitter.close()
+            if (!isValidFile) {
+                serverScope.launch(Dispatchers.Main) {
+                    Snackbar.show("无效的文件类型，仅支持 .txt, .m3u, .m3u8", type = SnackbarType.ERROR, id = "uploading_file")
+                }
+                return@setEndCallback
+            }
+            
             serverScope.launch(Dispatchers.Main) {
                 Configs.feiyangAllInOneFilePath = allinoneFile.absolutePath
                 Snackbar.show("文件接收完成", id = "uploading_file")

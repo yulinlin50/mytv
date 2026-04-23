@@ -63,12 +63,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        _lastJob?.cancel()
-        instance = null
-    }
-
     fun init() {
         _lastJob?.cancel()
         _lastJob = viewModelScope.launch {
@@ -461,8 +455,9 @@ class MainViewModel : ViewModel() {
         needRefresh()
     }
 
-    companion object {
-        var instance: MainViewModel? = null
+    override fun onCleared() {
+        super.onCleared()
+        _lastJob?.cancel()
     }
 }
 
@@ -477,6 +472,4 @@ sealed interface MainUiState {
 }
 
 val mainVM: MainViewModel
-    @Composable get() = MainViewModel.instance ?: viewModel<MainViewModel>().also {
-        MainViewModel.instance = it
-    }
+    @Composable get() = viewModel()

@@ -8,23 +8,32 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @Stable
 class DebounceState internal constructor(
     @IntRange(from = 0) private val wait: Long,
     private val func: () -> Unit = {},
 ) {
-    fun send() {
-        channel.trySend(wait)
+    private var lastSendTime = 0L
+    private val mutex = Mutex()
+    
+    suspend fun send() {
+        val now = System.currentTimeMillis()
+        if (now - lastSendTime >= wait) {
+            mutex.withLock {
+                if (now - lastSendTime >= wait) {
+                    lastSendTime = now
+                    func()
+                }
+            }
+        }
     }
-
-    private val channel = Channel<Long>(Channel.CONFLATED)
-
-    @OptIn(FlowPreview::class)
-    suspend fun observe() {
-        channel.consumeAsFlow()
-            .debounce { it }
-            .collect { func() }
+    
+    fun sendImmediate() {
+        lastSendTime = System.currentTimeMillis()
+        func()
     }
 }
 
@@ -33,6 +42,7 @@ fun rememberDebounceState(
     @IntRange(from = 0) wait: Long,
     func: () -> Unit = {},
 ) = DebounceState(wait = wait, func = func).also {
-    LaunchedEffect(it) { it.observe() }
-    it.send()
+    LaunchedEffect(it) { 
+        it.send()
+    }
 }

@@ -196,67 +196,77 @@ fun rememberVideoPlayerStateNew(
     }
 
     LaunchedEffect(state) {
-        state.instance.state.isPlaying.collect { state.isPlaying = it }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.isBuffering
-            .collect { isBuffering ->
-                state.isBuffering = isBuffering
-                state.onIsBufferingListeners.forEach { it(isBuffering) }
+        kotlinx.coroutines.flow.combine(
+            state.instance.state.isPlaying,
+            state.instance.state.isBuffering,
+            state.instance.state.error,
+            state.instance.state.duration,
+            state.instance.state.currentPosition,
+            state.instance.state.metadata,
+            state.instance.state.isPlaybackMode,
+            state.instance.state.playbackTimeRange,
+            state.instance.state.volume
+        ) { isPlaying, isBuffering, error, duration, currentPosition, metadata, isPlaybackMode, playbackTimeRange, volume ->
+            StateBundle(
+                isPlaying = isPlaying,
+                isBuffering = isBuffering,
+                error = error,
+                duration = duration,
+                currentPosition = currentPosition,
+                metadata = metadata,
+                isPlaybackMode = isPlaybackMode,
+                playbackTimeRange = playbackTimeRange,
+                volume = volume
+            )
+        }.collect { bundle ->
+            state.isPlaying = bundle.isPlaying
+            state.isBuffering = bundle.isBuffering
+            state.onIsBufferingListeners.forEach { it(bundle.isBuffering) }
+            
+            state.error = bundle.error
+            if (bundle.error != null) {
+                state.onErrorListeners.forEach { it.invoke() }
             }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.error
-            .collect { error ->
-                state.error = error
-                if (error != null) {
-                    state.onErrorListeners.forEach { it.invoke() }
+            
+            state.duration = bundle.duration
+            state.currentPosition = bundle.currentPosition
+            
+            state.metadata = bundle.metadata
+            if (bundle.metadata.video?.width != null && bundle.metadata.video.height != null) {
+                if (bundle.metadata.video.width > 0 && bundle.metadata.video.height > 0) {
+                    state.aspectRatio = bundle.metadata.video.width.toFloat() / bundle.metadata.video.height
                 }
             }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.duration.collect { state.duration = it }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.currentPosition.collect { state.currentPosition = it }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.metadata
-            .collect { newMetadata ->
-                state.metadata = newMetadata
-
-                if (newMetadata.video?.width != null && newMetadata.video.height != null) {
-                    if (newMetadata.video.width > 0 && newMetadata.video.height > 0) {
-                        state.aspectRatio =
-                            newMetadata.video.width.toFloat() / newMetadata.video.height
-                    }
-                }
-
-                if (newMetadata.video != null) {
-                    state.onReadyListeners.forEach { it.invoke() }
-                    state.error = null
-                    state.displayMode = state.defaultDisplayModeProvider()
-                }
+            if (bundle.metadata.video != null) {
+                state.onReadyListeners.forEach { it.invoke() }
+                state.error = null
+                state.displayMode = state.defaultDisplayModeProvider()
             }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.isPlaybackMode.collect { state.isPlaybackMode = it }
-    }
-    LaunchedEffect(state) {
-        state.instance.state.playbackTimeRange
-            .collect { range ->
-                if (range != null) {
-                    state.playbackStartTime = range.first
-                    state.playbackEndTime = range.second
-                } else {
-                    state.playbackStartTime = 0L
-                    state.playbackEndTime = 0L
-                }
+            
+            state.isPlaybackMode = bundle.isPlaybackMode
+            if (bundle.playbackTimeRange != null) {
+                state.playbackStartTime = bundle.playbackTimeRange.first
+                state.playbackEndTime = bundle.playbackTimeRange.second
+            } else {
+                state.playbackStartTime = 0L
+                state.playbackEndTime = 0L
             }
+            
+            state._volume = bundle.volume
+        }
     }
-    LaunchedEffect(state) {
-        state.instance.state.volume.collect { state._volume = it }
-    }
+    
+    private data class StateBundle(
+        val isPlaying: Boolean,
+        val isBuffering: Boolean,
+        val error: String?,
+        val duration: Long,
+        val currentPosition: Long,
+        val metadata: PlayerMetadata,
+        val isPlaybackMode: Boolean,
+        val playbackTimeRange: Pair<Long, Long>?,
+        val volume: Float
+    )
     
     DisposableEffect(lifecycleOwner, videoPlayerCore) {
         val observer = LifecycleEventObserver { _, event ->

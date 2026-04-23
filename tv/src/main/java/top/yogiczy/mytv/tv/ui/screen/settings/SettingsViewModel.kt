@@ -740,13 +740,7 @@ class SettingsViewModel : ViewModel() {
         _channelAudioTrackMemory = Configs.channelAudioTrackMemory
         _audioTrackSortMode = Configs.audioTrackSortMode
     }
-
-    companion object {
-        var instance: SettingsViewModel? = null
-    }
 }
 
 val settingsVM: SettingsViewModel
-    @Composable get() = SettingsViewModel.instance ?: viewModel<SettingsViewModel>().also {
-        SettingsViewModel.instance = it
-    }
+    @Composable get() = viewModel()

@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.core.data.network
 
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -13,35 +14,84 @@ import okhttp3.Response
 import okhttp3.ResponseBody
 import okhttp3.internal.closeQuietly
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
 
 object HttpClient {
+    
+    private const val TAG = "HttpClient"
+    
+    enum class SslMode {
+        SAFE,
+        TRUST_ALL
+    }
+    
+    private val clients = ConcurrentHashMap<SslMode, OkHttpClient>()
+    
+    private var _defaultSslMode: SslMode = SslMode.TRUST_ALL
+    
+    val defaultSslMode: SslMode
+        get() = _defaultSslMode
+    
+    fun setDefaultSslMode(mode: SslMode) {
+        _defaultSslMode = mode
+        Log.i(TAG, "Default SSL mode set to: $mode")
+    }
+    
+    fun getSharedClient(sslMode: SslMode = _defaultSslMode): OkHttpClient {
+        return clients.getOrPut(sslMode) {
+            createClient(sslMode)
+        }
+    }
+    
     val sharedClient: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .sslSocketFactory(
-                TrustAllSSLSocketFactory.sslSocketFactory,
-                TrustAllSSLSocketFactory.trustManager
-            )
-            .hostnameVerifier { _, _ -> true }
-            .followRedirects(true)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
+        getSharedClient(_defaultSslMode)
     }
     
     val epgClient: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .sslSocketFactory(
-                TrustAllSSLSocketFactory.sslSocketFactory,
-                TrustAllSSLSocketFactory.trustManager
-            )
-            .hostnameVerifier { _, _ -> true }
+        createEpgClient(_defaultSslMode)
+    }
+    
+    private fun createClient(sslMode: SslMode): OkHttpClient {
+        val trustAll = sslMode == SslMode.TRUST_ALL
+        
+        return OkHttpClient.Builder()
+            .apply {
+                if (trustAll) {
+                    sslSocketFactory(
+                        TrustAllSSLSocketFactory.getSSLSocketFactory(true),
+                        TrustAllSSLSocketFactory.getTrustManager(true)
+                    )
+                    hostnameVerifier(TrustAllSSLSocketFactory.getHostnameVerifier(true))
+                    Log.w(TAG, "Created OkHttpClient with SSL verification disabled")
+                }
+            }
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)
+            .build()
+    }
+    
+    private fun createEpgClient(sslMode: SslMode): OkHttpClient {
+        val trustAll = sslMode == SslMode.TRUST_ALL
+        
+        return OkHttpClient.Builder()
+            .apply {
+                if (trustAll) {
+                    sslSocketFactory(
+                        TrustAllSSLSocketFactory.getSSLSocketFactory(true),
+                        TrustAllSSLSocketFactory.getTrustManager(true)
+                    )
+                    hostnameVerifier(TrustAllSSLSocketFactory.getHostnameVerifier(true))
+                    Log.w(TAG, "Created EpgClient with SSL verification disabled")
+                }
+            }
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .followRedirects(true)
             .build()
     }
 }

@@ -160,6 +160,8 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     private int mListenerContext;
     private SurfaceHolder mSurfaceHolder;
     private EventHandler mEventHandler;
+    private final Object mEventHandlerLock = new Object();
+    private volatile boolean mIsReleased = false;
     private PowerManager.WakeLock mWakeLock = null;
     private boolean mScreenOnWhilePlaying;
     private boolean mStayAwake;
@@ -201,14 +203,46 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
                 if (libLoader == null)
                     libLoader = sLocalLibLoader;
 
-                libLoader.loadLibrary("wsrtcsdk");
-                libLoader.loadLibrary("ijkffmpeg");
-                libLoader.loadLibrary("ijksdl");
-                libLoader.loadLibrary("ijkplayer");
-                libLoader.loadLibrary("RtsSDK");
-                mIsLibLoaded = true;
+                java.util.List<String> loadedLibraries = new java.util.ArrayList<>();
+                try {
+                    String[] libraries = {
+                        "wsrtcsdk",
+                        "ijkffmpeg",
+                        "ijksdl",
+                        "ijkplayer",
+                        "RtsSDK"
+                    };
+                    
+                    for (String lib : libraries) {
+                        try {
+                            libLoader.loadLibrary(lib);
+                            loadedLibraries.add(lib);
+                            Log.i(TAG, "Loaded library: " + lib);
+                        } catch (UnsatisfiedLinkError e) {
+                            Log.w(TAG, "Failed to load library: " + lib + ", " + e.getMessage());
+                            if (lib.equals("ijkffmpeg") || lib.equals("ijkplayer") || lib.equals("ijksdl")) {
+                                throw e;
+                            }
+                        }
+                    }
+                    
+                    mIsLibLoaded = true;
+                    Log.i(TAG, "All core libraries loaded successfully");
+                    
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e(TAG, "Failed to load core native libraries", e);
+                    mIsLibLoaded = false;
+                    throw new RuntimeException(
+                        "Failed to load IJK player native libraries. " +
+                        "Loaded: " + loadedLibraries + ", " +
+                        "Failed: " + e.getMessage(), e);
+                }
             }
         }
+    }
+
+    public static boolean isLibraryLoaded() {
+        return mIsLibLoaded;
     }
 
     private static void initNativeOnce() {
@@ -248,13 +282,17 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
         }
 
         if (what == MEDIA_INFO && arg1 == MEDIA_INFO_STARTED_AS_NEXT) {
-            // this acquires the wakelock if needed, and sets the client side
-            // state
             mp.start();
         }
-        if (mp.mEventHandler != null) {
-            Message m = mp.mEventHandler.obtainMessage(what, arg1, arg2, obj);
-            mp.mEventHandler.sendMessage(m);
+        
+        EventHandler handler;
+        synchronized (mp.mEventHandlerLock) {
+            handler = mp.mEventHandler;
+        }
+        
+        if (handler != null) {
+            Message m = handler.obtainMessage(what, arg1, arg2, obj);
+            handler.sendMessage(m);
         }
     }
 
@@ -670,6 +708,9 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
 
     @SuppressLint("Wakelock")
     private void stayAwake(boolean awake) {
+        if (mIsReleased) {
+            return;
+        }
         if (mWakeLock != null) {
             if (awake && !mWakeLock.isHeld()) {
                 mWakeLock.acquire();
@@ -730,12 +771,20 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     // experimental, should set DEFAULT_MIN_FRAMES and MAX_MIN_FRAMES to 25
     // TODO: @Override
     public void selectTrack(int track) {
+        ITrackInfo[] tracks = getTrackInfo();
+        if (tracks == null || track < 0 || track >= tracks.length) {
+            throw new IllegalArgumentException("Invalid track index: " + track);
+        }
         _setStreamSelected(track, true);
     }
 
     // experimental, should set DEFAULT_MIN_FRAMES and MAX_MIN_FRAMES to 25
     // TODO: @Override
     public void deselectTrack(int track) {
+        ITrackInfo[] tracks = getTrackInfo();
+        if (tracks == null || track < 0 || track >= tracks.length) {
+            throw new IllegalArgumentException("Invalid track index: " + track);
+        }
         _setStreamSelected(track, false);
     }
 
@@ -765,7 +814,20 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     public native boolean isPlaying();
 
     @Override
-    public native void seekTo(long msec) throws IllegalStateException;
+    public void seekTo(long msec) throws IllegalStateException {
+        if (msec < 0) {
+            throw new IllegalArgumentException("Seek position cannot be negative: " + msec);
+        }
+        
+        long duration = getDuration();
+        if (duration > 0 && msec > duration) {
+            msec = duration;
+        }
+        
+        _seekTo(msec);
+    }
+    
+    private native void _seekTo(long msec) throws IllegalStateException;
 
     @Override
     public native long getCurrentPosition();
@@ -791,6 +853,10 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
      */
     @Override
     public void release() {
+        if (mIsReleased) {
+            return;
+        }
+        mIsReleased = true;
         stayAwake(false);
         updateSurfaceScreenOn();
         resetListeners();
@@ -839,7 +905,14 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
 
     private native int _getLoopCount();
 
+    private static final float MIN_PLAYBACK_SPEED = 0.25f;
+    private static final float MAX_PLAYBACK_SPEED = 4.0f;
+
     public void setSpeed(float speed) {
+        if (speed < MIN_PLAYBACK_SPEED || speed > MAX_PLAYBACK_SPEED) {
+            throw new IllegalArgumentException(
+                "Speed must be between " + MIN_PLAYBACK_SPEED + " and " + MAX_PLAYBACK_SPEED + ", got: " + speed);
+        }
         _setPropertyFloat(FFP_PROP_FLOAT_PLAYBACK_RATE, speed);
     }
 
@@ -944,7 +1017,16 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
     }
 
     @Override
-    public native void setVolume(float leftVolume, float rightVolume);
+    public void setVolume(float leftVolume, float rightVolume) {
+        if (leftVolume < 0.0f || leftVolume > 1.0f ||
+            rightVolume < 0.0f || rightVolume > 1.0f) {
+            throw new IllegalArgumentException(
+                "Volume must be between 0.0 and 1.0, got: left=" + leftVolume + ", right=" + rightVolume);
+        }
+        _setVolume(leftVolume, rightVolume);
+    }
+    
+    private native void _setVolume(float leftVolume, float rightVolume);
 
     @Override
     public native int getAudioSessionId();
@@ -1073,8 +1155,11 @@ public final class IjkMediaPlayer extends AbstractMediaPlayer {
         mOnMediaCodecSelectListener = listener;
     }
 
+    @Override
     public void resetListeners() {
         super.resetListeners();
+        mOnControlMessageListener = null;
+        mOnNativeInvokeListener = null;
         mOnMediaCodecSelectListener = null;
     }
 
