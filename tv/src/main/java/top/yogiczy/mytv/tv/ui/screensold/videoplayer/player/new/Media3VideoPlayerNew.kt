@@ -304,8 +304,7 @@ class Media3VideoPlayerNew(
             C.CONTENT_TYPE_HLS -> createHlsMediaSource(mediaItem, dataSourceFactory)
             C.CONTENT_TYPE_DASH -> createDashMediaSource(mediaItem, dataSourceFactory)
             C.CONTENT_TYPE_RTSP -> RtspMediaSource.Factory().createMediaSource(mediaItem)
-            C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory)
-                .setExtractorsFactory { extractorsFactory }
+            C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory, extractorsFactory)
                 .createMediaSource(mediaItem)
             else -> {
                 errorHandler.handleError(
@@ -555,7 +554,7 @@ class Media3VideoPlayerNew(
             when (ex.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> handleBehindLiveWindowError()
                 androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                    if (retryCount <= MAX_RETRY_COUNT) retryPlayback()
+                    if (retryCount < MAX_RETRY_COUNT) retryPlayback()
                     else errorHandler.handleMedia3Error(ex)
                 }
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
@@ -564,7 +563,7 @@ class Media3VideoPlayerNew(
                     if (!hasAttemptedFormatFallback) {
                         hasAttemptedFormatFallback = true
                         handleParsingError(ex)
-                    } else if (retryCount <= MAX_RETRY_COUNT) {
+                    } else if (retryCount < MAX_RETRY_COUNT) {
                         retryPlayback()
                     } else {
                         errorHandler.handleMedia3Error(ex)
