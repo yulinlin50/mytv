@@ -33,19 +33,22 @@ object FsUtil {
     ): Long {
         var totalSize = 0L
         val stack = ArrayDeque<File>()
-        stack.push(rootDir)
+        stack.add(rootDir)
         
         while (stack.isNotEmpty()) {
-            val current = stack.pop()
+            val current = stack.removeLast()
             
             try {
-                current.listFiles()?.forEach { file ->
-                    if (file.isFile) {
-                        val size = file.length()
-                        totalSize += size
-                        onProgress(size)
-                    } else if (file.isDirectory && file.canRead()) {
-                        stack.push(file)
+                val files = current.listFiles()
+                if (files != null) {
+                    for (file in files) {
+                        if (file.isFile) {
+                            val size = file.length()
+                            totalSize += size
+                            onProgress(size)
+                        } else if (file.isDirectory && file.canRead()) {
+                            stack.add(file)
+                        }
                     }
                 }
             } catch (e: SecurityException) {

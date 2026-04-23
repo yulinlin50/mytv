@@ -51,7 +51,7 @@ object ApkInstaller {
             
             val info = pm.getPackageArchiveInfo(filePath, flags) ?: return null
             
-            val appInfo = info.applicationInfo
+            val appInfo = info.applicationInfo ?: return null
             appInfo.sourceDir = filePath
             appInfo.publicSourceDir = filePath
             
