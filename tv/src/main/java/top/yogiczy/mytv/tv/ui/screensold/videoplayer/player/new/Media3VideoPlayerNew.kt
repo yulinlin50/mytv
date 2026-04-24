@@ -596,7 +596,7 @@ class Media3VideoPlayerNew(
                     startPositionUpdate()
                 }
                 Player.STATE_ENDED -> {
-                    if (!playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
+                    if (retryCount < MAX_RETRY_COUNT && !playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
                 }
             }
         }
