@@ -550,12 +550,10 @@ class Media3VideoPlayerNew(
         }
         
         override fun onPlayerError(ex: androidx.media3.common.PlaybackException) {
-            retryCount++
             when (ex.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> handleBehindLiveWindowError()
                 androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                    if (retryCount < MAX_RETRY_COUNT) retryPlayback()
-                    else errorHandler.handleMedia3Error(ex)
+                    retryPlayback()
                 }
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
@@ -568,10 +566,8 @@ class Media3VideoPlayerNew(
                     
                     if (hasMoreFormats) {
                         handleParsingError(ex)
-                    } else if (retryCount < MAX_RETRY_COUNT) {
-                        retryPlayback()
                     } else {
-                        errorHandler.handleMedia3Error(ex)
+                        retryPlayback()
                     }
                 }
                 androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
@@ -654,7 +650,13 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        // Retry boundary is checked in onPlayerError(); other callers (live reconnect) should not be throttled
+        if (retryCount >= MAX_RETRY_COUNT) {
+            errorHandler.handleError(
+                PlayerErrorType.UnknownError(errorCode = 10005, message = "重试次数已用尽")
+            )
+            return
+        }
+        retryCount++
         coroutineScope.launch {
             delay(1000L * retryCount)
             if (!isReleased.get()) {
