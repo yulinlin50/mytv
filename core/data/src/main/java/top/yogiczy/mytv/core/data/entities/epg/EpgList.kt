@@ -217,6 +217,7 @@ data class EpgList(
          */
         private fun EpgList.matchGlobally(channel: Channel): Epg? {
             val idIndex = getIdIndex()
+            val channelTrieIndex = getChannelTrieIndex()
             
             // 尝试全局映射
             EpgChannelMapping.findMapping(channel.name)?.let { mapping ->
@@ -224,8 +225,8 @@ data class EpgList(
                     matchByEpgId(epgId, null, idIndex)?.let { return it }
                 }
                 if (mapping.epgName.isNotEmpty()) {
-                    getChannelTrieIndex().exactMatch(mapping.epgName)?.let { return it }
-                    getChannelTrieIndex().normalizedMatch(mapping.epgName)?.firstOrNull()?.let { return it }
+                    channelTrieIndex.exactMatch(mapping.epgName)?.let { return it }
+                    channelTrieIndex.normalizedMatch(mapping.epgName)?.firstOrNull()?.let { return it }
                 }
             }
             
@@ -233,7 +234,7 @@ data class EpgList(
             matchByEpgId(channel.epgId, null, idIndex)?.let { return it }
             
             // 按 Trie 索引匹配
-            matchByTrieIndex(channel, getChannelTrieIndex())?.let { return it }
+            matchByTrieIndex(channel, channelTrieIndex)?.let { return it }
             
             return null
         }
