@@ -40,10 +40,14 @@ import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.SocketException
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 object HttpServer : Loggable("HttpServer") {
     private const val SERVER_PORT = 10481
+    private const val MAX_RETRY_COUNT = 3
+    private const val RETRY_DELAY_BASE_MS = 1000L
+    
     private val uploadedApkFile by lazy {
         File(Globals.cacheDir, "uploaded_apk.apk").apply { deleteOnExit() }
     }
@@ -53,119 +57,163 @@ object HttpServer : Loggable("HttpServer") {
     private var serverJob: Job? = null
     private val serverScope = CoroutineScope(Dispatchers.IO)
     private var appContext: Context? = null
+    
+    private var currentServer: AsyncHttpServer? = null
+    private val isRunning = AtomicBoolean(false)
+    private val isStarting = AtomicBoolean(false)
+    private var retryCount = 0
 
     fun start(context: Context) {
+        if (isStarting.get() || isRunning.get()) {
+            log.i("设置服务已在运行或正在启动中")
+            return
+        }
+        
         appContext = context.applicationContext
+        isStarting.set(true)
+        retryCount = 0
+        
         serverJob = serverScope.launch {
-            try {
-                val server = AsyncHttpServer()
+            while (retryCount < MAX_RETRY_COUNT && !isRunning.get()) {
+                try {
+                    stop()
+                    
+                    val server = AsyncHttpServer()
+                    currentServer = server
 
-                server.addAction("OPTIONS", ".+") { _, response ->
-                    wrapResponse(response)
-                    response.send("ok")
-                }
-
-                server.listen(AsyncServer.getDefault(), SERVER_PORT)
-
-                server.get("/") { _, response ->
-                    handleRawResource(response, context, "text/html", R.raw.web_push)
-                }
-                server.get("/web_push_css.css") { _, response ->
-                    handleRawResource(response, context, "text/css", R.raw.web_push_css)
-                }
-                server.get("/web_push_js.js") { _, response ->
-                    handleRawResource(response, context, "text/javascript", R.raw.web_push_js)
-                }
-
-                server.get("/advance") { _, response ->
-                    handleAssets(response, context, "text/html", "remote-configs/index.html")
-                }
-
-                server.get("/remote-configs/(.*)") { request, response ->
-                    val contentType = when (request.path.split(".").last()) {
-                        "css" -> "text/css"
-                        "js" -> "text/javascript"
-                        "html" -> "text/html"
-                        "json" -> "application/json"
-                        "svg" -> "image/svg+xml"
-                        "png" -> "image/png"
-                        else -> "text/plain"
+                    server.addAction("OPTIONS", ".+") { _, response ->
+                        wrapResponse(response)
+                        response.send("ok")
                     }
 
-                    handleAssets(response, context, contentType, request.path.removePrefix("/"))
-                }
+                    server.listen(AsyncServer.getDefault(), SERVER_PORT)
 
-                server.get("/api/info") { _, response ->
-                    handleGetInfo(response)
-                }
+                    server.get("/") { _, response ->
+                        handleRawResource(response, context, "text/html", R.raw.web_push)
+                    }
+                    server.get("/web_push_css.css") { _, response ->
+                        handleRawResource(response, context, "text/css", R.raw.web_push_css)
+                    }
+                    server.get("/web_push_js.js") { _, response ->
+                        handleRawResource(response, context, "text/javascript", R.raw.web_push_js)
+                    }
 
-                server.post("/api/iptv-source/push") { request, response ->
-                    handleIptvSourcePush(request, response)
-                }
+                    server.get("/advance") { _, response ->
+                        handleAssets(response, context, "text/html", "remote-configs/index.html")
+                    }
 
-                server.post("/api/epg-source/push") { request, response ->
-                    handleEpgSourcePush(request, response)
-                }
+                    server.get("/remote-configs/(.*)") { request, response ->
+                        val contentType = when (request.path.split(".").last()) {
+                            "css" -> "text/css"
+                            "js" -> "text/javascript"
+                            "html" -> "text/html"
+                            "json" -> "application/json"
+                            "svg" -> "image/svg+xml"
+                            "png" -> "image/png"
+                            else -> "text/plain"
+                        }
 
-                server.get("/api/channel-alias") { _, response ->
-                    handleGetChannelAlias(response)
-                }
+                        handleAssets(response, context, contentType, request.path.removePrefix("/"))
+                    }
 
-                server.post("/api/channel-alias") { request, response ->
-                    handleUpdateChannelAlias(request, response)
-                }
+                    server.get("/api/info") { _, response ->
+                        handleGetInfo(response)
+                    }
 
-                server.get("/api/configs") { _, response ->
-                    handleConfigsGet(response)
-                }
+                    server.post("/api/iptv-source/push") { request, response ->
+                        handleIptvSourcePush(request, response)
+                    }
 
-                server.post("/api/configs") { request, response ->
-                    handleConfigsPush(request, response)
-                }
+                    server.post("/api/epg-source/push") { request, response ->
+                        handleEpgSourcePush(request, response)
+                    }
 
-                server.post("/api/upload/apk") { request, response ->
-                    handleUploadApk(request, response, context)
-                }
+                    server.get("/api/channel-alias") { _, response ->
+                        handleGetChannelAlias(response)
+                    }
 
-                server.get("/api/cloud-sync/data") { _, response ->
-                    handleCloudSyncDataGet(response)
-                }
+                    server.post("/api/channel-alias") { request, response ->
+                        handleUpdateChannelAlias(request, response)
+                    }
 
-                server.post("/api/cloud-sync/data") { request, response ->
-                    handleCloudSyncDataPost(request, response)
-                }
+                    server.get("/api/configs") { _, response ->
+                        handleConfigsGet(response)
+                    }
 
-                server.get("/api/about") { _, response ->
-                    handleAboutGet(response)
-                }
+                    server.post("/api/configs") { request, response ->
+                        handleConfigsPush(request, response)
+                    }
 
-                server.get("/api/logs") { _, response ->
-                    handleLogsGet(response)
-                }
+                    server.post("/api/upload/apk") { request, response ->
+                        handleUploadApk(request, response, context)
+                    }
 
-                server.get("/api/file/content") { request, response ->
-                    handleFileContentGet(request, response)
-                }
+                    server.get("/api/cloud-sync/data") { _, response ->
+                        handleCloudSyncDataGet(response)
+                    }
 
-                server.post("/api/file/content") { request, response ->
-                    handleFileContentPost(request, response)
-                }
+                    server.post("/api/cloud-sync/data") { request, response ->
+                        handleCloudSyncDataPost(request, response)
+                    }
 
-                server.post("/api/file/content-with-dir") { request, response ->
-                    handleFileContentWithDirPost(request, response)
-                }
+                    server.get("/api/about") { _, response ->
+                        handleAboutGet(response)
+                    }
 
-                server.post("/api/upload/allinone") { request, response ->
-                    handleUploadAllInOne(request, response)
-                }
+                    server.get("/api/logs") { _, response ->
+                        handleLogsGet(response)
+                    }
 
-                log.i("设置服务已启动: $serverUrl")
-            } catch (ex: Exception) {
-                log.e("设置服务启动失败: ${ex.message}", ex)
-                launch(Dispatchers.Main) {
-                    Snackbar.show("设置服务启动失败", type = SnackbarType.ERROR)
+                    server.get("/api/file/content") { request, response ->
+                        handleFileContentGet(request, response)
+                    }
+
+                    server.post("/api/file/content") { request, response ->
+                        handleFileContentPost(request, response)
+                    }
+
+                    server.post("/api/file/content-with-dir") { request, response ->
+                        handleFileContentWithDirPost(request, response)
+                    }
+
+                    server.post("/api/upload/allinone") { request, response ->
+                        handleUploadAllInOne(request, response)
+                    }
+
+                    isRunning.set(true)
+                    isStarting.set(false)
+                    retryCount = 0
+                    
+                    log.i("设置服务已启动: $serverUrl")
+                } catch (ex: java.net.BindException) {
+                    log.e("端口 $SERVER_PORT 已被占用，尝试重试 (${retryCount + 1}/$MAX_RETRY_COUNT)")
+                    handleStartupFailure(ex, "端口已被占用")
+                } catch (ex: java.net.SocketException) {
+                    log.e("网络异常，尝试重试 (${retryCount + 1}/$MAX_RETRY_COUNT)")
+                    handleStartupFailure(ex, "网络异常")
+                } catch (ex: Exception) {
+                    log.e("设置服务启动失败: ${ex.message}", ex)
+                    handleStartupFailure(ex, "启动失败")
                 }
             }
+            
+            if (!isRunning.get()) {
+                isStarting.set(false)
+                launch(Dispatchers.Main) {
+                    Snackbar.show("设置服务启动失败，请检查网络或重启应用", type = SnackbarType.ERROR)
+                }
+            }
+        }
+    }
+    
+    private suspend fun handleStartupFailure(ex: Exception, message: String) {
+        stop()
+        retryCount++
+        
+        if (retryCount < MAX_RETRY_COUNT) {
+            val delayMs = RETRY_DELAY_BASE_MS * (1 shl (retryCount - 1))
+            log.i("将在 ${delayMs}ms 后重试...")
+            kotlinx.coroutines.delay(delayMs)
         }
     }
 
@@ -686,6 +734,28 @@ object HttpServer : Loggable("HttpServer") {
             return defaultIp
         }
     }
+
+    fun stop() {
+        log.i("正在停止设置服务...")
+        isStarting.set(false)
+        
+        runCatching {
+            currentServer?.stop()
+            currentServer = null
+        }.onFailure { log.e("停止服务器失败: ${it.message}", it) }
+        
+        runCatching {
+            AsyncServer.getDefault().stop()
+        }.onFailure { log.e("停止AsyncServer失败: ${it.message}", it) }
+        
+        serverJob?.cancel()
+        serverJob = null
+        isRunning.set(false)
+        
+        log.i("设置服务已停止")
+    }
+    
+    fun isRunning(): Boolean = isRunning.get()
 
     fun startService(context: Context) {
         runCatching {

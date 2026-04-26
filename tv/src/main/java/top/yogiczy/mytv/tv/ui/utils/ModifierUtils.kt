@@ -470,3 +470,9 @@ fun Modifier.saveFocusRestorer(onRestoreFailed: (() -> FocusRequester)? = null):
 }
 
 fun FocusRequester.saveRequestFocus() = runCatching { requestFocus() }
+
+fun Modifier.focusDebugLog(tag: String): Modifier = composed {
+    this.onFocusChanged { state ->
+        android.util.Log.d("FocusDebug", "[$tag] isFocused=${state.isFocused}, hasFocus=${state.hasFocus}")
+    }
+}

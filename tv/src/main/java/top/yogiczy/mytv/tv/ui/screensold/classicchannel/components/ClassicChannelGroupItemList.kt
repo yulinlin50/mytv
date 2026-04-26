@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,7 +18,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -34,9 +32,11 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroup
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList
+import top.yogiczy.mytv.tv.ui.material.LazyListDirection
+import top.yogiczy.mytv.tv.ui.material.items
+import top.yogiczy.mytv.tv.ui.material.rememberLazyListRuntime
 import top.yogiczy.mytv.tv.ui.material.rememberDebounceState
 import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
 import top.yogiczy.mytv.tv.ui.theme.MyTvTheme
@@ -44,7 +44,6 @@ import top.yogiczy.mytv.tv.ui.utils.focusOnLaunchedSaveable
 import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
 import top.yogiczy.mytv.tv.ui.utils.ifElse
 import top.yogiczy.mytv.tv.ui.utils.saveFocusRestorer
-import top.yogiczy.mytv.tv.ui.utils.saveRequestFocus
 import kotlin.math.max
 
 @Composable
@@ -57,14 +56,19 @@ fun ClassicChannelGroupItemList(
 ) {
     val channelGroupList = channelGroupListProvider()
     val initialChannelGroup = initialChannelGroupProvider()
-    val itemFocusRequesterList = remember(channelGroupList) { List(channelGroupList.size) { FocusRequester() } }
-
+    
     var focusedChannelGroup by remember { mutableStateOf(initialChannelGroup) }
     val onChannelGroupFocusedDebounce = rememberDebounceState(wait = 100L) {
         onChannelGroupFocused(focusedChannelGroup)
     }
 
     val listState = rememberLazyListState(max(0, channelGroupList.indexOf(initialChannelGroup) - 2))
+    val runtime = rememberLazyListRuntime(
+        itemCount = channelGroupList.size,
+        direction = LazyListDirection.Vertical,
+        listState = listState,
+    )
+    
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }
             .distinctUntilChanged()
@@ -72,23 +76,6 @@ fun ClassicChannelGroupItemList(
                 onUserAction()
                 onChannelGroupFocusedDebounce.send()
             }
-    }
-
-    val coroutineScope = rememberCoroutineScope()
-    val firstFocusRequester = remember { FocusRequester() }
-    val lastFocusRequester = remember { FocusRequester() }
-    fun scrollToFirst() {
-        coroutineScope.launch {
-            listState.scrollToItem(0)
-            firstFocusRequester.saveRequestFocus()
-        }
-    }
-
-    fun scrollToLast() {
-        coroutineScope.launch {
-            listState.scrollToItem(channelGroupList.lastIndex)
-            lastFocusRequester.saveRequestFocus()
-        }
     }
 
     LazyColumn(
@@ -99,32 +86,18 @@ fun ClassicChannelGroupItemList(
             .ifElse(
                 settingsVM.uiFocusOptimize,
                 Modifier.saveFocusRestorer {
-                    itemFocusRequesterList.getOrElse(channelGroupList.indexOf(focusedChannelGroup)) { FocusRequester.Default }
+                    runtime.itemFocusRequesters.getOrElse(channelGroupList.indexOf(focusedChannelGroup)) { FocusRequester.Default }
                 },
             ),
         state = listState,
         contentPadding = PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        itemsIndexed(channelGroupList) { index, channelGroup ->
+        items(channelGroupList, runtime) { itemModifier, channelGroup ->
             val isSelected by remember { derivedStateOf { channelGroup == focusedChannelGroup } }
 
             ClassicChannelGroupItem(
-                modifier = Modifier
-                    .ifElse(channelGroup == initialChannelGroup, Modifier.focusOnLaunchedSaveable())
-                    .focusRequester(itemFocusRequesterList[index])
-                    .ifElse(
-                        index == 0,
-                        Modifier
-                            .focusRequester(firstFocusRequester)
-                            .handleKeyEvents(onUp = { scrollToLast() })
-                    )
-                    .ifElse(
-                        index == channelGroupList.lastIndex,
-                        Modifier
-                            .focusRequester(lastFocusRequester)
-                            .handleKeyEvents(onDown = { scrollToFirst() })
-                    ),
+                modifier = itemModifier.ifElse(channelGroup == initialChannelGroup, Modifier.focusOnLaunchedSaveable()),
                 channelGroupProvider = { channelGroup },
                 isSelectedProvider = { isSelected },
                 onFocused = {

@@ -36,6 +36,8 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -70,8 +72,8 @@ class Media3VideoPlayerNew(
     private var retryCount = 0
     private var lastUsedContentType: Int = C.CONTENT_TYPE_OTHER
     
-    private val jobs = mutableListOf<Job>()
-    private val jobsLock = Any()
+    private val playerJob = SupervisorJob()
+    private val playerScope = CoroutineScope(coroutineScope.coroutineContext + playerJob)
     private val isReleased = AtomicBoolean(false)
     private val isInitialized = AtomicBoolean(false)
     
@@ -106,10 +108,7 @@ class Media3VideoPlayerNew(
         videoPlayer?.stop()
         videoPlayer?.setVideoSurfaceView(null)
         
-        synchronized(jobsLock) {
-            jobs.forEach { it.cancel() }
-            jobs.clear()
-        }
+        playerJob.cancel()
         
         videoPlayer?.removeListener(playerListener)
         videoPlayer?.removeAnalyticsListener(metadataListener)
@@ -491,7 +490,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun loadAudioTrackMemory() {
-        coroutineScope.launch(Dispatchers.IO) {
+        playerScope.launch(Dispatchers.IO) {
             runCatching {
                 val jsonString = Configs.channelAudioTrackMemory
                 if (jsonString.isNotBlank()) {
@@ -503,7 +502,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun saveAudioTrackMemory() {
-        coroutineScope.launch(Dispatchers.IO) {
+        playerScope.launch(Dispatchers.IO) {
             runCatching {
                 Configs.channelAudioTrackMemory = audioTrackMemoryCache.toJsonString()
             }
@@ -657,7 +656,7 @@ class Media3VideoPlayerNew(
             return
         }
         retryCount++
-        coroutineScope.launch {
+        playerScope.launch {
             delay(1000L * retryCount)
             if (!isReleased.get()) {
                 videoPlayer?.seekToDefaultPosition()
@@ -823,16 +822,14 @@ class Media3VideoPlayerNew(
     }
     
     private fun startPositionUpdate() {
-        cancelAllJobs()
         if (isReleased.get()) return
         
-        val job = coroutineScope.launch {
+        playerScope.launch {
             while (isActive && !isReleased.get()) {
                 videoPlayer?.let { state.updateCurrentPosition(calculateCurrentPosition(it)) }
                 delay(POSITION_UPDATE_INTERVAL_MS)
             }
         }
-        synchronized(jobsLock) { jobs.add(job) }
     }
     
     private fun calculateCurrentPosition(player: ExoPlayer): Long {
@@ -843,13 +840,6 @@ class Media3VideoPlayerNew(
         
         val livePosition = System.currentTimeMillis() - liveOffset
         return if (livePosition > 0) livePosition else player.currentPosition
-    }
-    
-    private fun cancelAllJobs() {
-        synchronized(jobsLock) {
-            jobs.forEach { it.cancel() }
-            jobs.clear()
-        }
     }
     
     private fun reInitPlayer() {

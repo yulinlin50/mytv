@@ -33,8 +33,13 @@ import kotlin.math.roundToInt
 
 object SwipeGestureFeedbackDefaults {
     val indicatorSize: Int = 48
-    val indicatorColor: Color @Composable get() = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    val indicatorColor: Color @Composable get() = MaterialTheme.colorScheme.primary.copy(alpha = indicatorAlpha)
     val animationDuration: Int = 300
+    
+    val swipeThreshold: Float = 30f
+    val minIndicatorOffset: Float = -100f
+    val maxIndicatorOffset: Float = 100f
+    val indicatorAlpha: Float = 0.6f
 }
 
 @Composable
@@ -115,22 +120,26 @@ private fun SwipeIndicator(
                     onDrag = { change, dragAmount ->
                         change.consume()
                         
-                        val threshold = 30f
-                        
                         when {
                             swipeDirection == null -> {
                                 when {
-                                    dragAmount.y < -threshold -> swipeDirection = SwipeDirection.UP
-                                    dragAmount.y > threshold -> swipeDirection = SwipeDirection.DOWN
-                                    dragAmount.x < -threshold -> swipeDirection = SwipeDirection.LEFT
-                                    dragAmount.x > threshold -> swipeDirection = SwipeDirection.RIGHT
+                                    dragAmount.y < -SwipeGestureFeedbackDefaults.swipeThreshold -> swipeDirection = SwipeDirection.UP
+                                    dragAmount.y > SwipeGestureFeedbackDefaults.swipeThreshold -> swipeDirection = SwipeDirection.DOWN
+                                    dragAmount.x < -SwipeGestureFeedbackDefaults.swipeThreshold -> swipeDirection = SwipeDirection.LEFT
+                                    dragAmount.x > SwipeGestureFeedbackDefaults.swipeThreshold -> swipeDirection = SwipeDirection.RIGHT
                                 }
                             }
                             swipeDirection == SwipeDirection.UP || swipeDirection == SwipeDirection.DOWN -> {
-                                indicatorOffset = Offset(0f, dragAmount.y.coerceIn(-100f, 100f))
+                                indicatorOffset = Offset(0f, dragAmount.y.coerceIn(
+                                    SwipeGestureFeedbackDefaults.minIndicatorOffset,
+                                    SwipeGestureFeedbackDefaults.maxIndicatorOffset
+                                ))
                             }
                             swipeDirection == SwipeDirection.LEFT || swipeDirection == SwipeDirection.RIGHT -> {
-                                indicatorOffset = Offset(dragAmount.x.coerceIn(-100f, 100f), 0f)
+                                indicatorOffset = Offset(dragAmount.x.coerceIn(
+                                    SwipeGestureFeedbackDefaults.minIndicatorOffset,
+                                    SwipeGestureFeedbackDefaults.maxIndicatorOffset
+                                ), 0f)
                             }
                         }
                     }

@@ -39,10 +39,21 @@ object FocusDefaults {
     val borderWidth: Dp = 3.dp
     val borderRadius: Dp = 12.dp
     val glowRadius: Dp = 8.dp
-    val animationDuration: Int = 1000
+    
+    val focusEnterDuration: Int = 300
+    val focusAnimationDuration: Int = 1000
+    val glowAnimationDuration: Int = 800
+    
+    val minAlpha: Float = 0.6f
+    val alphaRange: Float = 0.4f
+    val glowMinAlpha: Float = 0.3f
+    val glowMaxAlpha: Float = 0.6f
+    val glowColorAlpha: Float = 0.3f
+    val enhancedGlowAlpha: Float = 0.5f
+    val alphaThreshold: Float = 0.01f
     
     val focusColor: Color @Composable get() = MaterialTheme.colorScheme.primary
-    val glowColor: Color @Composable get() = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+    val glowColor: Color @Composable get() = MaterialTheme.colorScheme.primary.copy(alpha = enhancedGlowAlpha)
 }
 
 fun Modifier.enhancedFocus(
@@ -65,14 +76,14 @@ fun Modifier.enhancedFocus(
     }
     
     val actualGlowColor = if (glowColor == Color.Unspecified) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        MaterialTheme.colorScheme.primary.copy(alpha = FocusDefaults.enhancedGlowAlpha)
     } else {
         glowColor
     }
     
     val animatedAlpha by animateFloatAsState(
         targetValue = if (isFocused) 1f else 0f,
-        animationSpec = tween(300),
+        animationSpec = tween(FocusDefaults.focusEnterDuration),
         label = "focus_alpha"
     )
     
@@ -82,7 +93,7 @@ fun Modifier.enhancedFocus(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(FocusDefaults.animationDuration, easing = FastOutSlowInEasing),
+                animation = tween(FocusDefaults.focusAnimationDuration, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "focus_progress"
@@ -92,7 +103,7 @@ fun Modifier.enhancedFocus(
     }
     
     val finalAlpha = if (enableAnimation && isFocused) {
-        0.6f + animatedProgressValue * 0.4f
+        FocusDefaults.minAlpha + animatedProgressValue * FocusDefaults.alphaRange
     } else if (isFocused) {
         1f
     } else {
@@ -153,34 +164,34 @@ fun Modifier.focusGlow(
     }
     
     val actualGlowColor = if (glowColor == Color.Unspecified) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        MaterialTheme.colorScheme.primary.copy(alpha = FocusDefaults.glowColorAlpha)
     } else {
         glowColor
     }
     
     val animatedEnterAlpha by animateFloatAsState(
         targetValue = if (isFocused) 1f else 0f,
-        animationSpec = tween(300),
+        animationSpec = tween(FocusDefaults.focusEnterDuration),
         label = "glow_enter_alpha"
     )
     
-    if (!isFocused && animatedEnterAlpha <= 0.01f) {
+    if (!isFocused && animatedEnterAlpha <= FocusDefaults.alphaThreshold) {
         return@composed this
     }
     
     val animatedGlowAlpha by if (isFocused) {
         val infiniteTransition = rememberInfiniteTransition(label = "glow_animation")
         infiniteTransition.animateFloat(
-            initialValue = 0.3f,
-            targetValue = 0.6f,
+            initialValue = FocusDefaults.glowMinAlpha,
+            targetValue = FocusDefaults.glowMaxAlpha,
             animationSpec = infiniteRepeatable(
-                animation = tween(800, easing = FastOutSlowInEasing),
+                animation = tween(FocusDefaults.glowAnimationDuration, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "glow_progress"
         )
     } else {
-        remember { mutableStateOf(0.3f) }
+        remember { mutableStateOf(FocusDefaults.glowMinAlpha) }
     }
     
     val finalAlpha = animatedGlowAlpha * animatedEnterAlpha
@@ -203,8 +214,8 @@ fun Modifier.focusGlow(
                 top = 0f,
                 right = size.width,
                 bottom = size.height,
-                radiusX = 12.dp.toPx(),
-                radiusY = 12.dp.toPx(),
+                radiusX = FocusDefaults.borderRadius.toPx(),
+                radiusY = FocusDefaults.borderRadius.toPx(),
                 paint = paint
             )
         }

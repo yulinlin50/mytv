@@ -38,7 +38,7 @@ class IjkVideoPlayerNew(
     private val audioTrackMemoryCache = AudioTrackMemoryCache(maxSize = 100)
     
     private var player: IjkMediaPlayer? = null
-    private val playerLock = Any()
+    private val lock = Any()
     
     private var cacheSurfaceView: SurfaceView? = null
     private var cacheSurfaceTexture: Surface? = null
@@ -46,7 +46,6 @@ class IjkVideoPlayerNew(
     private var currentChannelLine = ChannelLine()
     
     private val jobs = mutableListOf<Job>()
-    private val jobsLock = Any()
     private val isReleased = AtomicBoolean(false)
     private val isInitialized = AtomicBoolean(false)
     
@@ -72,12 +71,10 @@ class IjkVideoPlayerNew(
     override fun release() {
         if (isReleased.getAndSet(true)) return
         
-        synchronized(jobsLock) {
+        synchronized(lock) {
             jobs.forEach { it.cancel() }
             jobs.clear()
-        }
-        
-        synchronized(playerLock) {
+            
             runCatching { player?.setSurface(null) }
             runCatching { player?.stop() }
             
@@ -153,8 +150,8 @@ class IjkVideoPlayerNew(
     
     override fun stop() {
         if (isReleased.get()) return
-        player?.stop()
-        synchronized(jobsLock) {
+        synchronized(lock) {
+            player?.stop()
             jobs.forEach { it.cancel() }
             jobs.clear()
         }
@@ -521,7 +518,7 @@ class IjkVideoPlayerNew(
         val job = coroutineScope.launch {
             var retryAudioTracks = true
             while (isActive && !isReleased.get()) {
-                synchronized(playerLock) {
+                synchronized(lock) {
                     if (!isReleased.get()) {
                         player?.let { p ->
                             state.updateIsPlaying(p.isPlaying)
@@ -530,7 +527,7 @@ class IjkVideoPlayerNew(
                     }
                 }
                 if (retryAudioTracks && state.metadata.value.audioTracks.isEmpty()) {
-                    synchronized(playerLock) {
+                    synchronized(lock) {
                         if (!isReleased.get()) {
                             val trackInfos = runCatching { player?.trackInfo }.getOrNull()
                             if (trackInfos != null && trackInfos.isNotEmpty()) {
@@ -549,7 +546,7 @@ class IjkVideoPlayerNew(
                 delay(500)
             }
         }
-        synchronized(jobsLock) {
+        synchronized(lock) {
             jobs.forEach { it.cancel() }
             jobs.clear()
             if (!isReleased.get()) {

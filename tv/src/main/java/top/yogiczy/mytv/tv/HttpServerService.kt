@@ -14,4 +14,9 @@ class HttpServerService : Service() {
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
+    
+    override fun onDestroy() {
+        HttpServer.stop()
+        super.onDestroy()
+    }
 }
