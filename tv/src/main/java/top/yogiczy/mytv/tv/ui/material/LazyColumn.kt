@@ -42,6 +42,8 @@ fun LazyColumn(
     val firstItemFocusRequester = remember { FocusRequester() }
     val lastItemFocusRequester = remember { FocusRequester() }
     var isFirstItemFocused by remember { mutableStateOf(false) }
+    
+    val itemFocusRequesters = remember { List(1000) { FocusRequester() } }
 
     fun scrollToFirst() {
         coroutineScope.launch {
@@ -81,7 +83,7 @@ fun LazyColumn(
                 LazyListRuntime(
                     direction = LazyListDirection.Vertical,
                     listState = state,
-                    itemFocusRequesters = emptyList(),
+                    itemFocusRequesters = itemFocusRequesters,
                     firstItemFocusRequester = firstItemFocusRequester,
                     lastItemFocusRequester = lastItemFocusRequester,
                     onFirstItemFocusChanged = { isFirstItemFocused = it },
