@@ -79,12 +79,14 @@ fun LazyRow(
         content = {
             content(
                 LazyListRuntime(
-                    LazyListDirection.Horizontal,
-                    firstItemFocusRequester,
-                    lastItemFocusRequester,
-                    { isFirstItemFocused = it },
-                    { scrollToFirst() },
-                    { scrollToLast() },
+                    direction = LazyListDirection.Horizontal,
+                    listState = state,
+                    itemFocusRequesters = emptyList(),
+                    firstItemFocusRequester = firstItemFocusRequester,
+                    lastItemFocusRequester = lastItemFocusRequester,
+                    onFirstItemFocusChanged = { isFirstItemFocused = it },
+                    scrollToFirst = { scrollToFirst() },
+                    scrollToLast = { scrollToLast() },
                 )
             )
         },

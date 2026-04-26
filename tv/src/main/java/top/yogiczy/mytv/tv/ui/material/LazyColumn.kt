@@ -79,12 +79,14 @@ fun LazyColumn(
         content = {
             content(
                 LazyListRuntime(
-                    LazyListDirection.Vertical,
-                    firstItemFocusRequester,
-                    lastItemFocusRequester,
-                    { isFirstItemFocused = it },
-                    { scrollToFirst() },
-                    { scrollToLast() },
+                    direction = LazyListDirection.Vertical,
+                    listState = state,
+                    itemFocusRequesters = emptyList(),
+                    firstItemFocusRequester = firstItemFocusRequester,
+                    lastItemFocusRequester = lastItemFocusRequester,
+                    onFirstItemFocusChanged = { isFirstItemFocused = it },
+                    scrollToFirst = { scrollToFirst() },
+                    scrollToLast = { scrollToLast() },
                 )
             )
         },

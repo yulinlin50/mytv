@@ -155,7 +155,6 @@ class Media3VideoPlayerNew(
     
     override fun stop() {
         videoPlayer?.stop()
-        cancelAllJobs()
     }
     
     override fun seekTo(position: Long) {

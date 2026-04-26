@@ -140,12 +140,20 @@ class IjkVideoPlayerNew(
     
     override fun play() {
         if (isReleased.get()) return
-        player?.start()
+        synchronized(lock) {
+            if (!isReleased.get()) {
+                player?.start()
+            }
+        }
     }
     
     override fun pause() {
         if (isReleased.get()) return
-        player?.pause()
+        synchronized(lock) {
+            if (!isReleased.get()) {
+                player?.pause()
+            }
+        }
     }
     
     override fun stop() {
