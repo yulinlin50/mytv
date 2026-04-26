@@ -15,11 +15,12 @@ import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.measureTimedValue
 import top.yogiczy.mytv.core.data.utils.LruMutableCache
 
 object EpgParser : Loggable("EpgParser") {
-    private val sdfCache = mutableMapOf<String, ThreadLocal<SimpleDateFormat>>()
+    private val sdfCache = ConcurrentHashMap<String, ThreadLocal<SimpleDateFormat>>()
     private val channelNameCache = LruMutableCache<String, Set<String>>(5000)
     private val timeParseCache = LruMutableCache<String, Long>(10000)
     
@@ -32,7 +33,7 @@ object EpgParser : Loggable("EpgParser") {
     )
     
     private fun getCachedSdf(format: String): SimpleDateFormat {
-        return sdfCache.getOrPut(format) {
+        return sdfCache.computeIfAbsent(format) {
             ThreadLocal.withInitial {
                 SimpleDateFormat(format, Locale.getDefault()).apply {
                     timeZone = TimeZone.getTimeZone("Asia/Shanghai")

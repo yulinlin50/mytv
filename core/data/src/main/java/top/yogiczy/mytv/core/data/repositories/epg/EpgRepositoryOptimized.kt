@@ -133,18 +133,19 @@ private class EpgXmlRepositoryOptimized(
     )
     
     private fun readMeta(): CacheMeta {
+        if (!metaFile.exists()) {
+            return CacheMeta()
+        }
+        
         return try {
-            if (metaFile.exists()) {
-                val lines = metaFile.readLines()
-                CacheMeta(
-                    etag = lines.getOrNull(0)?.ifBlank { null },
-                    lastModified = lines.getOrNull(1)?.ifBlank { null },
-                    cachedAt = lines.getOrNull(2)?.toLongOrNull() ?: 0
-                )
-            } else {
-                CacheMeta()
-            }
+            val lines = metaFile.readLines()
+            CacheMeta(
+                etag = lines.getOrNull(0)?.ifBlank { null },
+                lastModified = lines.getOrNull(1)?.ifBlank { null },
+                cachedAt = lines.getOrNull(2)?.toLongOrNull() ?: 0
+            )
         } catch (e: Exception) {
+            log.w("读取缓存元数据失败: ${e.message}")
             CacheMeta()
         }
     }

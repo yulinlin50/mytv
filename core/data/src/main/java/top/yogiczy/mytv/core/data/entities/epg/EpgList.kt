@@ -31,57 +31,36 @@ data class EpgList(
             val idIndex: Map<String, Epg>,
             val sourceGroupedIndex: Map<String?, List<Epg>>,
             val sourceTrieIndexes: Map<String?, ChannelTrieIndex>,
-            val programmeIntervalTrees: Map<String, ProgrammeIntervalTree>,
             val createdAt: Long = System.currentTimeMillis()
         )
         
         @Volatile
-        private var indexCache: Pair<Int, IndexCache>? = null
+        private var indexCacheRef: Pair<EpgList, IndexCache>? = null
         private val indexCacheLock = Any()
         
-        private fun EpgList.computeCacheKey(): Int {
-            if (isEmpty()) return 0
-            var hash = 1
-            for (epg in value) {
-                hash = 31 * hash + epg.channelList.hashCode()
-                hash = 31 * hash + (epg.sourceId?.hashCode() ?: 0)
-                hash = 31 * hash + epg.programmeList.size
-            }
-            return hash
-        }
-        
         private fun EpgList.getOrCreateIndexCache(): IndexCache {
-            val cacheKey = computeCacheKey()
-            
-            indexCache?.let { (key, cache) ->
-                if (key == cacheKey) {
+            indexCacheRef?.let { (list, cache) ->
+                if (list === this) {
                     return cache
                 }
             }
             
             return synchronized(indexCacheLock) {
-                indexCache?.let { (key, cache) ->
-                    if (key == cacheKey) {
+                indexCacheRef?.let { (list, cache) ->
+                    if (list === this) {
                         return cache
                     }
                 }
                 
                 val idIndex = mutableMapOf<String, Epg>()
                 val sourceGroupedIndex = mutableMapOf<String?, MutableList<Epg>>()
-                val programmeIntervalTrees = mutableMapOf<String, ProgrammeIntervalTree>()
                 
                 for (epg in value) {
-                    val primaryName = epg.channelList.firstOrNull()
-                    
                     for (name in epg.channelList) {
                         idIndex[name] = epg
                         idIndex[name.lowercase()] = epg
                     }
                     sourceGroupedIndex.getOrPut(epg.sourceId) { mutableListOf() }.add(epg)
-                    
-                    if (epg.programmeList.isNotEmpty() && primaryName != null) {
-                        programmeIntervalTrees[primaryName] = ProgrammeIntervalTree.fromProgrammeList(epg.programmeList)
-                    }
                 }
                 
                 val channelTrieIndex = ChannelTrieIndex(value)
@@ -95,12 +74,11 @@ data class EpgList(
                     channelTrieIndex = channelTrieIndex,
                     idIndex = idIndex,
                     sourceGroupedIndex = sourceGroupedIndex,
-                    sourceTrieIndexes = sourceTrieIndexes,
-                    programmeIntervalTrees = programmeIntervalTrees
+                    sourceTrieIndexes = sourceTrieIndexes
                 )
                 
-                indexCache = cacheKey to cache
-                log.d("优化索引缓存已重建: 频道=${value.size}, 缓存键=$cacheKey, 区间树=${programmeIntervalTrees.size}")
+                indexCacheRef = this@getOrCreateIndexCache to cache
+                log.d("优化索引缓存已重建: 频道=${value.size}")
                 
                 cache
             }
@@ -130,10 +108,6 @@ data class EpgList(
             return getOrCreateIndexCache().sourceTrieIndexes[sourceId]
         }
         
-        private fun EpgList.getProgrammeIntervalTree(channelName: String): ProgrammeIntervalTree? {
-            return getOrCreateIndexCache().programmeIntervalTrees[channelName]
-        }
-        
         /**
          * 严格同源频道匹配方法
          * 只有关联的源才能匹配对应的节目单
@@ -157,55 +131,94 @@ data class EpgList(
             return if (result == Epg()) null else result
         }
         
-        private fun EpgList.performMatch(channel: Channel): Epg {
-            val sourceId = channel.iptvSourceId
+        /**
+         * 在 EPG 列表中按 ID 匹配
+         * @param epgId 要匹配的 EPG ID
+         * @param epgList EPG 列表（可为 null，表示从全局索引获取）
+         * @return 匹配到的 Epg，未匹配返回 null
+         */
+        private fun matchByEpgId(epgId: String?, epgList: List<Epg>?): Epg? {
+            if (epgId.isNullOrEmpty()) return null
+            
+            return if (epgList != null) {
+                epgList.firstOrNull { epg ->
+                    epg.channelList.any { it.equals(epgId, ignoreCase = true) }
+                }
+            } else {
+                getIdIndex()[epgId]
+            }
+        }
+        
+        /**
+         * 使用 Trie 索引进行分层匹配
+         * 匹配顺序：精确匹配 → 规范化匹配 → 子串匹配
+         * 
+         * @param channel 频道信息
+         * @param trieIndex Trie 索引
+         * @return 匹配到的 Epg，未匹配返回 null
+         */
+        private fun matchByTrieIndex(channel: Channel, trieIndex: ChannelTrieIndex): Epg? {
             val channelEpgName = channel.epgName
             val channelStandardName = channel.standardName
-            val channelEpgId = channel.epgId
             
-            // 如果频道有关联的直播源，优先在该源的 EPG 中匹配
-            sourceId?.let { sid ->
-                val sourceTrieIndex = getSourceTrieIndex(sid)
-                if (sourceTrieIndex != null) {
-                    // 先尝试全局映射，但只在该源的范围内查找
-                    EpgChannelMapping.findMapping(channel.name)?.let { mapping ->
-                        mapping.epgId?.let { epgId ->
-                            getSourceGroupedIndex()[sid]?.firstOrNull { epg ->
-                                epg.channelList.any { it.equals(epgId, ignoreCase = true) }
-                            }?.let { return it }
-                        }
-                        if (mapping.epgName.isNotEmpty()) {
-                            sourceTrieIndex.exactMatch(mapping.epgName)?.let { return it }
-                            sourceTrieIndex.normalizedMatch(mapping.epgName)?.firstOrNull()?.let { return it }
-                        }
-                    }
-                    
-                    // 按源匹配
-                    channelEpgId?.let { epgId ->
-                        getSourceGroupedIndex()[sid]?.firstOrNull { epg ->
-                            epg.channelList.any { it.equals(epgId, ignoreCase = true) }
-                        }?.let { return it }
-                    }
-                    
-                    sourceTrieIndex.exactMatch(channel.name)?.let { return it }
-                    sourceTrieIndex.exactMatch(channelEpgName)?.let { return it }
-                    sourceTrieIndex.exactMatch(channelStandardName)?.let { return it }
-                    
-                    sourceTrieIndex.normalizedMatch(channelEpgName)?.firstOrNull()?.let { return it }
-                    sourceTrieIndex.normalizedMatch(channelStandardName)?.firstOrNull()?.let { return it }
-                    
-                    sourceTrieIndex.substringMatch(channelEpgName).firstOrNull()?.let { return it }
-                    sourceTrieIndex.substringMatch(channelStandardName).firstOrNull()?.let { return it }
-                    
-                    // 该源没有匹配到，返回空（不回退到全局匹配）
-                    return Epg()
+            // 精确匹配
+            trieIndex.exactMatch(channel.name)?.let { return it }
+            trieIndex.exactMatch(channelEpgName)?.let { return it }
+            trieIndex.exactMatch(channelStandardName)?.let { return it }
+            
+            // 规范化匹配
+            trieIndex.normalizedMatch(channelEpgName)?.firstOrNull()?.let { return it }
+            trieIndex.normalizedMatch(channelStandardName)?.firstOrNull()?.let { return it }
+            
+            // 子串匹配
+            trieIndex.substringMatch(channelEpgName).firstOrNull()?.let { return it }
+            trieIndex.substringMatch(channelStandardName)?.firstOrNull()?.let { return it }
+            
+            return null
+        }
+        
+        /**
+         * 同源匹配 - 在指定源的 EPG 中匹配频道
+         * 
+         * @param channel 频道信息
+         * @param sourceId 源 ID
+         * @return 匹配到的 Epg，未匹配返回 null，源不存在返回 null
+         */
+        private fun EpgList.matchInSource(channel: Channel, sourceId: String): Epg? {
+            val sourceTrieIndex = getSourceTrieIndex(sourceId) ?: return null
+            val sourceEpgList = getSourceGroupedIndex()[sourceId]
+            
+            // 尝试全局映射（在该源范围内）
+            EpgChannelMapping.findMapping(channel.name)?.let { mapping ->
+                mapping.epgId?.let { epgId ->
+                    matchByEpgId(epgId, sourceEpgList)?.let { return it }
+                }
+                if (mapping.epgName.isNotEmpty()) {
+                    sourceTrieIndex.exactMatch(mapping.epgName)?.let { return it }
+                    sourceTrieIndex.normalizedMatch(mapping.epgName)?.firstOrNull()?.let { return it }
                 }
             }
             
-            // 没有关联直播源时，使用全局匹配
+            // 按 EPG ID 匹配
+            matchByEpgId(channel.epgId, sourceEpgList)?.let { return it }
+            
+            // 按 Trie 索引匹配
+            matchByTrieIndex(channel, sourceTrieIndex)?.let { return it }
+            
+            return null
+        }
+        
+        /**
+         * 全局匹配 - 在所有 EPG 中匹配频道
+         * 
+         * @param channel 频道信息
+         * @return 匹配到的 Epg，未匹配返回 null
+         */
+        private fun EpgList.matchGlobally(channel: Channel): Epg? {
+            // 尝试全局映射
             EpgChannelMapping.findMapping(channel.name)?.let { mapping ->
                 mapping.epgId?.let { epgId ->
-                    getIdIndex()[epgId]?.let { return it }
+                    matchByEpgId(epgId, null)?.let { return it }
                 }
                 if (mapping.epgName.isNotEmpty()) {
                     getChannelTrieIndex().exactMatch(mapping.epgName)?.let { return it }
@@ -213,24 +226,30 @@ data class EpgList(
                 }
             }
             
-            val channelTrieIndex = getChannelTrieIndex()
-            val idIndex = getIdIndex()
+            // 按 EPG ID 匹配
+            matchByEpgId(channel.epgId, null)?.let { return it }
             
-            channelEpgId?.let { epgId ->
-                idIndex[epgId]?.let { return it }
+            // 按 Trie 索引匹配
+            matchByTrieIndex(channel, getChannelTrieIndex())?.let { return it }
+            
+            return null
+        }
+        
+        private fun EpgList.performMatch(channel: Channel): Epg {
+            val sourceId = channel.iptvSourceId
+            
+            // 如果频道有关联的直播源，优先在该源的 EPG 中匹配
+            sourceId?.let { sid ->
+                val result = matchInSource(channel, sid)
+                if (result != null) {
+                    return result
+                }
+                // 该源没有匹配到，返回空（不回退到全局匹配）
+                return Epg()
             }
             
-            channelTrieIndex.exactMatch(channel.name)?.let { return it }
-            channelTrieIndex.exactMatch(channelEpgName)?.let { return it }
-            channelTrieIndex.exactMatch(channelStandardName)?.let { return it }
-            
-            channelTrieIndex.normalizedMatch(channelEpgName)?.firstOrNull()?.let { return it }
-            channelTrieIndex.normalizedMatch(channelStandardName)?.firstOrNull()?.let { return it }
-            
-            channelTrieIndex.substringMatch(channelEpgName).firstOrNull()?.let { return it }
-            channelTrieIndex.substringMatch(channelStandardName)?.firstOrNull()?.let { return it }
-            
-            return Epg()
+            // 没有关联直播源时，使用全局匹配
+            return matchGlobally(channel) ?: Epg()
         }
         
         /**
@@ -242,7 +261,7 @@ data class EpgList(
 
         fun clearCache() {
             UnifiedCacheManager.clearCache(UnifiedCacheManager.CacheNames.CHANNEL_MATCH)
-            indexCache = null
+            indexCacheRef = null
             Epg.clearRecentProgrammeCache()
             ChannelTrieIndex.clearCaches()
             EpgChannelMapping.clearIndexes()

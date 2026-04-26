@@ -2,7 +2,7 @@ package top.yogiczy.mytv.core.data.entities.epg
 
 import top.yogiczy.mytv.core.data.entities.channel.Channel
 import top.yogiczy.mytv.core.data.utils.Logger
-import java.util.concurrent.ConcurrentHashMap
+import top.yogiczy.mytv.core.data.utils.LruMutableCache
 
 object EpgProgrammeRecentCache {
     private val log = Logger.create("EpgProgrammeRecentCache")
@@ -12,8 +12,12 @@ object EpgProgrammeRecentCache {
         val timestamp: Long,
     )
     
-    private val cache = ConcurrentHashMap<String, CacheEntry>()
+    private val cache = LruMutableCache<String, CacheEntry>(500)
     private const val CACHE_DURATION_MS = 30_000L
+    
+    init {
+        cache.expiryTimeMs = CACHE_DURATION_MS
+    }
     
     private fun buildCacheKey(channel: Channel): String {
         return "${channel.iptvSourceId}:${channel.name}:${channel.epgName}:${channel.epgId}"
@@ -21,38 +25,37 @@ object EpgProgrammeRecentCache {
     
     fun get(channel: Channel): EpgProgrammeRecent? {
         val key = buildCacheKey(channel)
-        val now = System.currentTimeMillis()
-        
-        return cache.computeIfPresent(key) { _, entry ->
-            if (now - entry.timestamp < CACHE_DURATION_MS) entry else null
-        }?.result
+        return cache.getTimestamped(key)?.result
     }
     
     fun put(channel: Channel, result: EpgProgrammeRecent?) {
         val key = buildCacheKey(channel)
-        cache[key] = CacheEntry(
+        cache.putTimestamped(key, CacheEntry(
             result = result,
             timestamp = System.currentTimeMillis()
-        )
+        ))
     }
     
     fun getOrPut(channel: Channel, provider: () -> EpgProgrammeRecent?): EpgProgrammeRecent? {
         val key = buildCacheKey(channel)
         
-        return cache.compute(key) { _, existingEntry ->
-            val now = System.currentTimeMillis()
-            if (existingEntry != null && now - existingEntry.timestamp < CACHE_DURATION_MS) {
-                existingEntry
-            } else {
-                CacheEntry(provider(), now)
-            }
-        }?.result
+        val cachedEntry = cache.getTimestamped(key)
+        if (cachedEntry != null && System.currentTimeMillis() - cachedEntry.timestamp < CACHE_DURATION_MS) {
+            return cachedEntry.result
+        }
+        
+        val result = provider()
+        cache.putTimestamped(key, CacheEntry(
+            result = result,
+            timestamp = System.currentTimeMillis()
+        ))
+        return result
     }
     
     fun clear() {
-        cache.clear()
+        cache.clearAll()
         log.d("缓存已清空")
     }
     
-    fun size(): Int = cache.size
+    fun size(): Int = cache.getTimestampedSize()
 }

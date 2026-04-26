@@ -15,8 +15,10 @@ data class EpgProgramme(
     companion object {
         fun EpgProgramme.isLive() = System.currentTimeMillis() in startAt..<endAt
 
-        fun EpgProgramme.progress(current: Long = System.currentTimeMillis()) =
-            (current - startAt).toFloat() / (endAt - startAt)
+        fun EpgProgramme.progress(current: Long = System.currentTimeMillis()): Float {
+            val duration = endAt - startAt
+            return if (duration <= 0) 0f else (current - startAt).toFloat() / duration
+        }
 
         fun EpgProgramme.remainingMinutes(current: Long = System.currentTimeMillis()) =
             ceil((endAt - current) / 60_000f).roundToInt()
