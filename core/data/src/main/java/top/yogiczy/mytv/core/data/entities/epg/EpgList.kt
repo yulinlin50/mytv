@@ -135,9 +135,10 @@ data class EpgList(
          * 在 EPG 列表中按 ID 匹配
          * @param epgId 要匹配的 EPG ID
          * @param epgList EPG 列表（可为 null，表示从全局索引获取）
+         * @param idIndex 全局 ID 索引（当 epgList 为 null 时使用）
          * @return 匹配到的 Epg，未匹配返回 null
          */
-        private fun matchByEpgId(epgId: String?, epgList: List<Epg>?): Epg? {
+        private fun matchByEpgId(epgId: String?, epgList: List<Epg>?, idIndex: Map<String, Epg>? = null): Epg? {
             if (epgId.isNullOrEmpty()) return null
             
             return if (epgList != null) {
@@ -145,7 +146,7 @@ data class EpgList(
                     epg.channelList.any { it.equals(epgId, ignoreCase = true) }
                 }
             } else {
-                getIdIndex()[epgId]
+                idIndex?.get(epgId)
             }
         }
         
@@ -215,10 +216,12 @@ data class EpgList(
          * @return 匹配到的 Epg，未匹配返回 null
          */
         private fun EpgList.matchGlobally(channel: Channel): Epg? {
+            val idIndex = getIdIndex()
+            
             // 尝试全局映射
             EpgChannelMapping.findMapping(channel.name)?.let { mapping ->
                 mapping.epgId?.let { epgId ->
-                    matchByEpgId(epgId, null)?.let { return it }
+                    matchByEpgId(epgId, null, idIndex)?.let { return it }
                 }
                 if (mapping.epgName.isNotEmpty()) {
                     getChannelTrieIndex().exactMatch(mapping.epgName)?.let { return it }
@@ -227,7 +230,7 @@ data class EpgList(
             }
             
             // 按 EPG ID 匹配
-            matchByEpgId(channel.epgId, null)?.let { return it }
+            matchByEpgId(channel.epgId, null, idIndex)?.let { return it }
             
             // 按 Trie 索引匹配
             matchByTrieIndex(channel, getChannelTrieIndex())?.let { return it }

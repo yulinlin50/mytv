@@ -2,19 +2,7 @@ package top.yogiczy.mytv.core.data.entities.epg
 
 import kotlinx.serialization.Serializable
 import top.yogiczy.mytv.core.data.entities.channel.Channel
-请使用 writing-plans skill 创建 performMatch() 重构计划：
-
-任务：
-1. 分析 performMatch() 方法的功能块
-2. 提取独立方法（如 matchByExact, matchByFuzzy, matchByRegex 等）
-3. 重构主方法调用新方法
-4. 添加单元测试
-5. 验证功能正确性
-
-每个任务包含：
-- 具体文件路径
-- 修改前后代码对比
-- 验证步骤import top.yogiczy.mytv.core.data.utils.Logger
+import top.yogiczy.mytv.core.data.utils.Logger
 import kotlin.time.measureTimedValue
 
 @Serializable

@@ -7,7 +7,9 @@ import top.yogiczy.mytv.core.data.utils.LruMutableCache
 object EpgProgrammeRecentCache {
     private val log = Logger.create("EpgProgrammeRecentCache")
     
-    private val cache = LruMutableCache<String, EpgProgrammeRecent?>(500).apply {
+    private data class CacheEntry(val value: EpgProgrammeRecent?)
+    
+    private val cache = LruMutableCache<String, CacheEntry>(500).apply {
         expiryTimeMs = 30_000L
     }
     
@@ -17,17 +19,23 @@ object EpgProgrammeRecentCache {
     
     fun get(channel: Channel): EpgProgrammeRecent? {
         val key = buildCacheKey(channel)
-        return cache.getTimestamped(key)
+        return cache.getTimestamped(key)?.value
     }
     
     fun put(channel: Channel, result: EpgProgrammeRecent?) {
         val key = buildCacheKey(channel)
-        cache.putTimestamped(key, result)
+        cache.putTimestamped(key, CacheEntry(result))
     }
     
     fun getOrPut(channel: Channel, provider: () -> EpgProgrammeRecent?): EpgProgrammeRecent? {
         val key = buildCacheKey(channel)
-        return cache.getOrPut(key, provider)
+        val cached = cache.getTimestamped(key)
+        if (cached != null) {
+            return cached.value
+        }
+        val result = provider()
+        cache.putTimestamped(key, CacheEntry(result))
+        return result
     }
     
     fun clear() {
