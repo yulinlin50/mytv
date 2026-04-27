@@ -426,7 +426,15 @@ class IjkVideoPlayerNew(
         cacheSurfaceTexture?.let { mp.setSurface(it) }
         
         parseAudioTracks()
-        restoreAudioTrack()
+        
+        coroutineScope.launch {
+            delay(200)
+            synchronized(lock) {
+                if (!isReleased.get()) {
+                    restoreAudioTrack()
+                }
+            }
+        }
         
         val info = mp.mediaInfo
         if (info != null) {
