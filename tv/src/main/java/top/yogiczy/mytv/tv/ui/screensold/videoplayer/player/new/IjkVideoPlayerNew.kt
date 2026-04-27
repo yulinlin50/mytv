@@ -270,7 +270,7 @@ class IjkVideoPlayerNew(
                 synchronized(lock) {
                     if (!isReleased.get()) {
                         runCatching { player?.setSurface(null) }
-                        runCatching { player?.pause() }
+                        runCatching { player?.stop() }
                     }
                     cacheSurfaceTexture?.let { runCatching { it.release() } }
                     cacheSurfaceTexture = null
