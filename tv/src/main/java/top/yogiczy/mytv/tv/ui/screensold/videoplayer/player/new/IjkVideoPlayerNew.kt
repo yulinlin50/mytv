@@ -48,6 +48,7 @@ class IjkVideoPlayerNew(
     private val jobs = mutableListOf<Job>()
     private val isReleased = AtomicBoolean(false)
     private val isInitialized = AtomicBoolean(false)
+    private val needRestoreOnSurfaceAvailable = AtomicBoolean(false)
     
     private val playbackModeState = AtomicReference(PlaybackModeState())
     private val volumeState = AtomicReference(1f)
@@ -258,6 +259,10 @@ class IjkVideoPlayerNew(
             ) {
                 cacheSurfaceTexture = Surface(surfaceTexture)
                 player?.setSurface(cacheSurfaceTexture)
+                
+                if (needRestoreOnSurfaceAvailable.getAndSet(false) && currentChannelLine.url.isNotBlank()) {
+                    prepare(currentChannelLine)
+                }
             }
             
             override fun onSurfaceTextureSizeChanged(
@@ -269,8 +274,12 @@ class IjkVideoPlayerNew(
             override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
                 synchronized(lock) {
                     if (!isReleased.get()) {
+                        val wasPlaying = player?.isPlaying == true
                         runCatching { player?.setSurface(null) }
                         runCatching { player?.stop() }
+                        if (wasPlaying && currentChannelLine.url.isNotBlank()) {
+                            needRestoreOnSurfaceAvailable.set(true)
+                        }
                     }
                     cacheSurfaceTexture?.let { runCatching { it.release() } }
                     cacheSurfaceTexture = null
