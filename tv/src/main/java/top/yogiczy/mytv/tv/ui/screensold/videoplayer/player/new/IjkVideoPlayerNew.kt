@@ -98,45 +98,47 @@ class IjkVideoPlayerNew(
     override fun prepare(line: ChannelLine) {
         if (isReleased.get()) return
         
-        player?.reset()
-        
-        // 必须重新设置监听器：虽然 reset() 不会清除监听器，但 release() 会清除，
-        // 而 initialize() 只执行一次，所以需要在 prepare() 中确保监听器被设置
-        player?.setOnPreparedListener(preparedListener)
-        player?.setOnVideoSizeChangedListener(videoSizeChangedListener)
-        player?.setOnErrorListener(errorListener)
-        player?.setOnInfoListener(infoListener)
-        
-        currentChannelLine = line
-        
-        audioTrackState.set(AudioTrackState())
-        
-        val trackId = audioTrackMemoryCache.get(line.playableUrl)
-        audioTrackState.set(audioTrackState.get().copy(userSelectedTrackId = trackId))
-        
-        updatePlaybackModeState(line)
-        
-        val urlToPlay = if (playbackModeState.get().isPlayback) {
-            line.url
-        } else {
-            line.playableUrl
+        synchronized(lock) {
+            if (isReleased.get()) return
+            
+            player?.reset()
+            
+            player?.setOnPreparedListener(preparedListener)
+            player?.setOnVideoSizeChangedListener(videoSizeChangedListener)
+            player?.setOnErrorListener(errorListener)
+            player?.setOnInfoListener(infoListener)
+            
+            currentChannelLine = line
+            
+            audioTrackState.set(AudioTrackState())
+            
+            val trackId = audioTrackMemoryCache.get(line.playableUrl)
+            audioTrackState.set(audioTrackState.get().copy(userSelectedTrackId = trackId))
+            
+            updatePlaybackModeState(line)
+            
+            val urlToPlay = if (playbackModeState.get().isPlayback) {
+                line.url
+            } else {
+                line.playableUrl
+            }
+            
+            val baseHeaders = Configs.videoPlayerHeaders.toHeaders()
+            val userAgent = baseHeaders["User-Agent"]
+                ?: line.httpUserAgent
+                ?: Configs.videoPlayerUserAgent
+            val headers = if (baseHeaders.containsKey("User-Agent")) {
+                baseHeaders
+            } else {
+                baseHeaders + mapOf("User-Agent" to userAgent)
+            }
+            player?.setDataSource(urlToPlay, headers)
+            player?.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "user-agent", userAgent)
+            
+            setPlayerOptions()
+            state.updateIsBuffering(true)
+            player?.prepareAsync()
         }
-        
-        val baseHeaders = Configs.videoPlayerHeaders.toHeaders()
-        val userAgent = baseHeaders["User-Agent"]
-            ?: line.httpUserAgent
-            ?: Configs.videoPlayerUserAgent
-        val headers = if (baseHeaders.containsKey("User-Agent")) {
-            baseHeaders
-        } else {
-            baseHeaders + mapOf("User-Agent" to userAgent)
-        }
-        player?.setDataSource(urlToPlay, headers)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "user-agent", userAgent)
-        
-        setPlayerOptions()
-        state.updateIsBuffering(true)
-        player?.prepareAsync()
     }
     
     override fun play() {
@@ -169,14 +171,22 @@ class IjkVideoPlayerNew(
     override fun seekTo(position: Long) {
         if (isReleased.get()) return
         if (position < 0) return
-        player?.seekTo(position)
+        synchronized(lock) {
+            if (!isReleased.get()) {
+                player?.seekTo(position)
+            }
+        }
     }
     
     override fun setVolume(volume: Float) {
         if (isReleased.get()) return
         val v = volume.coerceIn(0f, 1f)
         volumeState.set(v)
-        player?.setVolume(v, v)
+        synchronized(lock) {
+            if (!isReleased.get()) {
+                player?.setVolume(v, v)
+            }
+        }
         state.updateVolume(v)
     }
     
@@ -199,40 +209,44 @@ class IjkVideoPlayerNew(
             saveAudioTrackMemory()
         }
         
-        if (track?.index == null) {
+        synchronized(lock) {
+            if (isReleased.get()) return
+            
+            if (track?.index == null) {
+                val currentStreamIndex = player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) ?: -1
+                if (currentStreamIndex >= 0) {
+                    runCatching { player?.deselectTrack(currentStreamIndex) }
+                }
+                return
+            }
+            
+            val candidate = currentState.candidates.getOrNull(track.index) ?: return
+            
             val currentStreamIndex = player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) ?: -1
-            if (currentStreamIndex >= 0) {
-                runCatching { player?.deselectTrack(currentStreamIndex) }
+            runCatching {
+                if (currentStreamIndex >= 0 && currentStreamIndex != candidate.streamIndex) {
+                    player?.deselectTrack(currentStreamIndex)
+                }
+                player?.selectTrack(candidate.streamIndex)
             }
-            return
-        }
-        
-        val candidate = currentState.candidates.getOrNull(track.index) ?: return
-        
-        val currentStreamIndex = player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) ?: -1
-        runCatching {
-            if (currentStreamIndex >= 0 && currentStreamIndex != candidate.streamIndex) {
-                player?.deselectTrack(currentStreamIndex)
+            
+            val updatedCandidates = currentState.candidates.map { c ->
+                c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
             }
-            player?.selectTrack(candidate.streamIndex)
-        }
-        
-        val updatedCandidates = currentState.candidates.map { c ->
-            c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
-        }
-        audioTrackState.set(currentState.copy(candidates = updatedCandidates))
-        
-        val updatedAudioTracks = state.metadata.value.audioTracks.map { 
-            it.copy(isSelected = it.index == track.index) 
-        }
-        val updatedAudio = candidate.metadata.copy(isSelected = true)
-        
-        state.updateMetadata(
-            state.metadata.value.copy(
-                audio = updatedAudio,
-                audioTracks = updatedAudioTracks
+            audioTrackState.set(currentState.copy(candidates = updatedCandidates))
+            
+            val updatedAudioTracks = state.metadata.value.audioTracks.map { 
+                it.copy(isSelected = it.index == track.index) 
+            }
+            val updatedAudio = candidate.metadata.copy(isSelected = true)
+            
+            state.updateMetadata(
+                state.metadata.value.copy(
+                    audio = updatedAudio,
+                    audioTracks = updatedAudioTracks
+                )
             )
-        )
+        }
     }
     
     override fun selectSubtitleTrack(track: PlayerMetadata.SubtitleTrack?) {
@@ -240,28 +254,35 @@ class IjkVideoPlayerNew(
     }
     
     override fun setVideoSurfaceView(surfaceView: SurfaceView) {
-        cacheSurfaceView = surfaceView
-        cacheSurfaceTexture?.let { runCatching { it.release() } }
-        cacheSurfaceTexture = null
-        
-        if (!isReleased.get()) {
-            runCatching { player?.setDisplay(surfaceView.holder) }
+        synchronized(lock) {
+            cacheSurfaceView = surfaceView
+            cacheSurfaceTexture?.let { runCatching { it.release() } }
+            cacheSurfaceTexture = null
+            
+            if (!isReleased.get()) {
+                runCatching { player?.setDisplay(surfaceView.holder) }
+            }
         }
     }
     
     override fun setVideoTextureView(textureView: TextureView) {
-        cacheSurfaceView = null
+        synchronized(lock) {
+            cacheSurfaceView = null
+        }
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(
                 surfaceTexture: SurfaceTexture,
                 width: Int,
                 height: Int
             ) {
-                cacheSurfaceTexture = Surface(surfaceTexture)
-                player?.setSurface(cacheSurfaceTexture)
-                
-                if (needRestoreOnSurfaceAvailable.getAndSet(false) && currentChannelLine.url.isNotBlank()) {
-                    prepare(currentChannelLine)
+                synchronized(lock) {
+                    if (isReleased.get()) return
+                    cacheSurfaceTexture = Surface(surfaceTexture)
+                    player?.setSurface(cacheSurfaceTexture)
+                    
+                    if (needRestoreOnSurfaceAvailable.getAndSet(false) && currentChannelLine.url.isNotBlank()) {
+                        prepare(currentChannelLine)
+                    }
                 }
             }
             
