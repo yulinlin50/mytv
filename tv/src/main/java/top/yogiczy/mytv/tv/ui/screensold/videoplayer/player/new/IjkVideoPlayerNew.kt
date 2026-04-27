@@ -267,11 +267,14 @@ class IjkVideoPlayerNew(
             ) {}
             
             override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
-                if (!isReleased.get()) {
-                    runCatching { player?.setSurface(null) }
+                synchronized(lock) {
+                    if (!isReleased.get()) {
+                        runCatching { player?.setSurface(null) }
+                        runCatching { player?.pause() }
+                    }
+                    cacheSurfaceTexture?.let { runCatching { it.release() } }
+                    cacheSurfaceTexture = null
                 }
-                cacheSurfaceTexture?.let { runCatching { it.release() } }
-                cacheSurfaceTexture = null
                 return true
             }
             
