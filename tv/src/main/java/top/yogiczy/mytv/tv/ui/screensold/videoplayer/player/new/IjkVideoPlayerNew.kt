@@ -76,8 +76,8 @@ class IjkVideoPlayerNew(
             jobs.forEach { it.cancel() }
             jobs.clear()
             
-            runCatching { player?.setSurface(null) }
             runCatching { player?.stop() }
+            runCatching { player?.setSurface(null) }
             
             player?.setOnPreparedListener(null)
             player?.setOnVideoSizeChangedListener(null)
@@ -275,8 +275,8 @@ class IjkVideoPlayerNew(
                 synchronized(lock) {
                     if (!isReleased.get()) {
                         val wasPlaying = player?.isPlaying == true
-                        runCatching { player?.setSurface(null) }
                         runCatching { player?.stop() }
+                        runCatching { player?.setSurface(null) }
                         if (wasPlaying && currentChannelLine.url.isNotBlank()) {
                             needRestoreOnSurfaceAvailable.set(true)
                         }
