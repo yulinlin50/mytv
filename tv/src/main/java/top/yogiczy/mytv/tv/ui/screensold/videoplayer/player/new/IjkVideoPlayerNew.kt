@@ -77,6 +77,7 @@ class IjkVideoPlayerNew(
             jobs.clear()
             
             runCatching { player?.stop() }
+            try { Thread.sleep(50) } catch (_: Exception) {}
             runCatching { player?.setSurface(null) }
             
             player?.setOnPreparedListener(null)
@@ -86,11 +87,10 @@ class IjkVideoPlayerNew(
             
             runCatching { player?.release() }
             player = null
+            
+            cacheSurfaceTexture = null
+            cacheSurfaceView = null
         }
-        
-        cacheSurfaceTexture?.let { runCatching { it.release() } }
-        cacheSurfaceTexture = null
-        cacheSurfaceView = null
         
         state.reset()
     }
@@ -297,12 +297,12 @@ class IjkVideoPlayerNew(
                     if (!isReleased.get()) {
                         val wasPlaying = player?.isPlaying == true
                         runCatching { player?.stop() }
+                        try { Thread.sleep(50) } catch (_: Exception) {}
                         runCatching { player?.setSurface(null) }
                         if (wasPlaying && currentChannelLine.url.isNotBlank()) {
                             needRestoreOnSurfaceAvailable.set(true)
                         }
                     }
-                    cacheSurfaceTexture?.let { runCatching { it.release() } }
                     cacheSurfaceTexture = null
                 }
                 return true
