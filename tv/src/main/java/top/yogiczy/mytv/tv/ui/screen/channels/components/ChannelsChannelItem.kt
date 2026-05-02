@@ -388,18 +388,19 @@ fun rememberEpgProgrammeRecentWithCache(
     LaunchedEffect(channel) {
         while (isActive) {
             val cached = EpgProgrammeRecentCache.get(channel)
+            
             if (cached != null) {
                 recentEpgProgramme = cached
-            }
-            
-            // 低性能模式下使用更长的更新间隔，减少系统开销
-            val result = EpgList.action { latestProvider() }
-            if (result != null) {
-                EpgProgrammeRecentCache.put(channel, result)
-                recentEpgProgramme = result
                 delay(if (isLowPerformanceMode) 60_000L else Configs.uiEpgUpdateIntervalMs)
             } else {
-                delay(if (isLowPerformanceMode) 5000L else 2000L)
+                val result = EpgList.action { latestProvider() }
+                if (result != null) {
+                    EpgProgrammeRecentCache.put(channel, result)
+                    recentEpgProgramme = result
+                    delay(if (isLowPerformanceMode) 60_000L else Configs.uiEpgUpdateIntervalMs)
+                } else {
+                    delay(if (isLowPerformanceMode) 5000L else 2000L)
+                }
             }
         }
     }
