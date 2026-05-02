@@ -73,6 +73,9 @@ object HttpServer : Loggable("HttpServer") {
         isStarting.set(true)
         retryCount = 0
         
+        HttpServerSecurity.regenerateToken(context.applicationContext)
+        log.i("已重新生成授权Token")
+        
         serverJob = serverScope.launch {
             while (retryCount < MAX_RETRY_COUNT && !isRunning.get()) {
                 try {
@@ -154,6 +157,10 @@ object HttpServer : Loggable("HttpServer") {
 
                     server.post("/api/cloud-sync/data") { request, response ->
                         handleCloudSyncDataPost(request, response)
+                    }
+
+                    server.get("/api/themes") { _, response ->
+                        handleGetThemes(response)
                     }
 
                     server.get("/api/about") { _, response ->
@@ -272,6 +279,13 @@ object HttpServer : Loggable("HttpServer") {
         wrapResponse(response).apply {
             setContentType(contentType)
             send(context.assets.open(filename).reader().readText())
+        }
+    }
+
+    private fun handleGetThemes(response: AsyncHttpServerResponse) {
+        wrapResponse(response).apply {
+            setContentType("application/json")
+            send(appContext?.resources?.openRawResource(R.raw.app_themes)?.readBytes()?.decodeToString() ?: "[]")
         }
     }
 

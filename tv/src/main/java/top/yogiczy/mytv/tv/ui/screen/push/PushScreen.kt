@@ -32,6 +32,7 @@ import top.yogiczy.mytv.tv.ui.utils.clickableNoIndication
 import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
 import top.yogiczy.mytv.tv.ui.utils.saveRequestFocus
 import top.yogiczy.mytv.tv.utlis.HttpServer
+import top.yogiczy.mytv.tv.utlis.HttpServerSecurity
 
 @Composable
 fun PushScreen(
@@ -64,6 +65,8 @@ fun PushContent(
     val serverUrl = HttpServer.serverUrl
     val context = LocalContext.current
     val focusRequester = remember { FocusRequester() }
+    val accessToken = HttpServerSecurity.getAccessToken(context)
+    val serverUrlWithToken = "$serverUrl#token=$accessToken"
 
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(100)
@@ -79,8 +82,8 @@ fun PushContent(
                 modifier = Modifier
                     .width(200.dp)
                     .height(200.dp)
-                    .clickableNoIndication { context.actionView(serverUrl) },
-                text = serverUrl,
+                    .clickableNoIndication { context.actionView(serverUrlWithToken) },
+                text = serverUrlWithToken,
             )
 
             Spacer(Modifier.height(20.dp))
