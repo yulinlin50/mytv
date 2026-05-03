@@ -1,27 +1,6 @@
 <template>
   <div>
-    <ConfigSection title="应用" show-push-button @push="pushConfig">
-      <van-cell title="开机自启">
-        <template #right-icon>
-          <van-switch v-model="config.appBootLaunch" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="画中画">
-        <template #right-icon>
-          <van-switch v-model="config.appPipEnable" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="起始界面">
-        <template #right-icon>
-          <van-radio-group direction="horizontal" v-model="config.appStartupScreen">
-            <van-radio name="Dashboard">仪表盘</van-radio>
-            <van-radio name="Live">直播</van-radio>
-          </van-radio-group>
-        </template>
-      </van-cell>
-    </ConfigSection>
-
-    <ConfigSection title="播放器">
+    <ConfigSection title="播放器" show-push-button @push="pushConfig">
       <van-cell title="内核">
         <template #right-icon>
           <van-radio-group direction="horizontal" v-model="config.videoPlayerCore">
@@ -38,8 +17,23 @@
           </van-radio-group>
         </template>
       </van-cell>
-      <van-cell title="显示模式">
-        <template #label>
+      <van-cell title="强制音频软解">
+        <template #right-icon>
+          <van-switch v-model="config.videoPlayerForceAudioSoftDecode" size="20px" />
+        </template>
+      </van-cell>
+      <van-cell title="停止上一媒体项">
+        <template #right-icon>
+          <van-switch v-model="config.videoPlayerStopPreviousMediaItem" size="20px" />
+        </template>
+      </van-cell>
+      <van-cell title="跳过多帧渲染">
+        <template #right-icon>
+          <van-switch v-model="config.videoPlayerSkipMultipleFramesOnSameVSync" size="20px" />
+        </template>
+      </van-cell>
+      <van-cell title="全局显示模式">
+        <template #right-icon>
           <van-radio-group direction="horizontal" v-model="config.videoPlayerDisplayMode">
             <van-radio name="ORIGINAL">原始比例</van-radio>
             <van-radio name="FILL">填充</van-radio>
@@ -48,6 +42,22 @@
             <van-radio name="SIXTEEN_NINE">16:9</van-radio>
             <van-radio name="TWO_THIRTY_FIVE_ONE">2.35:1</van-radio>
           </van-radio-group>
+        </template>
+      </van-cell>
+      <van-cell title="加载超时">
+        <template #label>
+          <span class="text-gray text-12px">影响超时换源、断线重连</span>
+        </template>
+        <template #right-icon>
+          <van-stepper
+            v-model="config.videoPlayerLoadTimeout"
+            min="1000"
+            max="60000"
+            step="1000"
+          />
+        </template>
+        <template #value>
+          <span>{{ formatTimeout(config.videoPlayerLoadTimeout) }}</span>
         </template>
       </van-cell>
       <van-cell title="自定义UA">
@@ -71,39 +81,6 @@
           />
         </template>
       </van-cell>
-      <van-cell title="加载超时">
-        <template #right-icon>
-          <van-stepper
-            v-model="config.videoPlayerLoadTimeout"
-            min="1000"
-            max="60000"
-            step="1000"
-          />
-        </template>
-        <template #label>
-          <span class="text-gray text-12px">毫秒</span>
-        </template>
-      </van-cell>
-      <van-cell title="强制音频软解">
-        <template #right-icon>
-          <van-switch v-model="config.videoPlayerForceAudioSoftDecode" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="停止上一媒体项">
-        <template #right-icon>
-          <van-switch v-model="config.videoPlayerStopPreviousMediaItem" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="跳过多帧渲染">
-        <template #right-icon>
-          <van-switch v-model="config.videoPlayerSkipMultipleFramesOnSameVSync" size="20px" />
-        </template>
-      </van-cell>
-      <template #footer>
-        <div class="flex justify-end">
-          <van-button size="small" type="primary" @click="pushConfig">推送</van-button>
-        </div>
-      </template>
     </ConfigSection>
   </div>
 </template>
@@ -116,4 +93,11 @@ const { config, pushConfig } = useConfig()
 
 const videoPlayerHeadersExample =
   'Header-Name-1: Header-Value-1\nHeader-Name-2: Header-Value-2'
+
+function formatTimeout(ms: number): string {
+  if (ms >= 1000) {
+    return `${ms / 1000}秒`
+  }
+  return `${ms}毫秒`
+}
 </script>

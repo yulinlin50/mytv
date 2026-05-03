@@ -4,7 +4,7 @@
       <van-cell title="自定义直播源">
         <template #label>
           <van-space class="w-full" direction="vertical" size="small">
-            <span>支持m3u、txt格式</span>
+            <span>支持多订阅源同时使用、本地文件、自定义UA</span>
             <van-field class="!pl-0" input-align="right" label="类型">
               <template #input>
                 <van-radio-group direction="horizontal" v-model="iptvSource.type">
@@ -64,35 +64,17 @@
           </van-space>
         </template>
       </van-cell>
-      <van-cell title="混合模式">
-        <template #right-icon>
-          <van-radio-group direction="horizontal" v-model="config.iptvHybridMode">
-            <van-radio name="DISABLE">禁用</van-radio>
-            <van-radio name="IPTV_FIRST">直播源优先</van-radio>
-            <van-radio name="HYBRID_FIRST">混合优先</van-radio>
-          </van-radio-group>
-        </template>
-      </van-cell>
-      <van-cell title="相似频道合并">
-        <template #right-icon>
-          <van-switch v-model="config.iptvSimilarChannelMerge" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="频道图标提供">
+      <van-cell title="频道分组管理">
         <template #label>
           <van-space class="w-full" direction="vertical" size="small">
-            <span>格式：{name} - 保持不变，{name|lowercase} - 小写，{name|uppercase} - 大写</span>
+            <span>每行一个分组名称，隐藏的分组将不会显示</span>
             <van-field
               class="!p-0"
-              placeholder="https://live.fanmingming.com/tv/{name}.png"
-              v-model="config.iptvChannelLogoProvider"
+              rows="3"
+              type="textarea"
+              v-model="hiddenGroupText"
             />
           </van-space>
-        </template>
-      </van-cell>
-      <van-cell title="频道图标覆盖">
-        <template #right-icon>
-          <van-switch v-model="config.iptvChannelLogoOverride" size="20px" />
         </template>
       </van-cell>
       <van-cell title="频道别名">
@@ -113,25 +95,47 @@
           </van-space>
         </template>
       </van-cell>
-      <van-cell title="频道收藏启用">
+      <van-cell title="相似频道合并">
+        <template #label>
+          <span class="text-gray text-12px">相同频道别名将进行合并</span>
+        </template>
         <template #right-icon>
-          <van-switch v-model="config.iptvChannelFavoriteEnable" size="20px" />
+          <van-switch v-model="config.iptvSimilarChannelMerge" size="20px" />
         </template>
       </van-cell>
-      <van-cell title="频道分组隐藏">
+      <van-cell title="频道图标提供">
         <template #label>
           <van-space class="w-full" direction="vertical" size="small">
-            <span>每行一个分组名称</span>
+            <span>格式：{name} - 保持不变，{name|lowercase} - 小写，{name|uppercase} - 大写</span>
             <van-field
               class="!p-0"
-              rows="3"
-              type="textarea"
-              v-model="hiddenGroupText"
+              placeholder="https://live.fanmingming.com/tv/{name}.png"
+              v-model="config.iptvChannelLogoProvider"
             />
           </van-space>
         </template>
       </van-cell>
-      <van-cell title="直播源缓存启用">
+      <van-cell title="频道图标覆盖">
+        <template #label>
+          <span class="text-gray text-12px">使用频道图标提供覆盖直播源中定义的频道图标</span>
+        </template>
+        <template #right-icon>
+          <van-switch v-model="config.iptvChannelLogoOverride" size="20px" />
+        </template>
+      </van-cell>
+      <van-cell title="混合模式">
+        <template #right-icon>
+          <van-radio-group direction="horizontal" v-model="config.iptvHybridMode">
+            <van-radio name="DISABLE">禁用</van-radio>
+            <van-radio name="IPTV_FIRST">直播源优先</van-radio>
+            <van-radio name="HYBRID_FIRST">混合优先</van-radio>
+          </van-radio-group>
+        </template>
+      </van-cell>
+      <van-cell title="直播源缓存">
+        <template #label>
+          <span class="text-gray text-12px">缓存直播源数据以加快加载速度</span>
+        </template>
         <template #right-icon>
           <van-switch v-model="config.iptvSourceCacheEnable" size="20px" />
         </template>
@@ -144,83 +148,19 @@
           <span class="text-gray text-12px">小时</span>
         </template>
       </van-cell>
-    </ConfigSection>
-
-    <ConfigSection title="控制" show-push-button @push="pushConfig">
-      <van-cell title="数字选台">
-        <template #right-icon>
-          <van-switch v-model="config.iptvChannelNoSelectEnable" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="换台反转">
-        <template #right-icon>
-          <van-switch v-model="config.iptvChannelChangeFlip" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="换台列表首尾循环">
-        <template #right-icon>
-          <van-switch v-model="config.iptvChannelChangeListLoop" size="20px" />
-        </template>
-      </van-cell>
-    </ConfigSection>
-
-    <ConfigSection title="节目单">
-      <van-cell title="启用节目单">
-        <template #right-icon>
-          <van-switch v-model="config.epgEnable" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="跟随直播源">
-        <template #right-icon>
-          <van-switch v-model="config.epgSourceFollowIptv" size="20px" />
-        </template>
-      </van-cell>
-      <van-cell title="自定义节目单">
+      <van-cell title="频道图标缓存">
         <template #label>
-          <van-space class="w-full" direction="vertical" size="small">
-            <span>支持xml、xml.gz格式</span>
-            <van-field
-              class="!pl-0"
-              input-align="right"
-              label="名称"
-              placeholder="节目单名称"
-              v-model="epgSource.name"
-            />
-            <van-field
-              class="!pl-0"
-              input-align="right"
-              label="链接"
-              placeholder="节目单链接"
-              v-model="epgSource.url"
-            />
-            <div class="flex justify-end">
-              <van-button size="small" type="primary" @click="pushEpgSource">
-                推送节目单
-              </van-button>
-            </div>
-          </van-space>
+          <span class="text-gray text-12px">缓存频道图标以加快加载速度</span>
         </template>
-      </van-cell>
-      <van-cell title="节目单缓存时间">
         <template #right-icon>
-          <van-stepper v-model="config.epgCacheTimeHours" min="1" max="168" />
-        </template>
-        <template #label>
-          <span class="text-gray text-12px">小时</span>
+          <van-switch v-model="config.channelLogoCacheEnable" size="20px" />
         </template>
       </van-cell>
-    </ConfigSection>
-
-    <ConfigSection title="音轨" show-push-button @push="pushConfig">
-      <van-cell title="音轨排序">
-        <template #right-icon>
-          <van-radio-group direction="horizontal" v-model="config.audioTrackSortMode">
-            <van-radio name="LANGUAGE">按语言</van-radio>
-            <van-radio name="CHANNELS">按声道</van-radio>
-            <van-radio name="BITRATE">按比特率</van-radio>
-          </van-radio-group>
-        </template>
-      </van-cell>
+      <template #footer>
+        <div class="flex justify-end">
+          <van-button size="small" type="primary" @click="pushConfig">推送</van-button>
+        </div>
+      </template>
     </ConfigSection>
   </div>
 </template>
@@ -247,11 +187,6 @@ const iptvSource = ref({
   url: '',
   filePath: '',
   content: '',
-})
-
-const epgSource = ref({
-  name: `添加于${dayjs().format('YYYY-MM-DD HH:mm:ss')}`,
-  url: '',
 })
 
 const channelAlias = ref('')
@@ -295,28 +230,6 @@ function uploadIptvSourceContent(items: UploaderFileListItem | UploaderFileListI
     iptvSource.value.content = e.target?.result as string
   }
   reader.readAsText(item.file)
-}
-
-async function pushEpgSource() {
-  if (!epgSource.value.name) {
-    showFailToast('请填写节目单名称')
-    return
-  }
-  if (!epgSource.value.url) {
-    showFailToast('请填写节目单链接')
-    return
-  }
-
-  showLoadingToast({ message: '加载中...', forbidClick: true, duration: 0 })
-  try {
-    await postJson('/api/epg-source/push', epgSource.value)
-    showSuccessToast('推送节目单成功')
-  } catch (e) {
-    showFailToast('推送节目单失败')
-    console.error(e)
-  } finally {
-    closeToast()
-  }
 }
 
 async function fetchChannelAlias() {
