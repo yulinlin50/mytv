@@ -10,6 +10,14 @@
           <span v-else class="text-gray">加载中...</span>
         </template>
       </van-cell>
+      <van-cell>
+        <template #label>
+          <div class="flex gap-1">
+            <van-button size="small" type="primary" @click="pullCloudData">拉取云端</van-button>
+            <van-button size="small" type="success" @click="pushCloudData">推送云端</van-button>
+          </div>
+        </template>
+      </van-cell>
       <van-cell title="自动拉取">
         <template #label>
           <span class="text-gray text-12px">应用启动时自动拉取云端数据并应用</span>
@@ -96,7 +104,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { getJson } from '@/utils/api'
+import { getJson, requestApi } from '@/utils/api'
+import { showSuccessToast, showFailToast, showLoadingToast, closeToast } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
 const { config, pushConfig } = useConfig()
@@ -108,6 +117,34 @@ async function fetchSyncData() {
     syncData.value = await getJson('/api/sync-data')
   } catch (e) {
     console.error(e)
+  }
+}
+
+async function pullCloudData() {
+  showLoadingToast({ message: '拉取中...', forbidClick: true, duration: 0 })
+  try {
+    await requestApi('/api/cloud-sync/pull', { method: 'POST' })
+    showSuccessToast('拉取云端数据成功')
+    await fetchSyncData()
+  } catch (e) {
+    showFailToast('拉取云端数据失败')
+    console.error(e)
+  } finally {
+    closeToast()
+  }
+}
+
+async function pushCloudData() {
+  showLoadingToast({ message: '推送中...', forbidClick: true, duration: 0 })
+  try {
+    await requestApi('/api/cloud-sync/push', { method: 'POST' })
+    showSuccessToast('推送云端数据成功')
+    await fetchSyncData()
+  } catch (e) {
+    showFailToast('推送云端数据失败')
+    console.error(e)
+  } finally {
+    closeToast()
   }
 }
 

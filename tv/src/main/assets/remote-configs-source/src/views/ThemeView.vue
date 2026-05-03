@@ -13,6 +13,19 @@
           @cancel="showThemePicker = false"
         />
       </van-popup>
+      <van-cell title="纹理透明度">
+        <template #label>
+          <van-slider
+            v-model="config.themeTextureAlpha"
+            :min="0"
+            :max="1"
+            :step="0.1"
+          />
+        </template>
+        <template #value>
+          <span>{{ Math.round(config.themeTextureAlpha * 100) }}%</span>
+        </template>
+      </van-cell>
       <van-cell title="恢复默认">
         <template #right-icon>
           <van-button size="small" @click="resetTheme">恢复</van-button>

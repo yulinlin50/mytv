@@ -17,6 +17,52 @@
           <van-switch v-model="config.epgSourceFollowIptv" size="20px" />
         </template>
       </van-cell>
+      <van-cell title="节目单源管理">
+        <template #label>
+          <van-space class="w-full" direction="vertical" size="small">
+            <span>管理已添加的节目单源</span>
+            <van-list>
+              <van-cell
+                v-for="(source, index) in epgSourceList"
+                :key="index"
+                :title="source.name"
+                :label="source.url"
+              >
+                <template #right-icon>
+                  <van-switch
+                    v-model="source.isEnabled"
+                    size="20px"
+                    @change="updateEpgSourceList"
+                  />
+                </template>
+              </van-cell>
+            </van-list>
+          </van-space>
+        </template>
+      </van-cell>
+      <van-cell title="直播源节目单配置">
+        <template #label>
+          <van-space class="w-full" direction="vertical" size="small">
+            <span>为每个直播源配置对应的节目单源</span>
+            <van-list>
+              <van-cell
+                v-for="(mapping, index) in iptvEpgMappings"
+                :key="index"
+                :title="mapping.iptvName"
+              >
+                <template #label>
+                  <van-field
+                    class="!p-0"
+                    placeholder="选择节目单源"
+                    v-model="mapping.epgSourceName"
+                    @blur="updateIptvEpgMappings"
+                  />
+                </template>
+              </van-cell>
+            </van-list>
+          </van-space>
+        </template>
+      </van-cell>
       <van-cell title="自定义节目单">
         <template #label>
           <van-space class="w-full" direction="vertical" size="small">
@@ -64,9 +110,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { postJson } from '@/utils/api'
+import { postJson, getJson } from '@/utils/api'
 import {
   showSuccessToast,
   showFailToast,
@@ -83,6 +129,47 @@ const epgSource = ref({
   url: '',
 })
 
+const epgSourceList = ref<Array<{ name: string; url: string; isEnabled: boolean }>>([])
+const iptvEpgMappings = ref<Array<{ iptvName: string; epgSourceName: string }>>([])
+
+async function fetchEpgSourceList() {
+  try {
+    const data = await getJson<Array<{ name: string; url: string; isEnabled: boolean }>>('/api/epg-source/list')
+    epgSourceList.value = data
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+async function updateEpgSourceList() {
+  try {
+    await postJson('/api/epg-source/list', epgSourceList.value)
+    showSuccessToast('节目单源已更新')
+  } catch (e) {
+    showFailToast('更新节目单源失败')
+    console.error(e)
+  }
+}
+
+async function fetchIptvEpgMappings() {
+  try {
+    const data = await getJson<Array<{ iptvName: string; epgSourceName: string }>>('/api/iptv-epg-mappings')
+    iptvEpgMappings.value = data
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+async function updateIptvEpgMappings() {
+  try {
+    await postJson('/api/iptv-epg-mappings', iptvEpgMappings.value)
+    showSuccessToast('直播源节目单配置已更新')
+  } catch (e) {
+    showFailToast('更新直播源节目单配置失败')
+    console.error(e)
+  }
+}
+
 async function pushEpgSource() {
   if (!epgSource.value.name) {
     showFailToast('请填写节目单名称')
@@ -97,6 +184,7 @@ async function pushEpgSource() {
   try {
     await postJson('/api/epg-source/push', epgSource.value)
     showSuccessToast('推送节目单成功')
+    await fetchEpgSourceList()
   } catch (e) {
     showFailToast('推送节目单失败')
     console.error(e)
@@ -104,4 +192,9 @@ async function pushEpgSource() {
     closeToast()
   }
 }
+
+onMounted(() => {
+  fetchEpgSourceList()
+  fetchIptvEpgMappings()
+})
 </script>

@@ -156,6 +156,11 @@
           <van-switch v-model="config.channelLogoCacheEnable" size="20px" />
         </template>
       </van-cell>
+      <van-cell title="清除频道图标缓存" is-link @click="clearImageCache">
+        <template #label>
+          <span class="text-gray text-12px">清除所有已缓存的频道图标</span>
+        </template>
+      </van-cell>
     </ConfigSection>
   </div>
 </template>
@@ -163,12 +168,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { postJson, getText, postText } from '@/utils/api'
+import { postJson, getText, postText, requestApi } from '@/utils/api'
 import {
   showSuccessToast,
   showFailToast,
   showLoadingToast,
   closeToast,
+  showConfirmDialog,
   type UploaderFileListItem,
 } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
@@ -246,6 +252,22 @@ async function updateChannelAlias() {
     console.error(e)
   } finally {
     closeToast()
+  }
+}
+
+async function clearImageCache() {
+  try {
+    await showConfirmDialog({
+      title: '确认清除频道图标缓存',
+      message: '这将清除所有已缓存的频道图标。是否继续？',
+    })
+    await requestApi('/api/clear-image-cache', { method: 'POST' })
+    showSuccessToast('频道图标缓存已清除')
+  } catch (e) {
+    if (e !== 'cancel') {
+      showFailToast('清除频道图标缓存失败')
+      console.error(e)
+    }
   }
 }
 
