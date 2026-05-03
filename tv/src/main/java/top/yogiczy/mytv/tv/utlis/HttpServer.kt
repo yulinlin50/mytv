@@ -92,13 +92,9 @@ object HttpServer : Loggable("HttpServer") {
                     server.listen(AsyncServer.getDefault(), SERVER_PORT)
 
                     server.get("/") { _, response ->
-                        handleRawResource(response, context, "text/html", R.raw.web_push)
-                    }
-                    server.get("/web_push_css.css") { _, response ->
-                        handleRawResource(response, context, "text/css", R.raw.web_push_css)
-                    }
-                    server.get("/web_push_js.js") { _, response ->
-                        handleRawResource(response, context, "text/javascript", R.raw.web_push_js)
+                        response.headers.set("Location", "/advance")
+                        response.code = 302
+                        response.send("")
                     }
 
                     server.get("/advance") { _, response ->

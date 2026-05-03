@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
+import router from './router'
 import {
   Button,
   Cell,
@@ -7,6 +8,7 @@ import {
   ConfigProvider,
   Field,
   Form,
+  Icon,
   List,
   Picker,
   Popup,
@@ -22,6 +24,9 @@ import {
   Toast,
   Uploader,
   Empty,
+  SwipeCell,
+  DropdownMenu,
+  DropdownItem,
 } from 'vant'
 import 'vant/lib/index.css'
 import './styles/main.css'
@@ -29,12 +34,14 @@ import './styles/main.css'
 const app = createApp(App)
 
 app
+  .use(router)
   .use(Button)
   .use(Cell)
   .use(CellGroup)
   .use(ConfigProvider)
   .use(Field)
   .use(Form)
+  .use(Icon)
   .use(List)
   .use(Picker)
   .use(Popup)
@@ -50,5 +57,8 @@ app
   .use(Toast)
   .use(Uploader)
   .use(Empty)
+  .use(SwipeCell)
+  .use(DropdownMenu)
+  .use(DropdownItem)
 
 app.mount('#app')
