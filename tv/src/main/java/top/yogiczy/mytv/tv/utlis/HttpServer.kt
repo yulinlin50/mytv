@@ -93,8 +93,7 @@ object HttpServer : Loggable("HttpServer") {
 
                     server.get("/") { _, response ->
                         response.headers.set("Location", "/advance")
-                        response.code = 302
-                        response.send("")
+                        response.code(302).send("")
                     }
 
                     server.get("/advance") { _, response ->
