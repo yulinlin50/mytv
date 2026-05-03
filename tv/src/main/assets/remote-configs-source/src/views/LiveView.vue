@@ -286,12 +286,13 @@ async function pushIptvSource() {
   }
 }
 
-function uploadIptvSourceContent(file: { file: File }) {
+function uploadIptvSourceContent(item: { file?: File }) {
+  if (!item.file) return
   const reader = new FileReader()
   reader.onload = (e) => {
     iptvSource.value.content = e.target?.result as string
   }
-  reader.readAsText(file.file)
+  reader.readAsText(item.file)
 }
 
 async function pushEpgSource() {

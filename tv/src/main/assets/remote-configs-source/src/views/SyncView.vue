@@ -131,7 +131,6 @@
 import { useConfig } from '@/composables/useConfig'
 import { requestApi } from '@/utils/api'
 import {
-  showSuccessToast,
   showFailToast,
   showLoadingToast,
   closeToast,
@@ -140,11 +139,12 @@ import ConfigSection from '@/components/ConfigSection.vue'
 
 const { config, pushConfig } = useConfig()
 
-async function uploadApk(file: { file: File }) {
+async function uploadApk(item: { file?: File }) {
+  if (!item.file) return
   showLoadingToast({ message: '加载中...', forbidClick: true, duration: 0 })
   try {
     const formData = new FormData()
-    formData.append('filename', file.file)
+    formData.append('filename', item.file)
     await requestApi('/api/upload/apk', { method: 'POST', body: formData })
     closeToast()
   } catch (e) {
@@ -153,11 +153,12 @@ async function uploadApk(file: { file: File }) {
   }
 }
 
-async function uploadAllInOne(file: { file: File }) {
+async function uploadAllInOne(item: { file?: File }) {
+  if (!item.file) return
   showLoadingToast({ message: '加载中...', forbidClick: true, duration: 0 })
   try {
     const formData = new FormData()
-    formData.append('filename', file.file)
+    formData.append('filename', item.file)
     await requestApi('/api/upload/allinone', { method: 'POST', body: formData })
     closeToast()
   } catch (e) {
