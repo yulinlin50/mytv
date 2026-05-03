@@ -1,6 +1,6 @@
 <template>
   <div>
-    <ConfigSection title="直播源">
+    <ConfigSection title="直播源" show-push-button @push="pushConfig">
       <van-cell title="自定义直播源">
         <template #label>
           <van-space class="w-full" direction="vertical" size="small">
@@ -156,11 +156,6 @@
           <van-switch v-model="config.channelLogoCacheEnable" size="20px" />
         </template>
       </van-cell>
-      <template #footer>
-        <div class="flex justify-end">
-          <van-button size="small" type="primary" @click="pushConfig">推送</van-button>
-        </div>
-      </template>
     </ConfigSection>
   </div>
 </template>
