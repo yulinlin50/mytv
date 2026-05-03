@@ -134,13 +134,15 @@ import {
   showFailToast,
   showLoadingToast,
   closeToast,
+  type UploaderFileListItem,
 } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
 const { config, pushConfig } = useConfig()
 
-async function uploadApk(item: { file?: File }) {
-  if (!item.file) return
+async function uploadApk(items: UploaderFileListItem | UploaderFileListItem[]) {
+  const item = Array.isArray(items) ? items[0] : items
+  if (!item?.file) return
   showLoadingToast({ message: '加载中...', forbidClick: true, duration: 0 })
   try {
     const formData = new FormData()
@@ -153,8 +155,9 @@ async function uploadApk(item: { file?: File }) {
   }
 }
 
-async function uploadAllInOne(item: { file?: File }) {
-  if (!item.file) return
+async function uploadAllInOne(items: UploaderFileListItem | UploaderFileListItem[]) {
+  const item = Array.isArray(items) ? items[0] : items
+  if (!item?.file) return
   showLoadingToast({ message: '加载中...', forbidClick: true, duration: 0 })
   try {
     const formData = new FormData()

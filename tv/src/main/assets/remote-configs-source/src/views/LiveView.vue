@@ -234,6 +234,7 @@ import {
   showFailToast,
   showLoadingToast,
   closeToast,
+  type UploaderFileListItem,
 } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 import dayjs from 'dayjs'
@@ -286,8 +287,9 @@ async function pushIptvSource() {
   }
 }
 
-function uploadIptvSourceContent(item: { file?: File }) {
-  if (!item.file) return
+function uploadIptvSourceContent(items: UploaderFileListItem | UploaderFileListItem[]) {
+  const item = Array.isArray(items) ? items[0] : items
+  if (!item?.file) return
   const reader = new FileReader()
   reader.onload = (e) => {
     iptvSource.value.content = e.target?.result as string
