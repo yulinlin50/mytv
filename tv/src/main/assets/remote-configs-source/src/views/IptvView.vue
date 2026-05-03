@@ -9,9 +9,9 @@
               <van-swipe-cell v-for="(source, index) in config.iptvSourceList" :key="source.id || index">
                 <van-cell :title="source.name" :label="source.url" is-link @click="editIptvSource(index)">
                   <template #value>
-                    <van-tag v-if="source.isLocal" type="primary" size="small">本地</van-tag>
-                    <van-tag v-if="source.userAgent" type="success" size="small">自定义UA</van-tag>
-                    <van-tag v-if="source.epgSource" type="warning" size="small">节目单</van-tag>
+                    <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
+                    <van-tag v-if="source.userAgent" type="success">自定义UA</van-tag>
+                    <van-tag v-if="source.epgSource" type="warning">节目单</van-tag>
                   </template>
                   <template #right-icon>
                     <van-switch v-model="source.enabled" size="20px" @change="onSourceChange" @click.stop />

@@ -25,7 +25,7 @@
               <van-swipe-cell v-for="(source, index) in config.epgSourceList" :key="index">
                 <van-cell :title="source.name" :label="source.url" is-link @click="editEpgSource(index)">
                   <template #value>
-                    <van-tag v-if="source.isLocal" type="primary" size="small">本地</van-tag>
+                    <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
                   </template>
                 </van-cell>
                 <template #right>
