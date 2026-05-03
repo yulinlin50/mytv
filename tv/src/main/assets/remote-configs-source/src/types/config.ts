@@ -1,14 +1,20 @@
-export interface IptvSource {
-  name: string
-  url: string
-  isEnabled: boolean
-  isLocalFile: boolean
-}
-
 export interface EpgSource {
   name: string
   url: string
-  isEnabled: boolean
+  isLocal: boolean
+  expireHours: number | null
+}
+
+export interface IptvSource {
+  name: string
+  url: string
+  isLocal: boolean
+  transformJs: string | null
+  userAgent: string | null
+  cacheTime: number | null
+  epgSource: EpgSource | null
+  enabled: boolean
+  id: string
 }
 
 export interface AppThemeDef {
@@ -40,6 +46,7 @@ export interface Config {
   debugShowVideoPlayerMetadata: boolean
   debugShowLayoutGrids: boolean
   iptvSourceList: IptvSource[]
+  epgSourceList: EpgSource[]
   iptvChannelGroupHiddenList: string[]
   iptvHybridMode: 'DISABLE' | 'IPTV_FIRST' | 'HYBRID_FIRST'
   iptvSimilarChannelMerge: boolean

@@ -12,6 +12,7 @@ const defaultConfig: Config = {
   debugShowVideoPlayerMetadata: false,
   debugShowLayoutGrids: false,
   iptvSourceList: [],
+  epgSourceList: [],
   iptvChannelGroupHiddenList: [],
   iptvHybridMode: 'DISABLE',
   iptvSimilarChannelMerge: false,
