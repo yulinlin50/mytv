@@ -1,0 +1,78 @@
+:root {
+  --van-tabbar-item-active-color: #1989fa;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f7f8fa;
+}
+
+.dark body {
+  background-color: #1a1a1a;
+  color: #f5f5f5;
+}
+
+.app-container {
+  min-height: 100vh;
+  padding-top: 46px;
+  padding-bottom: 66px;
+}
+
+.app-header {
+  padding: 16px 20px 0 20px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.app-content {
+  padding-bottom: 16px;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.text-gray {
+  color: #969799;
+}
+
+.text-12px {
+  font-size: 12px;
+}
+
+.flex {
+  display: flex;
+}
+
+.justify-end {
+  justify-content: flex-end;
+}
+
+.gap-1 {
+  gap: 4px;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.\!pl-0 {
+  padding-left: 0 !important;
+}
+
+.\!p-0 {
+  padding: 0 !important;
+}
