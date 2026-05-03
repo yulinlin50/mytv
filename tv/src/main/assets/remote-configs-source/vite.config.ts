@@ -9,13 +9,7 @@ export default defineConfig({
     outDir: '../remote-configs',
     emptyOutDir: true,
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         assetFileNames: 'assets/[name]-[hash][extname]',
