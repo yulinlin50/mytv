@@ -143,13 +143,15 @@ import { useConfig } from '@/composables/useConfig'
 import { getJson } from '@/utils/api'
 import ConfigSection from '@/components/ConfigSection.vue'
 
+import type { AppThemeDef, ThemeGroup } from '@/types/config'
+
 const { config, pushConfig } = useConfig()
 
 const showThemePicker = ref(false)
-const themeList = ref<{ name: string; list: { name: string }[] }[]>([])
+const themeList = ref<ThemeGroup[]>([])
 
 const themeColumns = computed(() => {
-  const groups: Record<string, { text: string; value: { name: string } }[]> = {}
+  const groups: Record<string, { text: string; value: AppThemeDef }[]> = {}
   themeList.value.forEach(group => {
     groups[group.name] = group.list.map(t => ({ text: t.name, value: t }))
   })
@@ -164,7 +166,7 @@ async function fetchThemes() {
   }
 }
 
-function onThemeConfirm({ selectedOptions }: { selectedOptions: { value: { name: string } }[] }) {
+function onThemeConfirm({ selectedOptions }: { selectedOptions: { value: AppThemeDef }[] }) {
   const theme = selectedOptions[1]?.value
   if (theme) {
     config.value.themeAppCurrent = theme
