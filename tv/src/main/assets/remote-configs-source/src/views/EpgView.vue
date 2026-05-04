@@ -42,7 +42,7 @@
                     <template #title>
                       <div class="source-title">{{ source.name }}</div>
                       <div class="source-tags">
-                        <van-tag v-if="source.isLocal" type="primary" size="small">本地</van-tag>
+                        <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
                       </div>
                       <div class="source-url">{{ source.url }}</div>
                     </template>
