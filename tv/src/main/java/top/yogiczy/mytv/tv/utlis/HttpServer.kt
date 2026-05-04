@@ -109,8 +109,8 @@ object HttpServer : Loggable("HttpServer") {
                         handleAssets(response, context, contentType, request.path.removePrefix("/"))
                     }
 
-                    server.get("/api/info") { _, response ->
-                        handleGetInfo(response)
+                    server.get("/api/info") { request, response ->
+                        handleGetInfo(request, response)
                     }
 
                     server.post("/api/iptv-source/push") { request, response ->
@@ -121,16 +121,16 @@ object HttpServer : Loggable("HttpServer") {
                         handleEpgSourcePush(request, response)
                     }
 
-                    server.get("/api/channel-alias") { _, response ->
-                        handleGetChannelAlias(response)
+                    server.get("/api/channel-alias") { request, response ->
+                        handleGetChannelAlias(request, response)
                     }
 
                     server.post("/api/channel-alias") { request, response ->
                         handleUpdateChannelAlias(request, response)
                     }
 
-                    server.get("/api/configs") { _, response ->
-                        handleConfigsGet(response)
+                    server.get("/api/configs") { request, response ->
+                        handleConfigsGet(request, response)
                     }
 
                     server.post("/api/configs") { request, response ->
@@ -141,8 +141,8 @@ object HttpServer : Loggable("HttpServer") {
                         handleUploadApk(request, response, context)
                     }
 
-                    server.get("/api/cloud-sync/data") { _, response ->
-                        handleCloudSyncDataGet(response)
+                    server.get("/api/cloud-sync/data") { request, response ->
+                        handleCloudSyncDataGet(request, response)
                     }
 
                     server.post("/api/cloud-sync/data") { request, response ->
@@ -157,8 +157,8 @@ object HttpServer : Loggable("HttpServer") {
                         handleAboutGet(response)
                     }
 
-                    server.get("/api/logs") { _, response ->
-                        handleLogsGet(response)
+                    server.get("/api/logs") { request, response ->
+                        handleLogsGet(request, response)
                     }
 
                     server.get("/api/file/content") { request, response ->
@@ -283,7 +283,12 @@ object HttpServer : Loggable("HttpServer") {
         }
     }
 
-    private fun handleGetInfo(response: AsyncHttpServerResponse) {
+    private fun handleGetInfo(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse
+    ) {
+        if (!validateRequest(request, response)) return
+        
         wrapResponse(response).apply {
             setContentType("application/json")
             send(
@@ -383,7 +388,12 @@ object HttpServer : Loggable("HttpServer") {
         responseSuccess(response)
     }
 
-    private fun handleGetChannelAlias(response: AsyncHttpServerResponse) {
+    private fun handleGetChannelAlias(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse
+    ) {
+        if (!validateRequest(request, response)) return
+        
         wrapResponse(response).apply {
             send(runCatching { ChannelAlias.aliasFile.readText() }.getOrElse { "" })
         }
@@ -409,7 +419,12 @@ object HttpServer : Loggable("HttpServer") {
         responseSuccess(response)
     }
 
-    private fun handleConfigsGet(response: AsyncHttpServerResponse) {
+    private fun handleConfigsGet(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse
+    ) {
+        if (!validateRequest(request, response)) return
+        
         wrapResponse(response).apply {
             setContentType("application/json")
             send(Globals.json.encodeToString(Configs.toPartial()))
@@ -563,7 +578,12 @@ object HttpServer : Loggable("HttpServer") {
         responseSuccess(response)
     }
 
-    private fun handleCloudSyncDataGet(response: AsyncHttpServerResponse) {
+    private fun handleCloudSyncDataGet(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse
+    ) {
+        if (!validateRequest(request, response)) return
+        
         serverScope.launch {
             try {
                 val data = CloudSync.getData()
@@ -623,7 +643,12 @@ object HttpServer : Loggable("HttpServer") {
         }
     }
 
-    private fun handleLogsGet(response: AsyncHttpServerResponse) {
+    private fun handleLogsGet(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse
+    ) {
+        if (!validateRequest(request, response)) return
+        
         wrapResponse(response).apply {
             setContentType("application/json")
             send(Globals.json.encodeToString(Logger.history.takeLast(100)))
