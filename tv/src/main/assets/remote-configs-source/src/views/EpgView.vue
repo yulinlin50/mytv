@@ -32,38 +32,34 @@
       </ConfigSection>
 
       <ConfigSection title="节目单源管理">
-        <van-cell title="节目单源列表">
-          <template #label>
-            <van-space class="w-full" direction="vertical" size="small">
-              <span>管理已添加的节目单源（点击编辑，左滑删除）</span>
-              <van-list>
-                <van-swipe-cell v-for="(source, index) in config.epgSourceList" :key="index">
-                  <van-cell :title="source.name" :label="source.url" is-link @click="editEpgSource(index)">
-                    <template #value>
-                      <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
-                    </template>
-                  </van-cell>
-                  <template #right>
-                    <van-button square type="danger" text="删除" @click="deleteEpgSource(index)" />
-                  </template>
-                </van-swipe-cell>
-              </van-list>
-              <van-button size="small" type="primary" block @click="showAddPopup = true">添加节目单源</van-button>
-            </van-space>
-          </template>
-        </van-cell>
-        <van-cell title="快速添加节目单">
-          <template #label>
-            <van-space class="w-full" direction="vertical" size="small">
-              <span>支持xml、xml.gz格式</span>
-              <van-field class="!pl-0" input-align="right" label="名称" placeholder="节目单名称" v-model="quickEpgSource.name" />
-              <van-field class="!pl-0" input-align="right" label="链接" placeholder="节目单链接" v-model="quickEpgSource.url" />
-              <div class="flex justify-end">
-                <van-button size="small" type="primary" @click="pushQuickEpgSource">推送节目单</van-button>
-              </div>
-            </van-space>
-          </template>
-        </van-cell>
+        <div class="list-header">
+          <span>管理已添加的节目单源（点击编辑，左滑删除）</span>
+        </div>
+        <van-list>
+          <van-swipe-cell v-for="(source, index) in config.epgSourceList" :key="index">
+            <van-cell :title="source.name" :label="source.url" is-link @click="editEpgSource(index)">
+              <template #value>
+                <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
+              </template>
+            </van-cell>
+            <template #right>
+              <van-button square type="danger" text="删除" @click="deleteEpgSource(index)" />
+            </template>
+          </van-swipe-cell>
+        </van-list>
+        <van-button size="small" type="primary" block class="mt-2" @click="showAddPopup = true">添加节目单源</van-button>
+        
+        <div class="section-divider"></div>
+        
+        <div class="list-header">快速添加节目单</div>
+        <div class="list-content">
+          <span class="text-gray text-12px">支持xml、xml.gz格式</span>
+          <van-field class="!pl-0" input-align="right" label="名称" placeholder="节目单名称" v-model="quickEpgSource.name" />
+          <van-field class="!pl-0" input-align="right" label="链接" placeholder="节目单链接" v-model="quickEpgSource.url" />
+          <div class="flex justify-end">
+            <van-button size="small" type="primary" @click="pushQuickEpgSource">推送节目单</van-button>
+          </div>
+        </div>
         <template #footer>
           <div class="flex justify-end">
             <van-button size="small" type="primary" @click="pushConfig">推送</van-button>
@@ -72,29 +68,24 @@
       </ConfigSection>
 
       <ConfigSection title="直播源节目单配置">
-        <van-cell title="为每个直播源配置节目单">
-          <template #label>
-            <van-space class="w-full" direction="vertical" size="small">
-              <van-list>
-                <van-cell
-                  v-for="(iptvSource, index) in config.iptvSourceList"
-                  :key="index"
-                  :title="iptvSource.name"
-                >
-                  <template #label>
-                    <van-dropdown-menu>
-                      <van-dropdown-item 
-                        :model-value="getEpgSourceIndex(iptvSource)"
-                        :options="epgSourceOptions"
-                        @change="(val: number) => setIptvEpgSource(index, val)"
-                      />
-                    </van-dropdown-menu>
-                  </template>
-                </van-cell>
-              </van-list>
-            </van-space>
-          </template>
-        </van-cell>
+        <div class="list-header">为每个直播源配置节目单</div>
+        <van-list>
+          <van-cell
+            v-for="(iptvSource, index) in config.iptvSourceList"
+            :key="index"
+            :title="iptvSource.name"
+          >
+            <template #label>
+              <van-dropdown-menu>
+                <van-dropdown-item 
+                  :model-value="getEpgSourceIndex(iptvSource)"
+                  :options="epgSourceOptions"
+                  @change="(val: number) => setIptvEpgSource(index, val)"
+                />
+              </van-dropdown-menu>
+            </template>
+          </van-cell>
+        </van-list>
         <template #footer>
           <div class="flex justify-end">
             <van-button size="small" type="primary" @click="pushConfig">推送</van-button>
@@ -401,5 +392,26 @@ async function pushQuickEpgSource() {
 
 .w-full {
   width: 100%;
+}
+
+.list-header {
+  padding: 12px 16px 8px;
+  color: #323233;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.list-content {
+  padding: 0 16px;
+}
+
+.section-divider {
+  height: 1px;
+  background: #ebedf0;
+  margin: 16px;
+}
+
+.mt-2 {
+  margin-top: 8px;
 }
 </style>

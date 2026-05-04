@@ -8,61 +8,57 @@
     
     <div class="page-content">
       <ConfigSection title="直播源管理">
-        <van-cell title="直播源列表">
-          <template #label>
-            <van-space class="w-full" direction="vertical" size="small">
-              <span>管理已添加的直播源（点击编辑，左滑删除）</span>
-              <van-list>
-                <van-swipe-cell v-for="(source, index) in config.iptvSourceList" :key="source.id || index">
-                  <van-cell :title="source.name" :label="source.url" is-link @click="editIptvSource(index)">
-                    <template #value>
-                      <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
-                      <van-tag v-if="source.userAgent" type="success">自定义UA</van-tag>
-                      <van-tag v-if="source.epgSource" type="warning">节目单</van-tag>
-                    </template>
-                    <template #right-icon>
-                      <van-switch v-model="source.enabled" size="20px" @change="onSourceChange" @click.stop />
-                    </template>
-                  </van-cell>
-                  <template #right>
-                    <van-button square type="danger" text="删除" @click="deleteIptvSource(index)" />
-                  </template>
-                </van-swipe-cell>
-              </van-list>
-              <van-button size="small" type="primary" block @click="showAddPopup = true">添加直播源</van-button>
-            </van-space>
-          </template>
-        </van-cell>
-        <van-cell title="快速添加直播源">
-          <template #label>
-            <van-space class="w-full" direction="vertical" size="small">
-              <span>支持m3u、txt格式</span>
-              <van-field class="!pl-0" input-align="right" label="类型">
-                <template #input>
-                  <van-radio-group direction="horizontal" v-model="quickIptvSource.type">
-                    <van-radio name="url">远程</van-radio>
-                    <van-radio name="file">文件</van-radio>
-                    <van-radio name="content">静态</van-radio>
-                  </van-radio-group>
-                </template>
-              </van-field>
-              <van-field class="!pl-0" input-align="right" label="名称" placeholder="直播源名称" v-model="quickIptvSource.name" />
-              <van-field v-if="quickIptvSource.type === 'url'" class="!pl-0" input-align="right" label="链接" placeholder="直播源链接" v-model="quickIptvSource.url" />
-              <van-field v-else-if="quickIptvSource.type === 'file'" class="!pl-0" input-align="right" label="路径" placeholder="直播源文件路径" v-model="quickIptvSource.filePath" />
-              <template v-else-if="quickIptvSource.type === 'content'">
-                <van-field class="!pl-0" :input-align="quickIptvSource.content ? 'left' : 'right'" label="内容" placeholder="直播源内容" rows="5" type="textarea" v-model="quickIptvSource.content" />
-                <van-field class="!pl-0" input-align="right" label="上传">
-                  <template #input>
-                    <van-uploader :after-read="uploadIptvSourceContent" accept=".txt,.m3u" />
-                  </template>
-                </van-field>
+        <div class="list-header">
+          <span>管理已添加的直播源（点击编辑，左滑删除）</span>
+        </div>
+        <van-list>
+          <van-swipe-cell v-for="(source, index) in config.iptvSourceList" :key="source.id || index">
+            <van-cell :title="source.name" :label="source.url" is-link @click="editIptvSource(index)">
+              <template #value>
+                <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
+                <van-tag v-if="source.userAgent" type="success">自定义UA</van-tag>
+                <van-tag v-if="source.epgSource" type="warning">节目单</van-tag>
               </template>
-              <div class="flex justify-end">
-                <van-button size="small" type="primary" @click="pushQuickIptvSource">推送直播源</van-button>
-              </div>
-            </van-space>
+              <template #right-icon>
+                <van-switch v-model="source.enabled" size="20px" @change="onSourceChange" @click.stop />
+              </template>
+            </van-cell>
+            <template #right>
+              <van-button square type="danger" text="删除" @click="deleteIptvSource(index)" />
+            </template>
+          </van-swipe-cell>
+        </van-list>
+        <van-button size="small" type="primary" block class="mt-2" @click="showAddPopup = true">添加直播源</van-button>
+        
+        <div class="section-divider"></div>
+        
+        <div class="list-header">快速添加直播源</div>
+        <div class="list-content">
+          <span class="text-gray text-12px">支持m3u、txt格式</span>
+          <van-field class="!pl-0" input-align="right" label="类型">
+            <template #input>
+              <van-radio-group direction="horizontal" v-model="quickIptvSource.type">
+                <van-radio name="url">远程</van-radio>
+                <van-radio name="file">文件</van-radio>
+                <van-radio name="content">静态</van-radio>
+              </van-radio-group>
+            </template>
+          </van-field>
+          <van-field class="!pl-0" input-align="right" label="名称" placeholder="直播源名称" v-model="quickIptvSource.name" />
+          <van-field v-if="quickIptvSource.type === 'url'" class="!pl-0" input-align="right" label="链接" placeholder="直播源链接" v-model="quickIptvSource.url" />
+          <van-field v-else-if="quickIptvSource.type === 'file'" class="!pl-0" input-align="right" label="路径" placeholder="直播源文件路径" v-model="quickIptvSource.filePath" />
+          <template v-else-if="quickIptvSource.type === 'content'">
+            <van-field class="!pl-0" :input-align="quickIptvSource.content ? 'left' : 'right'" label="内容" placeholder="直播源内容" rows="5" type="textarea" v-model="quickIptvSource.content" />
+            <van-field class="!pl-0" input-align="right" label="上传">
+              <template #input>
+                <van-uploader :after-read="uploadIptvSourceContent" accept=".txt,.m3u" />
+              </template>
+            </van-field>
           </template>
-        </van-cell>
+          <div class="flex justify-end">
+            <van-button size="small" type="primary" @click="pushQuickIptvSource">推送直播源</van-button>
+          </div>
+        </div>
         <template #footer>
           <div class="flex justify-end">
             <van-button size="small" type="primary" @click="pushConfig">推送</van-button>
@@ -595,5 +591,26 @@ onMounted(() => {
 
 .w-full {
   width: 100%;
+}
+
+.list-header {
+  padding: 12px 16px 8px;
+  color: #323233;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.list-content {
+  padding: 0 16px;
+}
+
+.section-divider {
+  height: 1px;
+  background: #ebedf0;
+  margin: 16px;
+}
+
+.mt-2 {
+  margin-top: 8px;
 }
 </style>

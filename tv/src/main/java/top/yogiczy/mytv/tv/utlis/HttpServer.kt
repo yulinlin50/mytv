@@ -92,11 +92,6 @@ object HttpServer : Loggable("HttpServer") {
                     server.listen(AsyncServer.getDefault(), SERVER_PORT)
 
                     server.get("/") { _, response ->
-                        response.headers.set("Location", "/advance")
-                        response.code(302).send("")
-                    }
-
-                    server.get("/advance") { _, response ->
                         handleAssets(response, context, "text/html", "remote-configs/index.html")
                     }
 
