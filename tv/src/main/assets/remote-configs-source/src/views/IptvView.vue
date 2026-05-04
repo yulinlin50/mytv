@@ -255,7 +255,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { getText, postText, postJson, requestApi } from '@/utils/api'
+import { getText, postText, postJson } from '@/utils/api'
 import {
   showSuccessToast,
   showFailToast,

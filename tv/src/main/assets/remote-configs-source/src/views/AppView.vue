@@ -87,8 +87,7 @@ const appStartupScreenLive = computed({
 
 async function fetchCacheSize() {
   try {
-    const resp = await requestApi('/api/about')
-    const data = await resp.json()
+    await requestApi('/api/about')
     cacheSize.value = '计算中...'
   } catch (e) {
     console.error(e)

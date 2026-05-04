@@ -121,7 +121,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { getText, postText } from '@/utils/api'
 import { showSuccessToast, showFailToast, showLoadingToast, closeToast } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
