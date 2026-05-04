@@ -790,10 +790,15 @@ object Configs {
             iptvChannelChangeFlip = iptvChannelChangeFlip,
             iptvChannelNoSelectEnable = iptvChannelNoSelectEnable,
             iptvChannelChangeListLoop = iptvChannelChangeListLoop,
+            iptvSourceCacheEnable = iptvSourceCacheEnable,
+            iptvSourceCacheTimeHours = iptvSourceCacheTimeHours,
             epgEnable = epgEnable,
             epgSourceFollowIptv = epgSourceFollowIptv,
             epgSourceList = epgSourceList,
             epgChannelReserveList = epgChannelReserveList,
+            epgCacheTimeHours = epgCacheTimeHours,
+            epgCacheEnable = epgCacheEnable,
+            audioTrackSortMode = audioTrackSortMode,
             uiShowEpgProgrammeProgress = uiShowEpgProgrammeProgress,
             uiShowEpgProgrammePermanentProgress = uiShowEpgProgrammePermanentProgress,
             uiShowChannelLogo = uiShowChannelLogo,
@@ -817,7 +822,9 @@ object Configs {
             videoPlayerForceAudioSoftDecode = videoPlayerForceAudioSoftDecode,
             videoPlayerStopPreviousMediaItem = videoPlayerStopPreviousMediaItem,
             videoPlayerSkipMultipleFramesOnSameVSync = videoPlayerSkipMultipleFramesOnSameVSync,
+            channelLogoCacheEnable = channelLogoCacheEnable,
             themeAppCurrent = themeAppCurrent,
+            themeTextureAlpha = themeTextureAlpha,
             cloudSyncAutoPull = cloudSyncAutoPull,
             cloudSyncProvider = cloudSyncProvider,
             cloudSyncGithubGistId = cloudSyncGithubGistId,
@@ -857,10 +864,15 @@ object Configs {
         configs.iptvChannelChangeFlip?.let { iptvChannelChangeFlip = it }
         configs.iptvChannelNoSelectEnable?.let { iptvChannelNoSelectEnable = it }
         configs.iptvChannelChangeListLoop?.let { iptvChannelChangeListLoop = it }
+        configs.iptvSourceCacheEnable?.let { iptvSourceCacheEnable = it }
+        configs.iptvSourceCacheTimeHours?.let { iptvSourceCacheTimeHours = it }
         configs.epgEnable?.let { epgEnable = it }
         configs.epgSourceFollowIptv?.let { epgSourceFollowIptv = it }
         configs.epgSourceList?.let { epgSourceList = it }
         configs.epgChannelReserveList?.let { epgChannelReserveList = it }
+        configs.epgCacheTimeHours?.let { epgCacheTimeHours = it }
+        configs.epgCacheEnable?.let { epgCacheEnable = it }
+        configs.audioTrackSortMode?.let { audioTrackSortMode = it }
         configs.uiShowEpgProgrammeProgress?.let { uiShowEpgProgrammeProgress = it }
         configs.uiShowEpgProgrammePermanentProgress?.let {
             uiShowEpgProgrammePermanentProgress = it
@@ -877,6 +889,7 @@ object Configs {
         configs.uiChannelGridColumns?.let { uiChannelGridColumns = it }
         configs.uiEpgUpdateIntervalMs?.let { uiEpgUpdateIntervalMs = it }
         configs.uiSimplifyChannelItem?.let { uiSimplifyChannelItem = it }
+        configs.channelLogoCacheEnable?.let { channelLogoCacheEnable = it }
         configs.videoPlayerCore?.let { videoPlayerCore = it }
         configs.videoPlayerRenderMode?.let { videoPlayerRenderMode = it }
         configs.videoPlayerUserAgent?.let { videoPlayerUserAgent = it }
@@ -926,9 +939,14 @@ object Configs {
         val iptvChannelChangeFlip: Boolean? = null,
         val iptvChannelNoSelectEnable: Boolean? = null,
         val iptvChannelChangeListLoop: Boolean? = null,
+        val iptvSourceCacheEnable: Boolean? = null,
+        val iptvSourceCacheTimeHours: Int? = null,
         val epgEnable: Boolean? = null,
         val epgSourceFollowIptv: Boolean? = null,
         val epgSourceList: EpgSourceList? = null,
+        val epgCacheTimeHours: Int? = null,
+        val epgCacheEnable: Boolean? = null,
+        val audioTrackSortMode: AudioTrackSortMode? = null,
         val epgChannelReserveList: EpgProgrammeReserveList? = null,
         val uiShowEpgProgrammeProgress: Boolean? = null,
         val uiShowEpgProgrammePermanentProgress: Boolean? = null,
@@ -944,6 +962,9 @@ object Configs {
         val uiChannelGridColumns: Int? = null,
         val uiEpgUpdateIntervalMs: Long? = null,
         val uiSimplifyChannelItem: Boolean? = null,
+        val channelLogoCacheEnable: Boolean? = null,
+        val themeAppCurrent: AppThemeDef? = null,
+        val themeTextureAlpha: Float? = null,
         val videoPlayerCore: VideoPlayerCore? = null,
         val videoPlayerRenderMode: VideoPlayerRenderMode? = null,
         val videoPlayerUserAgent: String? = null,
@@ -953,7 +974,6 @@ object Configs {
         val videoPlayerForceAudioSoftDecode: Boolean? = null,
         val videoPlayerStopPreviousMediaItem: Boolean? = null,
         val videoPlayerSkipMultipleFramesOnSameVSync: Boolean? = null,
-        val themeAppCurrent: AppThemeDef? = null,
         val cloudSyncAutoPull: Boolean? = null,
         val cloudSyncProvider: CloudSyncProvider? = null,
         val cloudSyncGithubGistId: String? = null,

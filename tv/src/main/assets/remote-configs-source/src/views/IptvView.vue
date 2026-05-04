@@ -211,8 +211,8 @@
           <van-field label="类型">
             <template #input>
               <van-radio-group direction="horizontal" v-model="editingSource.isLocal">
-                <van-radio :value="false">远程</van-radio>
-                <van-radio :value="true">本地</van-radio>
+                <van-radio :name="false">远程</van-radio>
+                <van-radio :name="true">本地</van-radio>
               </van-radio-group>
             </template>
           </van-field>
