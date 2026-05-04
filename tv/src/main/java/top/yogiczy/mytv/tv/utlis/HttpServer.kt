@@ -177,6 +177,14 @@ object HttpServer : Loggable("HttpServer") {
                         handleUploadAllInOne(request, response)
                     }
 
+                    server.post("/api/clear-cache") { request, response ->
+                        handleClearCache(request, response, context)
+                    }
+
+                    server.post("/api/reset") { request, response ->
+                        handleReset(request, response, context)
+                    }
+
                     server.get(".*") { _, response ->
                         handleAssets(response, context, "text/html", "remote-configs/index.html")
                     }
@@ -768,6 +776,69 @@ object HttpServer : Loggable("HttpServer") {
         } catch (ex: SocketException) {
             log.e("IP Address: ${ex.message}", ex)
             return defaultIp
+        }
+    }
+
+    private fun handleClearCache(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse,
+        context: Context
+    ) {
+        if (!validateRequest(request, response)) return
+        
+        serverScope.launch {
+            try {
+                IptvRepository.clearAllCache()
+                EpgRepository.clearAllCache()
+                
+                val cacheDir = Globals.cacheDir
+                cacheDir.listFiles()?.forEach { file ->
+                    if (file.name != "uploaded_apk.apk") {
+                        file.deleteRecursively()
+                    }
+                }
+                
+                (context.applicationContext as? MyTVApplication)?.clearImageCache()
+                
+                withContext(Dispatchers.Main) {
+                    responseSuccess(response)
+                }
+            } catch (e: Exception) {
+                log.e("清除缓存失败", e)
+                withContext(Dispatchers.Main) {
+                    responseError(response, 500, "清除缓存失败: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun handleReset(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse,
+        context: Context
+    ) {
+        if (!validateRequest(request, response)) return
+        
+        serverScope.launch {
+            try {
+                SP.clear()
+                
+                val cacheDir = Globals.cacheDir
+                cacheDir.deleteRecursively()
+                cacheDir.mkdirs()
+                
+                val fileDir = Globals.fileDir
+                fileDir.listFiles()?.forEach { it.deleteRecursively() }
+                
+                withContext(Dispatchers.Main) {
+                    responseSuccess(response)
+                }
+            } catch (e: Exception) {
+                log.e("重置应用失败", e)
+                withContext(Dispatchers.Main) {
+                    responseError(response, 500, "重置应用失败: ${e.message}")
+                }
+            }
         }
     }
 

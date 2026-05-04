@@ -100,11 +100,17 @@ async function clearCache() {
       title: '确认清除缓存',
       message: '这将清除所有缓存数据，包括直播源、节目单、频道图标等。是否继续？',
     })
-    showSuccessToast('缓存清除功能暂未实现')
+    showLoadingToast({ message: '清除中...', forbidClick: true, duration: 0 })
+    await requestApi('/api/clear-cache', { method: 'POST' })
+    showSuccessToast('缓存清除成功')
+    fetchCacheSize()
   } catch (e) {
     if (e !== 'cancel') {
+      showFailToast('清除缓存失败')
       console.error(e)
     }
+  } finally {
+    closeToast()
   }
 }
 
@@ -114,11 +120,16 @@ async function resetApp() {
       title: '确认恢复初始化',
       message: '这将重置所有设置和数据到初始状态，此操作不可撤销。是否继续？',
     })
-    showSuccessToast('恢复初始化功能暂未实现')
+    showLoadingToast({ message: '重置中...', forbidClick: true, duration: 0 })
+    await requestApi('/api/reset', { method: 'POST' })
+    showSuccessToast('恢复初始化成功，请重新扫码')
   } catch (e) {
     if (e !== 'cancel') {
+      showFailToast('恢复初始化失败')
       console.error(e)
     }
+  } finally {
+    closeToast()
   }
 }
 
