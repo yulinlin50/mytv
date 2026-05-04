@@ -167,7 +167,7 @@ import { useConfig } from '@/composables/useConfig'
 import { getJson } from '@/utils/api'
 import ConfigSection from '@/components/ConfigSection.vue'
 
-import type { AppThemeDef, ThemeGroup } from '@/types/config'
+import type { ThemeGroup } from '@/types/config'
 
 const { config, pushConfig, fetchConfig } = useConfig()
 
