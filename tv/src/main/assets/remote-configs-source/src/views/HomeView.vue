@@ -51,7 +51,7 @@
           <span class="text-gray">GitHub、Gitee、WebDAV同步</span>
         </template>
         <template #icon>
-          <van-icon name="download" class="nav-icon" style="color: #07c160;" />
+          <van-icon name="exchange" class="nav-icon" style="color: #07c160;" />
         </template>
       </van-cell>
       <van-cell title="调试" is-link to="/debug">

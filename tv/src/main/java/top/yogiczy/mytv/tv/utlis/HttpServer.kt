@@ -177,6 +177,10 @@ object HttpServer : Loggable("HttpServer") {
                         handleUploadAllInOne(request, response)
                     }
 
+                    server.get(".*") { _, response ->
+                        handleAssets(response, context, "text/html", "remote-configs/index.html")
+                    }
+
                     isRunning.set(true)
                     isStarting.set(false)
                     retryCount = 0
@@ -364,14 +368,17 @@ object HttpServer : Loggable("HttpServer") {
         val body = request.getBody<JSONObjectBody>().get()
         val name = body.get("name")?.toString()?.trim()?.takeIf { 
             it.isNotBlank() && it.length <= 100 
-        } ?: return responseError(response, 400, "Invalid name")
+        } ?: return responseError(response, 400, "Invalid name: must be non-empty and <= 100 characters")
         
         val url = body.get("url")?.toString()?.trim()
         if (url.isNullOrBlank() || url.length > 2000) {
-            return responseError(response, 400, "Invalid URL")
+            return responseError(response, 400, "Invalid URL: must be non-empty and <= 2000 characters")
         }
 
-        log.i("节目单推送已弃用，请在直播源中配置节目单")
+        val newEpgSource = EpgSource(name, url, false, null)
+        serverScope.launch(Dispatchers.Main) {
+            Configs.epgSourceList = EpgSourceList(Configs.epgSourceList + newEpgSource)
+        }
 
         responseSuccess(response)
     }

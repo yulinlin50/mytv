@@ -34,10 +34,15 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
 import ConfigSection from '@/components/ConfigSection.vue'
 
-const { config, pushConfig } = useConfig()
+const { config, pushConfig, fetchConfig } = useConfig()
+
+onMounted(() => {
+  fetchConfig()
+})
 </script>
 
 <style scoped>

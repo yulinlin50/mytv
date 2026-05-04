@@ -166,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
 import { postJson } from '@/utils/api'
 import {
@@ -180,7 +180,11 @@ import ConfigSection from '@/components/ConfigSection.vue'
 import type { EpgSource } from '@/types/config'
 import dayjs from 'dayjs'
 
-const { config, pushConfig } = useConfig()
+const { config, pushConfig, fetchConfig } = useConfig()
+
+onMounted(() => {
+  fetchConfig()
+})
 
 const showAddPopup = ref(false)
 const editingIndex = ref(-1)
@@ -313,6 +317,7 @@ async function pushQuickEpgSource() {
       url: quickEpgSource.value.url,
     })
     showSuccessToast('推送节目单成功')
+    await fetchConfig(true)
     quickEpgSource.value = {
       name: `添加于${dayjs().format('YYYY-MM-DD HH:mm:ss')}`,
       url: '',

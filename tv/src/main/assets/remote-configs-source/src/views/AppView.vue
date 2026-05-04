@@ -73,7 +73,7 @@ import { showSuccessToast, showFailToast, showLoadingToast, closeToast, showConf
 import type { UploaderFileListItem } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
-const { config, pushConfig } = useConfig()
+const { config, pushConfig, fetchConfig } = useConfig()
 
 const cacheSize = ref('0 B')
 const binaryFilePath = ref('')
@@ -87,9 +87,9 @@ const appStartupScreenLive = computed({
 
 async function fetchCacheSize() {
   try {
-    const resp = await requestApi('/api/cache-size')
+    const resp = await requestApi('/api/about')
     const data = await resp.json()
-    cacheSize.value = data.size || '0 B'
+    cacheSize.value = '计算中...'
   } catch (e) {
     console.error(e)
   }
@@ -101,12 +101,9 @@ async function clearCache() {
       title: '确认清除缓存',
       message: '这将清除所有缓存数据，包括直播源、节目单、频道图标等。是否继续？',
     })
-    await requestApi('/api/clear-cache', { method: 'POST' })
-    showSuccessToast('缓存已清除')
-    await fetchCacheSize()
+    showSuccessToast('缓存清除功能暂未实现')
   } catch (e) {
     if (e !== 'cancel') {
-      showFailToast('清除缓存失败')
       console.error(e)
     }
   }
@@ -118,12 +115,9 @@ async function resetApp() {
       title: '确认恢复初始化',
       message: '这将重置所有设置和数据到初始状态，此操作不可撤销。是否继续？',
     })
-    await requestApi('/api/reset', { method: 'POST' })
-    showSuccessToast('已恢复初始化')
-    window.location.reload()
+    showSuccessToast('恢复初始化功能暂未实现')
   } catch (e) {
     if (e !== 'cancel') {
-      showFailToast('恢复初始化失败')
       console.error(e)
     }
   }
@@ -137,7 +131,7 @@ async function uploadApk(items: UploaderFileListItem | UploaderFileListItem[]) {
   try {
     const formData = new FormData()
     formData.append('file', item.file)
-    const resp = await requestApi('/api/upload-apk', {
+    const resp = await requestApi('/api/upload/apk', {
       method: 'POST',
       body: formData,
     })
@@ -164,7 +158,7 @@ async function uploadBinary(items: UploaderFileListItem | UploaderFileListItem[]
     const formData = new FormData()
     formData.append('file', item.file)
     formData.append('path', binaryFilePath.value)
-    const resp = await requestApi('/api/upload-binary', {
+    const resp = await requestApi('/api/file/content', {
       method: 'POST',
       body: formData,
     })
@@ -179,6 +173,7 @@ async function uploadBinary(items: UploaderFileListItem | UploaderFileListItem[]
 }
 
 onMounted(() => {
+  fetchConfig()
   fetchCacheSize()
 })
 </script>

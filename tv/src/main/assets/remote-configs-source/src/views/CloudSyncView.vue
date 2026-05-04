@@ -111,13 +111,13 @@ import { getJson, requestApi } from '@/utils/api'
 import { showSuccessToast, showFailToast, showLoadingToast, closeToast } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
-const { config, pushConfig } = useConfig()
+const { config, pushConfig, fetchConfig } = useConfig()
 
 const syncData = ref<{ version: string } | null>(null)
 
 async function fetchSyncData() {
   try {
-    syncData.value = await getJson('/api/sync-data')
+    syncData.value = await getJson('/api/cloud-sync/data')
   } catch (e) {
     console.error(e)
   }
@@ -126,7 +126,11 @@ async function fetchSyncData() {
 async function pullCloudData() {
   showLoadingToast({ message: '拉取中...', forbidClick: true, duration: 0 })
   try {
-    await requestApi('/api/cloud-sync/pull', { method: 'POST' })
+    const data = await getJson('/api/cloud-sync/data')
+    await requestApi('/api/cloud-sync/data', { 
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
     showSuccessToast('拉取云端数据成功')
     await fetchSyncData()
   } catch (e) {
@@ -140,7 +144,12 @@ async function pullCloudData() {
 async function pushCloudData() {
   showLoadingToast({ message: '推送中...', forbidClick: true, duration: 0 })
   try {
-    await requestApi('/api/cloud-sync/push', { method: 'POST' })
+    const resp = await requestApi('/api/configs')
+    const config = await resp.json()
+    await requestApi('/api/cloud-sync/data', { 
+      method: 'POST',
+      body: JSON.stringify(config)
+    })
     showSuccessToast('推送云端数据成功')
     await fetchSyncData()
   } catch (e) {
@@ -152,6 +161,7 @@ async function pushCloudData() {
 }
 
 onMounted(() => {
+  fetchConfig()
   fetchSyncData()
 })
 </script>

@@ -268,7 +268,7 @@ import ConfigSection from '@/components/ConfigSection.vue'
 import type { IptvSource, EpgSource } from '@/types/config'
 import dayjs from 'dayjs'
 
-const { config, hiddenGroupText, pushConfig } = useConfig()
+const { config, hiddenGroupText, pushConfig, fetchConfig } = useConfig()
 
 const showAddPopup = ref(false)
 const editingIndex = ref(-1)
@@ -452,6 +452,7 @@ async function pushQuickIptvSource() {
       content: quickIptvSource.value.content,
     })
     showSuccessToast('推送直播源成功')
+    await fetchConfig(true)
     quickIptvSource.value = {
       name: `添加于${dayjs().format('YYYY-MM-DD HH:mm:ss')}`,
       type: 'url',
@@ -505,17 +506,16 @@ async function clearImageCache() {
       title: '确认清除频道图标缓存',
       message: '这将清除所有已缓存的频道图标。是否继续？',
     })
-    await requestApi('/api/clear-image-cache', { method: 'POST' })
-    showSuccessToast('频道图标缓存已清除')
+    showSuccessToast('清除频道图标缓存功能暂未实现')
   } catch (e) {
     if (e !== 'cancel') {
-      showFailToast('清除频道图标缓存失败')
       console.error(e)
     }
   }
 }
 
 onMounted(() => {
+  fetchConfig()
   fetchChannelAlias()
 })
 </script>

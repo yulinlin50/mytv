@@ -125,7 +125,7 @@ import { getText, postText } from '@/utils/api'
 import { showSuccessToast, showFailToast, showLoadingToast, closeToast } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
-const { config, pushConfig } = useConfig()
+const { config, pushConfig, fetchConfig } = useConfig()
 
 const videoPlayerHeadersExample =
   'Header-Name-1: Header-Value-1\nHeader-Name-2: Header-Value-2'
@@ -141,7 +141,7 @@ function formatTimeout(ms: number): string {
 
 async function fetchAudioTrackSort() {
   try {
-    audioTrackSort.value = await getText('/api/audio-track-sort')
+    audioTrackSort.value = config.value.audioTrackSortMode || 'LANGUAGE'
   } catch (e) {
     console.error(e)
   }
@@ -150,7 +150,8 @@ async function fetchAudioTrackSort() {
 async function updateAudioTrackSort() {
   showLoadingToast({ message: '加载中...', forbidClick: true, duration: 0 })
   try {
-    await postText('/api/audio-track-sort', audioTrackSort.value)
+    config.value.audioTrackSortMode = audioTrackSort.value as any
+    await pushConfig()
     showSuccessToast('更新音轨排序成功')
     await fetchAudioTrackSort()
   } catch (e) {
@@ -162,6 +163,7 @@ async function updateAudioTrackSort() {
 }
 
 onMounted(() => {
+  fetchConfig()
   fetchAudioTrackSort()
 })
 </script>

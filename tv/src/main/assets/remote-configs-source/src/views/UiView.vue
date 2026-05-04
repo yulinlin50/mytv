@@ -145,7 +145,7 @@ import ConfigSection from '@/components/ConfigSection.vue'
 
 import type { AppThemeDef, ThemeGroup } from '@/types/config'
 
-const { config, pushConfig } = useConfig()
+const { config, pushConfig, fetchConfig } = useConfig()
 
 const showThemePicker = ref(false)
 const themeList = ref<ThemeGroup[]>([])
@@ -175,6 +175,7 @@ function onThemeConfirm({ selectedOptions }: { selectedOptions: { value: AppThem
 }
 
 onMounted(() => {
+  fetchConfig()
   fetchThemes()
 })
 </script>

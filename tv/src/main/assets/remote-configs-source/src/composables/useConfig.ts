@@ -71,6 +71,9 @@ const defaultConfig: Config = {
 
 const config = ref<Config>({ ...defaultConfig })
 const hiddenGroupText = ref('')
+let configLoaded = false
+let lastFetchTime = 0
+const CACHE_DURATION = 5000
 
 export function useConfig() {
   const { withLoading, withToast } = useApi()
@@ -82,7 +85,12 @@ export function useConfig() {
     },
   })
 
-  async function fetchConfig(): Promise<void> {
+  async function fetchConfig(force = false): Promise<void> {
+    const now = Date.now()
+    if (!force && configLoaded && (now - lastFetchTime) < CACHE_DURATION) {
+      return
+    }
+
     await withLoading(async () => {
       const data = await getJson<Config>('/api/configs')
       config.value = { ...defaultConfig, ...data }
@@ -91,6 +99,8 @@ export function useConfig() {
           config.value.iptvChannelGroupHiddenList
         ).join('\n')
       }
+      configLoaded = true
+      lastFetchTime = now
     })
   }
 
@@ -102,7 +112,7 @@ export function useConfig() {
           iptvChannelGroupHiddenList: iptvChannelGroupHiddenListArray.value,
         }
         await postJson('/api/configs', payload)
-        await fetchConfig()
+        await fetchConfig(true)
         return true
       },
       '推送配置成功',
