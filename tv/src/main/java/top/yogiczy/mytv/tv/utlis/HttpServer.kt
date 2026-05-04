@@ -27,9 +27,11 @@ import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.Globals
 import top.yogiczy.mytv.core.data.utils.Loggable
 import top.yogiczy.mytv.core.data.utils.Logger
+import top.yogiczy.mytv.core.data.utils.SP
 import top.yogiczy.mytv.core.util.utils.ApkInstaller
 import top.yogiczy.mytv.tv.BuildConfig
 import top.yogiczy.mytv.tv.HttpServerService
+import top.yogiczy.mytv.tv.MyTVApplication
 import top.yogiczy.mytv.tv.R
 import top.yogiczy.mytv.tv.sync.CloudSync
 import top.yogiczy.mytv.tv.sync.CloudSyncData
