@@ -34,9 +34,9 @@
       <ConfigSection title="节目单源管理">
         <van-cell title="节目单源列表">
           <template #label>
-            <van-space class="w-full" direction="vertical" size="small">
-              <span>管理已添加的节目单源（点击编辑，左滑删除）</span>
-              <van-list>
+            <div class="source-list-container">
+              <span class="source-list-hint">管理已添加的节目单源（点击编辑，左滑删除）</span>
+              <div class="source-list">
                 <van-swipe-cell v-for="(source, index) in epgSourceListArray" :key="index">
                   <van-cell :title="source.name" :label="source.url" is-link @click="editEpgSource(index)">
                     <template #value>
@@ -47,9 +47,13 @@
                     <van-button square type="danger" text="删除" @click="deleteEpgSource(index)" />
                   </template>
                 </van-swipe-cell>
-              </van-list>
-              <van-button size="small" type="primary" block @click="showAddPopup = true">添加节目单源</van-button>
-            </van-space>
+              </div>
+            </div>
+          </template>
+        </van-cell>
+        <van-cell>
+          <template #value>
+            <van-button size="small" type="primary" block @click="showAddPopup = true">添加节目单源</van-button>
           </template>
         </van-cell>
         <van-cell title="快速添加节目单">
@@ -437,5 +441,36 @@ async function pushQuickEpgSource() {
 
 .mt-2 {
   margin-top: 8px;
+}
+
+.source-list-container {
+  width: 100%;
+}
+
+.source-list-hint {
+  display: block;
+  margin-bottom: 8px;
+  color: #969799;
+  font-size: 12px;
+}
+
+.source-list {
+  width: 100%;
+}
+
+.source-list .van-cell__label {
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+@media screen and (max-width: 480px) {
+  .source-list .van-cell__title {
+    max-width: calc(100% - 60px);
+  }
+  
+  .source-list .van-cell__label {
+    font-size: 12px;
+  }
 }
 </style>

@@ -196,8 +196,12 @@ async function fetchThemes() {
 }
 
 function onThemeConfirm() {
-  if (themeList.value[selectedGroupIndex.value]?.list[selectedThemeIndex.value]) {
-    config.value.themeAppCurrent = themeList.value[selectedGroupIndex.value].list[selectedThemeIndex.value]
+  const selectedTheme = themeList.value[selectedGroupIndex.value]?.list[selectedThemeIndex.value]
+  if (selectedTheme) {
+    config.value.themeAppCurrent = selectedTheme
+    if (selectedTheme.textureAlpha !== undefined) {
+      config.value.themeTextureAlpha = selectedTheme.textureAlpha
+    }
   }
   showThemePicker.value = false
 }

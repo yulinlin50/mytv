@@ -900,6 +900,7 @@ object Configs {
         configs.videoPlayerStopPreviousMediaItem?.let { videoPlayerStopPreviousMediaItem = it }
         configs.videoPlayerSkipMultipleFramesOnSameVSync?.let { videoPlayerSkipMultipleFramesOnSameVSync = it }
         configs.themeAppCurrent?.let { themeAppCurrent = it }
+        configs.themeTextureAlpha?.let { themeTextureAlpha = it }
         configs.cloudSyncAutoPull?.let { cloudSyncAutoPull = it }
         configs.cloudSyncProvider?.let { cloudSyncProvider = it }
         configs.cloudSyncGithubGistId?.let { cloudSyncGithubGistId = it }

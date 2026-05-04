@@ -77,17 +77,131 @@ body {
   padding: 0 !important;
 }
 
+/* 手机端适配样式 */
 @media screen and (max-width: 480px) {
+  /* 修复 van-cell 标签显示 */
+  .van-cell__label {
+    word-break: break-all;
+    white-space: normal;
+    line-height: 1.5;
+  }
+
+  /* 修复 van-cell 标题 */
+  .van-cell__title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* 修复 van-cell 值区域 */
+  .van-cell__value {
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  /* 修复 van-field 标签 */
+  .van-field__label {
+    width: auto;
+    min-width: 60px;
+    max-width: 100px;
+    flex-shrink: 0;
+  }
+
+  /* 修复 radio 组 */
+  .van-radio-group--horizontal {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .van-radio {
+    min-width: auto;
+  }
+
+  /* 修复 dropdown-menu */
+  .van-dropdown-menu {
+    width: 100%;
+  }
+
+  .van-dropdown-menu__bar {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .van-dropdown-menu__title {
+    padding: 0 8px;
+    font-size: 13px;
+  }
+
+  /* 修复 cell 内边距 */
+  .van-cell {
+    padding: 10px 12px;
+  }
+
+  /* 修复 field 输入框 */
+  .van-field__control {
+    font-size: 14px;
+  }
+
+  /* 修复按钮 */
+  .van-button--small {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  /* 修复 cell-group */
+  .van-cell-group--inset {
+    margin: 8px;
+  }
+
+  /* 修复弹窗 */
   .van-popup--bottom {
     max-height: 85vh;
   }
-  
+
   .popup-content {
-    padding: 16px;
+    padding: 12px;
     overflow-y: auto;
+    max-height: calc(85vh - 24px);
   }
-  
-  .van-field__control {
+
+  .popup-content .van-field {
+    padding: 8px 0;
+  }
+
+  .popup-content h3 {
     font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* 修复 swipe-cell 删除按钮 */
+  .van-swipe-cell__right {
+    display: flex;
+    align-items: center;
+  }
+
+  .van-swipe-cell__right .van-button {
+    height: 100%;
+    min-width: 60px;
+    font-size: 14px;
+  }
+
+  /* 修复列表项 */
+  .van-cell .van-cell__title {
+    max-width: calc(100% - 80px);
+  }
+
+  /* 修复 tag 标签 */
+  .van-tag {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+
+  /* 修复 stepper */
+  .van-stepper {
+    transform: scale(0.9);
+  }
+
+  /* 修复 switch */
+  .van-switch {
+    transform: scale(0.9);
   }
 }
