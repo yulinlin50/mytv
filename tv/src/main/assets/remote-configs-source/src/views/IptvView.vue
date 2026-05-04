@@ -14,11 +14,15 @@
               <span class="source-list-hint">管理已添加的直播源（点击编辑，左滑删除）</span>
               <div class="source-list">
                 <van-swipe-cell v-for="(source, index) in iptvSourceListArray" :key="source.id || index">
-                  <van-cell :title="source.name" :label="source.url" is-link @click="editIptvSource(index)">
-                    <template #value>
-                      <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
-                      <van-tag v-if="source.userAgent" type="success">自定义UA</van-tag>
-                      <van-tag v-if="source.epgSource" type="warning">节目单</van-tag>
+                  <van-cell is-link @click="editIptvSource(index)">
+                    <template #title>
+                      <div class="source-title">{{ source.name }}</div>
+                      <div class="source-tags">
+                        <van-tag v-if="source.isLocal" type="primary" size="small">本地</van-tag>
+                        <van-tag v-if="source.userAgent" type="success" size="small">自定义UA</van-tag>
+                        <van-tag v-if="source.epgSource" type="warning" size="small">节目单</van-tag>
+                      </div>
+                      <div class="source-url">{{ source.url }}</div>
                     </template>
                     <template #right-icon>
                       <van-switch v-model="source.enabled" size="20px" @change="onSourceChange" @click.stop />
@@ -645,19 +649,52 @@ onMounted(() => {
   width: 100%;
 }
 
-.source-list .van-cell__label {
+.source-list .van-cell {
+  padding: 12px;
+}
+
+.source-list .van-cell__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #323233;
+  margin-bottom: 4px;
+}
+
+.source-tags {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.source-url {
+  font-size: 12px;
+  color: #969799;
   word-break: break-all;
-  white-space: normal;
   line-height: 1.5;
 }
 
+.source-list .van-cell__right-icon {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
 @media screen and (max-width: 480px) {
-  .source-list .van-cell__title {
-    max-width: calc(100% - 60px);
+  .source-list .van-cell {
+    padding: 10px 12px;
   }
   
-  .source-list .van-cell__label {
-    font-size: 12px;
+  .source-title {
+    font-size: 14px;
+  }
+  
+  .source-url {
+    font-size: 11px;
   }
 }
 </style>
