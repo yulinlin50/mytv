@@ -255,7 +255,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { getText, postText, postJson } from '@/utils/api'
+import { getText, postText, postJson, generateUUID } from '@/utils/api'
 import {
   showSuccessToast,
   showFailToast,
@@ -415,7 +415,7 @@ async function saveIptvSource() {
     enabled: true,
     id: editingIndex.value >= 0 
       ? iptvSourceListArray.value[editingIndex.value].id 
-      : crypto.randomUUID(),
+      : generateUUID(),
   }
 
   const newList = [...iptvSourceListArray.value]
