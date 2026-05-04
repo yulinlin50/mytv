@@ -117,6 +117,8 @@ export function useConfig() {
         const payload = {
           ...config.value,
           iptvChannelGroupHiddenList: iptvChannelGroupHiddenListArray.value,
+          iptvSourceList: { value: getListValue(config.value.iptvSourceList) },
+          epgSourceList: { value: getListValue(config.value.epgSourceList) },
         }
         await postJson('/api/configs', payload)
         await fetchConfig(true)
