@@ -167,55 +167,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-container {
-  min-height: 100vh;
-  background: #f7f8fa;
-}
-
-.page-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: white;
-  border-bottom: 1px solid #ebedf0;
-}
-
 .back-icon {
   font-size: 20px;
   cursor: pointer;
   color: #323233;
 }
 
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .placeholder {
   width: 20px;
-}
-
-.page-content {
-  padding-bottom: 20px;
-}
-
-.text-gray {
-  color: #969799;
-}
-
-.text-12px {
-  font-size: 12px;
-}
-
-.flex {
-  display: flex;
-}
-
-.gap-1 {
-  gap: 4px;
 }
 </style>

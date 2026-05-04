@@ -77,131 +77,237 @@ body {
   padding: 0 !important;
 }
 
-/* 手机端适配样式 */
-@media screen and (max-width: 480px) {
-  /* 修复 van-cell 标签显示 */
-  .van-cell__label {
-    word-break: break-all;
-    white-space: normal;
-    line-height: 1.5;
-  }
+/* ========================================
+   响应式适配 - 移动优先策略
+   ======================================== */
 
-  /* 修复 van-cell 标题 */
-  .van-cell__title {
-    flex: 1;
-    min-width: 0;
-  }
+/* 基础样式（手机端 < 768px） */
+.page-container {
+  min-height: 100vh;
+  background: #f7f8fa;
+}
 
-  /* 修复 van-cell 值区域 */
-  .van-cell__value {
-    flex-shrink: 0;
-    margin-left: 8px;
-  }
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 1px solid #ebedf0;
+}
 
-  /* 修复 van-field 标签 */
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.page-content {
+  padding: 0 12px 20px;
+}
+
+/* Cell 组件适配 */
+.van-cell {
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.van-cell__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.van-cell__value {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.van-cell__label {
+  color: #969799;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+/* Field 组件适配 */
+.van-field__label {
+  width: auto;
+  min-width: 60px;
+  max-width: 90px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.van-field__control {
+  font-size: 14px;
+}
+
+/* Radio 组件适配 */
+.van-radio-group--horizontal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.van-radio {
+  min-width: auto;
+  font-size: 14px;
+}
+
+/* Switch 组件适配 */
+.van-switch {
+  transform: scale(0.9);
+}
+
+/* Tag 组件适配 */
+.van-tag {
+  font-size: 10px;
+  padding: 2px 4px;
+}
+
+/* Button 组件适配 */
+.van-button--small {
+  padding: 0 12px;
+  font-size: 12px;
+  min-height: 32px;
+}
+
+/* SwipeCell 删除按钮适配 */
+.van-swipe-cell__right {
+  display: flex;
+  align-items: center;
+}
+
+.van-swipe-cell__right .van-button {
+  height: 100%;
+  min-width: 60px;
+  font-size: 14px;
+}
+
+/* 弹窗适配 */
+.van-popup--bottom {
+  max-height: 85vh;
+}
+
+.popup-content {
+  padding: 12px;
+  overflow-y: auto;
+  max-height: calc(85vh - 24px);
+}
+
+.popup-content .van-field {
+  padding: 8px 0;
+}
+
+.popup-content h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+/* 平板端 (768px - 991px) */
+@media (min-width: 768px) {
+  .page-header {
+    padding: 14px 24px;
+  }
+  
+  .page-title {
+    font-size: 18px;
+  }
+  
+  .page-content {
+    padding: 0 24px 24px;
+    max-width: 750px;
+    margin: 0 auto;
+  }
+  
+  .van-cell {
+    padding: 12px 16px;
+  }
+  
   .van-field__label {
-    width: auto;
-    min-width: 60px;
-    max-width: 100px;
-    flex-shrink: 0;
+    min-width: 80px;
+    max-width: 120px;
   }
-
-  /* 修复 radio 组 */
-  .van-radio-group--horizontal {
-    flex-wrap: wrap;
-    gap: 8px;
+  
+  .van-switch {
+    transform: scale(1);
   }
-
-  .van-radio {
-    min-width: auto;
+  
+  .van-tag {
+    font-size: 12px;
+    padding: 2px 6px;
   }
+}
 
-  /* 修复 dropdown-menu */
-  .van-dropdown-menu {
-    width: 100%;
+/* 桌面端 (992px+) */
+@media (min-width: 992px) {
+  .page-container {
+    max-width: 960px;
+    margin: 0 auto;
   }
-
-  .van-dropdown-menu__bar {
-    background: transparent;
-    box-shadow: none;
+  
+  .page-header {
+    padding: 16px 24px;
   }
-
-  .van-dropdown-menu__title {
-    padding: 0 8px;
+  
+  .page-title {
+    font-size: 20px;
+  }
+  
+  .page-content {
+    padding: 0 24px 32px;
+  }
+  
+  .van-cell {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+  
+  .van-cell__label {
     font-size: 13px;
   }
-
-  /* 修复 cell 内边距 */
-  .van-cell {
-    padding: 10px 12px;
+  
+  .van-field__label {
+    min-width: 100px;
+    max-width: 140px;
+    font-size: 15px;
   }
-
-  /* 修复 field 输入框 */
+  
   .van-field__control {
-    font-size: 14px;
+    font-size: 15px;
   }
-
-  /* 修复按钮 */
+  
+  .van-radio {
+    font-size: 15px;
+  }
+  
   .van-button--small {
-    padding: 0 8px;
-    font-size: 12px;
-  }
-
-  /* 修复 cell-group */
-  .van-cell-group--inset {
-    margin: 8px;
-  }
-
-  /* 修复弹窗 */
-  .van-popup--bottom {
-    max-height: 85vh;
-  }
-
-  .popup-content {
-    padding: 12px;
-    overflow-y: auto;
-    max-height: calc(85vh - 24px);
-  }
-
-  .popup-content .van-field {
-    padding: 8px 0;
-  }
-
-  .popup-content h3 {
-    font-size: 16px;
-    margin-bottom: 12px;
-  }
-
-  /* 修复 swipe-cell 删除按钮 */
-  .van-swipe-cell__right {
-    display: flex;
-    align-items: center;
-  }
-
-  .van-swipe-cell__right .van-button {
-    height: 100%;
-    min-width: 60px;
+    padding: 0 16px;
     font-size: 14px;
+    min-height: 36px;
   }
-
-  /* 修复列表项 */
-  .van-cell .van-cell__title {
-    max-width: calc(100% - 80px);
+  
+  .popup-content {
+    padding: 20px;
   }
-
-  /* 修复 tag 标签 */
-  .van-tag {
-    font-size: 10px;
-    padding: 2px 4px;
+  
+  .popup-content h3 {
+    font-size: 18px;
+    margin-bottom: 16px;
   }
+}
 
-  /* 修复 stepper */
-  .van-stepper {
-    transform: scale(0.9);
+/* 大屏端 (1200px+) */
+@media (min-width: 1200px) {
+  .page-container {
+    max-width: 1170px;
   }
-
-  /* 修复 switch */
-  .van-switch {
-    transform: scale(0.9);
+  
+  .page-content {
+    max-width: 900px;
+    margin: 0 auto;
   }
 }

@@ -350,40 +350,14 @@ async function pushQuickEpgSource() {
 </script>
 
 <style scoped>
-.page-container {
-  min-height: 100vh;
-  background: #f7f8fa;
-}
-
-.page-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: white;
-  border-bottom: 1px solid #ebedf0;
-}
-
 .back-icon {
   font-size: 20px;
   cursor: pointer;
   color: #323233;
 }
 
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .placeholder {
   width: 20px;
-}
-
-.page-content {
-  padding-bottom: 20px;
 }
 
 .popup-content {
@@ -404,43 +378,6 @@ async function pushQuickEpgSource() {
 
 .gap-2 {
   gap: 8px;
-}
-
-.text-gray {
-  color: #969799;
-}
-
-.text-12px {
-  font-size: 12px;
-}
-
-.flex {
-  display: flex;
-}
-
-.justify-end {
-  justify-content: flex-end;
-}
-
-.w-full {
-  width: 100%;
-}
-
-.list-header {
-  padding: 12px 16px 8px;
-  color: #323233;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.list-content {
-  padding: 0 16px;
-}
-
-.section-divider {
-  height: 1px;
-  background: #ebedf0;
-  margin: 16px;
 }
 
 .mt-2 {
