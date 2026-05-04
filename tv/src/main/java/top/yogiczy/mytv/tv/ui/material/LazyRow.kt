@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,7 +44,10 @@ fun LazyRow(
     val lastItemFocusRequester = remember { FocusRequester() }
     var isFirstItemFocused by remember { mutableStateOf(false) }
     
-    val itemFocusRequesters = remember { List(1000) { FocusRequester() } }
+    val itemCount by remember { derivedStateOf { state.layoutInfo.totalItemsCount } }
+    val itemFocusRequesters = remember(itemCount) {
+        List(itemCount) { FocusRequester() }
+    }
 
     fun scrollToFirst() {
         coroutineScope.launch {
