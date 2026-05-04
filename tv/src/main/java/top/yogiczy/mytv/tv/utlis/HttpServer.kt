@@ -187,6 +187,10 @@ object HttpServer : Loggable("HttpServer") {
                         handleClearCache(request, response, context)
                     }
 
+                    server.post("/api/clear-logo-cache") { request, response ->
+                        handleClearLogoCache(request, response, context)
+                    }
+
                     server.post("/api/reset") { request, response ->
                         handleReset(request, response, context)
                     }
@@ -845,6 +849,29 @@ object HttpServer : Loggable("HttpServer") {
                 log.e("清除缓存失败", e)
                 withContext(Dispatchers.Main) {
                     responseError(response, 500, "清除缓存失败: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun handleClearLogoCache(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse,
+        context: Context
+    ) {
+        if (!validateRequest(request, response)) return
+        
+        serverScope.launch {
+            try {
+                (context.applicationContext as? MyTVApplication)?.clearImageCache()
+                
+                withContext(Dispatchers.Main) {
+                    responseSuccess(response)
+                }
+            } catch (e: Exception) {
+                log.e("清除频道图标缓存失败", e)
+                withContext(Dispatchers.Main) {
+                    responseError(response, 500, "清除频道图标缓存失败: ${e.message}")
                 }
             }
         }

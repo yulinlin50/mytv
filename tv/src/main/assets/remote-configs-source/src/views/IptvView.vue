@@ -263,7 +263,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { getText, postText, postJson, generateUUID } from '@/utils/api'
+import { getText, postText, postJson, generateUUID, requestApi } from '@/utils/api'
 import {
   showSuccessToast,
   showFailToast,
@@ -522,11 +522,16 @@ async function clearImageCache() {
       title: '确认清除频道图标缓存',
       message: '这将清除所有已缓存的频道图标。是否继续？',
     })
-    showSuccessToast('清除频道图标缓存功能暂未实现')
+    showLoadingToast({ message: '清除中...', forbidClick: true, duration: 0 })
+    await requestApi('/api/clear-logo-cache', { method: 'POST' })
+    showSuccessToast('清除频道图标缓存成功')
   } catch (e) {
     if (e !== 'cancel') {
+      showFailToast('清除频道图标缓存失败')
       console.error(e)
     }
+  } finally {
+    closeToast()
   }
 }
 
