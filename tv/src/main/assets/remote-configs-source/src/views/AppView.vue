@@ -87,7 +87,7 @@ const appStartupScreenLive = computed({
 
 async function fetchCacheSize() {
   try {
-    const data = await getJson('/api/cache-size')
+    const data = await getJson<{ size: string }>('/api/cache-size')
     cacheSize.value = data.size || '0 B'
   } catch (e) {
     cacheSize.value = '未知'

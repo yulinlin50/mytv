@@ -178,7 +178,7 @@ const selectedThemeIndex = ref(0)
 
 async function fetchThemes() {
   try {
-    themeList.value = await getJson('/api/themes')
+    themeList.value = await getJson<ThemeGroup[]>('/api/themes')
     const currentTheme = config.value.themeAppCurrent
     if (currentTheme) {
       for (let i = 0; i < themeList.value.length; i++) {

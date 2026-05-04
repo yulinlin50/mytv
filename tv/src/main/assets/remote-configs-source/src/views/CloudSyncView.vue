@@ -117,7 +117,7 @@ const syncData = ref<{ version: string } | null>(null)
 
 async function fetchSyncData() {
   try {
-    syncData.value = await getJson('/api/cloud-sync/data')
+    syncData.value = await getJson<{ version: string }>('/api/cloud-sync/data')
   } catch (e) {
     console.error(e)
   }
@@ -126,7 +126,7 @@ async function fetchSyncData() {
 async function pullCloudData() {
   showLoadingToast({ message: '拉取中...', forbidClick: true, duration: 0 })
   try {
-    const data = await getJson('/api/cloud-sync/data')
+    const data = await getJson<{ version: string }>('/api/cloud-sync/data')
     await requestApi('/api/cloud-sync/data', { 
       method: 'POST',
       body: JSON.stringify(data)
