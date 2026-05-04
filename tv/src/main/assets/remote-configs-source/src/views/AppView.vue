@@ -68,14 +68,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
-import { requestApi } from '@/utils/api'
+import { requestApi, getJson } from '@/utils/api'
 import { showSuccessToast, showFailToast, showLoadingToast, closeToast, showConfirmDialog } from 'vant'
 import type { UploaderFileListItem } from 'vant'
 import ConfigSection from '@/components/ConfigSection.vue'
 
 const { config, pushConfig, fetchConfig } = useConfig()
 
-const cacheSize = ref('0 B')
+const cacheSize = ref('计算中...')
 const binaryFilePath = ref('')
 
 const appStartupScreenLive = computed({
@@ -87,9 +87,10 @@ const appStartupScreenLive = computed({
 
 async function fetchCacheSize() {
   try {
-    await requestApi('/api/about')
-    cacheSize.value = '计算中...'
+    const data = await getJson('/api/cache-size')
+    cacheSize.value = data.size || '0 B'
   } catch (e) {
+    cacheSize.value = '未知'
     console.error(e)
   }
 }

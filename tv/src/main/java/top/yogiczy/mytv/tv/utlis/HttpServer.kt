@@ -159,6 +159,10 @@ object HttpServer : Loggable("HttpServer") {
                         handleAboutGet(response)
                     }
 
+                    server.get("/api/cache-size") { _, response ->
+                        handleCacheSizeGet(response)
+                    }
+
                     server.get("/api/logs") { request, response ->
                         handleLogsGet(request, response)
                     }
@@ -650,6 +654,38 @@ object HttpServer : Loggable("HttpServer") {
                     )
                 )
             )
+        }
+    }
+
+    private fun handleCacheSizeGet(response: AsyncHttpServerResponse) {
+        wrapResponse(response).apply {
+            setContentType("application/json")
+            val cacheDir = Globals.cacheDir
+            val size = calculateDirectorySize(cacheDir)
+            send(Globals.json.encodeToString(mapOf("size" to formatFileSize(size))))
+        }
+    }
+
+    private fun calculateDirectorySize(directory: File): Long {
+        var size = 0L
+        if (directory.exists()) {
+            directory.listFiles()?.forEach { file ->
+                size += if (file.isDirectory) {
+                    calculateDirectorySize(file)
+                } else {
+                    file.length()
+                }
+            }
+        }
+        return size
+    }
+
+    private fun formatFileSize(bytes: Long): String {
+        return when {
+            bytes < 1024 -> "$bytes B"
+            bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
+            bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024))
+            else -> String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024))
         }
     }
 
