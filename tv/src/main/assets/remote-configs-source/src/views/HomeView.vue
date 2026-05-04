@@ -51,7 +51,7 @@
           <span class="text-gray">GitHub、Gitee、WebDAV同步</span>
         </template>
         <template #icon>
-          <van-icon name="cloud-o" class="nav-icon" style="color: #07c160;" />
+          <van-icon name="download" class="nav-icon" style="color: #07c160;" />
         </template>
       </van-cell>
       <van-cell title="调试" is-link to="/debug">
@@ -71,10 +71,6 @@
         </template>
       </van-cell>
     </van-cell-group>
-
-    <div class="home-footer">
-      <van-button block type="default" @click="goBack">返回普通模式</van-button>
-    </div>
   </div>
 </template>
 
@@ -98,10 +94,6 @@ async function fetchAppInfo() {
   } finally {
     closeToast()
   }
-}
-
-function goBack() {
-  window.location.href = '/'
 }
 
 onMounted(async () => {
@@ -145,9 +137,5 @@ onMounted(async () => {
 .text-gray {
   color: #969799;
   font-size: 12px;
-}
-
-.home-footer {
-  padding: 24px 16px;
 }
 </style>
