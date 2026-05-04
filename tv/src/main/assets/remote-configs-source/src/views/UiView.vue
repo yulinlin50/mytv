@@ -119,8 +119,32 @@
         <van-cell title="主题选择" is-link @click="showThemePicker = true">
           <template #value>{{ config.themeAppCurrent?.name || '默认' }}</template>
         </van-cell>
-        <van-popup v-model:show="showThemePicker" position="bottom" round>
-          <van-picker :columns="themeColumns" @confirm="onThemeConfirm" @cancel="showThemePicker = false" />
+        <van-popup v-model:show="showThemePicker" position="bottom" round class="theme-picker-popup">
+          <div class="theme-picker-header">
+            <span class="theme-picker-cancel" @click="showThemePicker = false">取消</span>
+            <span class="theme-picker-title">选择主题</span>
+            <span class="theme-picker-confirm" @click="onThemeConfirm">确定</span>
+          </div>
+          <div class="theme-picker-content">
+            <div 
+              v-for="(group, groupIndex) in themeList" 
+              :key="group.name"
+              class="theme-group"
+            >
+              <div class="theme-group-title">{{ group.name }}</div>
+              <div class="theme-list">
+                <div 
+                  v-for="(theme, themeIndex) in group.list" 
+                  :key="theme.name"
+                  class="theme-item"
+                  :class="{ active: selectedGroupIndex === groupIndex && selectedThemeIndex === themeIndex }"
+                  @click="selectedGroupIndex = groupIndex; selectedThemeIndex = themeIndex"
+                >
+                  {{ theme.name }}
+                </div>
+              </div>
+            </div>
+          </div>
         </van-popup>
         <van-cell title="纹理透明度">
           <template #label>
@@ -138,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useConfig } from '@/composables/useConfig'
 import { getJson } from '@/utils/api'
 import ConfigSection from '@/components/ConfigSection.vue'
@@ -149,27 +173,31 @@ const { config, pushConfig, fetchConfig } = useConfig()
 
 const showThemePicker = ref(false)
 const themeList = ref<ThemeGroup[]>([])
-
-const themeColumns = computed(() => {
-  const groups: Record<string, { text: string; value: AppThemeDef }[]> = {}
-  themeList.value.forEach(group => {
-    groups[group.name] = group.list.map(t => ({ text: t.name, value: t }))
-  })
-  return [Object.keys(groups).map(g => ({ text: g, children: groups[g] }))]
-})
+const selectedGroupIndex = ref(0)
+const selectedThemeIndex = ref(0)
 
 async function fetchThemes() {
   try {
     themeList.value = await getJson('/api/themes')
+    const currentTheme = config.value.themeAppCurrent
+    if (currentTheme) {
+      for (let i = 0; i < themeList.value.length; i++) {
+        const themeIndex = themeList.value[i].list.findIndex(t => t.name === currentTheme.name)
+        if (themeIndex !== -1) {
+          selectedGroupIndex.value = i
+          selectedThemeIndex.value = themeIndex
+          break
+        }
+      }
+    }
   } catch (e) {
     console.error(e)
   }
 }
 
-function onThemeConfirm({ selectedOptions }: { selectedOptions: { value: AppThemeDef }[] }) {
-  const theme = selectedOptions[1]?.value
-  if (theme) {
-    config.value.themeAppCurrent = theme
+function onThemeConfirm() {
+  if (themeList.value[selectedGroupIndex.value]?.list[selectedThemeIndex.value]) {
+    config.value.themeAppCurrent = themeList.value[selectedGroupIndex.value].list[selectedThemeIndex.value]
   }
   showThemePicker.value = false
 }
@@ -231,5 +259,75 @@ onMounted(() => {
 
 .justify-end {
   justify-content: flex-end;
+}
+
+.theme-picker-popup {
+  max-height: 70vh;
+}
+
+.theme-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #ebedf0;
+}
+
+.theme-picker-cancel {
+  color: #646566;
+  font-size: 16px;
+}
+
+.theme-picker-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.theme-picker-confirm {
+  color: #1989fa;
+  font-size: 16px;
+}
+
+.theme-picker-content {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.theme-group {
+  margin-bottom: 16px;
+}
+
+.theme-group-title {
+  font-size: 14px;
+  color: #969799;
+  margin-bottom: 12px;
+}
+
+.theme-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.theme-item {
+  padding: 12px 16px;
+  background: #f7f8fa;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #323233;
+  transition: all 0.2s;
+}
+
+.theme-item:hover {
+  background: #ebedf0;
+}
+
+.theme-item.active {
+  background: #e8f3ff;
+  color: #1989fa;
+  border: 1px solid #1989fa;
 }
 </style>

@@ -20,8 +20,8 @@ export interface IptvSource {
 export interface AppThemeDef {
   name: string
   background: string
-  texture: string
-  textureAlpha: number
+  texture?: string
+  textureAlpha?: number
 }
 
 export interface LogHistoryItem {
@@ -111,5 +111,6 @@ export interface Config {
 
 export interface ThemeGroup {
   name: string
+  description?: string
   list: AppThemeDef[]
 }
