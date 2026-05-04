@@ -19,6 +19,7 @@ import io.sentry.android.core.SentryAndroid
 import top.yogiczy.mytv.core.data.AppData
 import top.yogiczy.mytv.core.data.utils.Globals
 import top.yogiczy.mytv.tv.ui.utils.Configs
+import top.yogiczy.mytv.tv.utlis.HttpServer
 
 class MyTVApplication : Application(), ImageLoaderFactory {
     companion object {
@@ -34,6 +35,8 @@ class MyTVApplication : Application(), ImageLoaderFactory {
         if (BuildConfig.DEBUG) {
             UnsafeTrustManager.enableUnsafeTrustManager()
         }
+        
+        HttpServer.startService(applicationContext)
     }
 
     fun updateImageLoader() {

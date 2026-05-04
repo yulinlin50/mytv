@@ -15,7 +15,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import top.yogiczy.mytv.tv.ui.App
 import top.yogiczy.mytv.tv.ui.theme.MyTvTheme
 import top.yogiczy.mytv.tv.ui.utils.Configs
-import top.yogiczy.mytv.tv.utlis.HttpServer
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,13 +41,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-
-        HttpServer.startService(applicationContext)
-    }
-
-    override fun onDestroy() {
-        HttpServer.stopService(applicationContext)
-        super.onDestroy()
     }
 
     override fun onUserLeaveHint() {

@@ -13,7 +13,7 @@
             <van-space class="w-full" direction="vertical" size="small">
               <span>管理已添加的直播源（点击编辑，左滑删除）</span>
               <van-list>
-                <van-swipe-cell v-for="(source, index) in config.iptvSourceList" :key="source.id || index">
+                <van-swipe-cell v-for="(source, index) in iptvSourceListArray" :key="source.id || index">
                   <van-cell :title="source.name" :label="source.url" is-link @click="editIptvSource(index)">
                     <template #value>
                       <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
@@ -268,10 +268,13 @@ import ConfigSection from '@/components/ConfigSection.vue'
 import type { IptvSource, EpgSource } from '@/types/config'
 import dayjs from 'dayjs'
 
-const { config, hiddenGroupText, pushConfig, fetchConfig } = useConfig()
+const { config, hiddenGroupText, pushConfig, fetchConfig, getListValue } = useConfig()
 
 const showAddPopup = ref(false)
 const editingIndex = ref(-1)
+
+const iptvSourceListArray = computed(() => getListValue(config.value.iptvSourceList))
+const epgSourceListArray = computed(() => getListValue(config.value.epgSourceList))
 const editingSource = ref<{
   name: string
   url: string
@@ -304,7 +307,7 @@ const quickIptvSource = ref({
 
 const epgSourceOptions = computed(() => {
   const options = [{ text: '不关联', value: -1 }]
-  config.value.epgSourceList.forEach((source, index) => {
+  epgSourceListArray.value.forEach((source, index) => {
     options.push({ text: source.name, value: index })
   })
   return options
@@ -319,9 +322,9 @@ function onSourceChange() {
 
 function editIptvSource(index: number) {
   editingIndex.value = index
-  const source = config.value.iptvSourceList[index]
+  const source = iptvSourceListArray.value[index]
   const epgIndex = source.epgSource
-    ? config.value.epgSourceList.findIndex(e => e.url === source.epgSource?.url)
+    ? epgSourceListArray.value.findIndex(e => e.url === source.epgSource?.url)
     : -1
   
   editingSource.value = {
@@ -358,9 +361,11 @@ async function deleteIptvSource(index: number) {
   try {
     await showConfirmDialog({
       title: '确认删除',
-      message: `确定要删除直播源 "${config.value.iptvSourceList[index].name}" 吗？`,
+      message: `确定要删除直播源 "${iptvSourceListArray.value[index].name}" 吗？`,
     })
-    config.value.iptvSourceList.splice(index, 1)
+    const newList = [...iptvSourceListArray.value]
+    newList.splice(index, 1)
+    config.value.iptvSourceList = newList
     await pushConfig()
   } catch (e) {
     if (e !== 'cancel') {
@@ -381,7 +386,7 @@ async function saveIptvSource() {
 
   let epgSource: EpgSource | null = null
   if (editingSource.value.epgSourceIndex >= 0) {
-    const selectedEpg = config.value.epgSourceList[editingSource.value.epgSourceIndex]
+    const selectedEpg = epgSourceListArray.value[editingSource.value.epgSourceIndex]
     if (selectedEpg) {
       epgSource = {
         name: selectedEpg.name,
@@ -409,15 +414,18 @@ async function saveIptvSource() {
     epgSource: epgSource,
     enabled: true,
     id: editingIndex.value >= 0 
-      ? config.value.iptvSourceList[editingIndex.value].id 
+      ? iptvSourceListArray.value[editingIndex.value].id 
       : crypto.randomUUID(),
   }
 
+  const newList = [...iptvSourceListArray.value]
   if (editingIndex.value >= 0) {
-    config.value.iptvSourceList[editingIndex.value] = newSource
+    newList[editingIndex.value] = newSource
   } else {
-    config.value.iptvSourceList.push(newSource)
+    newList.push(newSource)
   }
+  
+  config.value.iptvSourceList = newList
 
   await pushConfig()
   showAddPopup.value = false

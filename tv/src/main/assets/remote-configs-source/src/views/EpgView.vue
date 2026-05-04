@@ -37,7 +37,7 @@
             <van-space class="w-full" direction="vertical" size="small">
               <span>管理已添加的节目单源（点击编辑，左滑删除）</span>
               <van-list>
-                <van-swipe-cell v-for="(source, index) in config.epgSourceList" :key="index">
+                <van-swipe-cell v-for="(source, index) in epgSourceListArray" :key="index">
                   <van-cell :title="source.name" :label="source.url" is-link @click="editEpgSource(index)">
                     <template #value>
                       <van-tag v-if="source.isLocal" type="primary">本地</van-tag>
@@ -77,7 +77,7 @@
             <van-space class="w-full" direction="vertical" size="small">
               <van-list>
                 <van-cell
-                  v-for="(iptvSource, index) in config.iptvSourceList"
+                  v-for="(iptvSource, index) in iptvSourceListArray"
                   :key="index"
                   :title="iptvSource.name"
                 >
@@ -180,7 +180,7 @@ import ConfigSection from '@/components/ConfigSection.vue'
 import type { EpgSource } from '@/types/config'
 import dayjs from 'dayjs'
 
-const { config, pushConfig, fetchConfig } = useConfig()
+const { config, pushConfig, fetchConfig, getListValue } = useConfig()
 
 onMounted(() => {
   fetchConfig()
@@ -188,6 +188,9 @@ onMounted(() => {
 
 const showAddPopup = ref(false)
 const editingIndex = ref(-1)
+
+const epgSourceListArray = computed(() => getListValue(config.value.epgSourceList))
+const iptvSourceListArray = computed(() => getListValue(config.value.iptvSourceList))
 const editingSource = ref<{
   name: string
   url: string
@@ -207,7 +210,7 @@ const quickEpgSource = ref({
 
 const epgSourceOptions = computed(() => {
   const options = [{ text: '不关联', value: -1 }]
-  config.value.epgSourceList.forEach((source, index) => {
+  epgSourceListArray.value.forEach((source, index) => {
     options.push({ text: source.name, value: index })
   })
   return options
@@ -215,13 +218,14 @@ const epgSourceOptions = computed(() => {
 
 function getEpgSourceIndex(iptvSource: { epgSource: EpgSource | null }): number {
   if (!iptvSource.epgSource) return -1
-  return config.value.epgSourceList.findIndex(e => e.url === iptvSource.epgSource?.url)
+  return epgSourceListArray.value.findIndex(e => e.url === iptvSource.epgSource?.url)
 }
 
 function setIptvEpgSource(iptvIndex: number, epgIndex: number) {
-  const iptvSource = config.value.iptvSourceList[iptvIndex]
-  if (epgIndex >= 0 && config.value.epgSourceList[epgIndex]) {
-    const epg = config.value.epgSourceList[epgIndex]
+  const iptvList = [...iptvSourceListArray.value]
+  const iptvSource = iptvList[iptvIndex]
+  if (epgIndex >= 0 && epgSourceListArray.value[epgIndex]) {
+    const epg = epgSourceListArray.value[epgIndex]
     iptvSource.epgSource = {
       name: epg.name,
       url: epg.url,
@@ -231,12 +235,13 @@ function setIptvEpgSource(iptvIndex: number, epgIndex: number) {
   } else {
     iptvSource.epgSource = null
   }
+  config.value.iptvSourceList = iptvList
   pushConfig()
 }
 
 function editEpgSource(index: number) {
   editingIndex.value = index
-  const source = config.value.epgSourceList[index]
+  const source = epgSourceListArray.value[index]
   editingSource.value = {
     name: source.name,
     url: source.url,
@@ -261,9 +266,11 @@ async function deleteEpgSource(index: number) {
   try {
     await showConfirmDialog({
       title: '确认删除',
-      message: `确定要删除节目单源 "${config.value.epgSourceList[index].name}" 吗？`,
+      message: `确定要删除节目单源 "${epgSourceListArray.value[index].name}" 吗？`,
     })
-    config.value.epgSourceList.splice(index, 1)
+    const newList = [...epgSourceListArray.value]
+    newList.splice(index, 1)
+    config.value.epgSourceList = newList
     await pushConfig()
   } catch (e) {
     if (e !== 'cancel') {
@@ -289,11 +296,14 @@ async function saveEpgSource() {
     expireHours: editingSource.value.expireHours ? parseInt(editingSource.value.expireHours) : null,
   }
 
+  const newList = [...epgSourceListArray.value]
   if (editingIndex.value >= 0) {
-    config.value.epgSourceList[editingIndex.value] = newSource
+    newList[editingIndex.value] = newSource
   } else {
-    config.value.epgSourceList.push(newSource)
+    newList.push(newSource)
   }
+  
+  config.value.epgSourceList = newList
 
   await pushConfig()
   showAddPopup.value = false

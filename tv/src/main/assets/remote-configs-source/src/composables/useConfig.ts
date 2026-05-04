@@ -3,6 +3,13 @@ import { getJson, postJson } from '@/utils/api'
 import type { Config } from '@/types/config'
 import { useApi } from './useApi'
 
+function getListValue<T>(list: T[] | { value: T[] } | undefined): T[] {
+  if (!list) return []
+  if (Array.isArray(list)) return list
+  if (typeof list === 'object' && 'value' in list) return list.value
+  return []
+}
+
 const defaultConfig: Config = {
   appBootLaunch: false,
   appPipEnable: false,
@@ -127,5 +134,6 @@ export function useConfig() {
     iptvChannelGroupHiddenListArray,
     fetchConfig,
     pushConfig,
+    getListValue,
   }
 }
