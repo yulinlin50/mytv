@@ -3,8 +3,11 @@ package top.yogiczy.mytv.tv.ui.screensold.audiotracks.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ListItem
@@ -32,11 +35,24 @@ fun AudioTrackItem(
         onClick = {},
         headlineContent = { 
             Text(
-                buildString {
+                text = buildString {
                     append(track.shortLabel)
                     if (track.isSelected == true) {
                         append(" ✓")
                     }
+                    if (!track.isSupported) {
+                        append(" [不支持]")
+                    }
+                },
+                color = if (!track.isSupported) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                } else {
+                    Color.Unspecified
+                },
+                textDecoration = if (!track.isSupported) {
+                    TextDecoration.LineThrough
+                } else {
+                    null
                 }
             ) 
         },

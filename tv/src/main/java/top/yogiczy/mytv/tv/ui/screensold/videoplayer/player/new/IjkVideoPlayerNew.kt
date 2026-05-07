@@ -36,6 +36,7 @@ class IjkVideoPlayerNew(
     override val cues: StateFlow<List<Cue>> = state.cues
     private val errorHandler = PlayerErrorHandler(state, coroutineScope)
     private val audioTrackMemoryCache = AudioTrackMemoryCache(maxSize = 100)
+    private val audioTrackListCache = AudioTrackListCache()
     
     private var player: IjkMediaPlayer? = null
     private val playerLock = Any()
@@ -52,6 +53,12 @@ class IjkVideoPlayerNew(
     
     private val playbackModeState = AtomicReference(PlaybackModeState())
     private val volumeState = AtomicReference(1f)
+    
+    private val volumeFader = VolumeFader(coroutineScope) { volume ->
+        volumeState.set(volume)
+        player?.setVolume(volume, volume)
+        state.updateVolume(volume)
+    }
     
     private val audioTrackState = AtomicReference(AudioTrackState())
     
@@ -184,10 +191,7 @@ class IjkVideoPlayerNew(
     
     override fun setVolume(volume: Float) {
         if (isReleased.get()) return
-        val v = volume.coerceIn(0f, 1f)
-        volumeState.set(v)
-        player?.setVolume(v, v)
-        state.updateVolume(v)
+        volumeFader.fadeTo(volume)
     }
     
     override fun getVolume(): Float = volumeState.get()
@@ -215,6 +219,7 @@ class IjkVideoPlayerNew(
             val currentStreamIndex = player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) ?: -1
             if (currentStreamIndex >= 0) {
                 runCatching { player?.deselectTrack(currentStreamIndex) }
+                    .onFailure { log.w("Failed to deselect audio track", it) }
             }
             return
         }
@@ -228,7 +233,7 @@ class IjkVideoPlayerNew(
                 player?.deselectTrack(currentStreamIndex)
             }
             player?.selectTrack(candidate.streamIndex)
-        }
+        }.onFailure { log.w("Failed to select audio track", it) }
         
         audioTrackState.updateAndGet { state ->
             val updatedCandidates = state.candidates.map { c ->
@@ -256,11 +261,15 @@ class IjkVideoPlayerNew(
     
     override fun setVideoSurfaceView(surfaceView: SurfaceView) {
         cacheSurfaceView = surfaceView
-        cacheSurfaceTexture?.let { runCatching { it.release() } }
+        cacheSurfaceTexture?.let { 
+            runCatching { it.release() }
+                .onFailure { log.w("Failed to release surface texture", it) }
+        }
         cacheSurfaceTexture = null
         
         if (!isReleased.get()) {
             runCatching { player?.setDisplay(surfaceView.holder) }
+                .onFailure { log.w("Failed to set display", it) }
         }
     }
     
@@ -483,6 +492,18 @@ class IjkVideoPlayerNew(
     }
     
     private fun parseAudioTracks() {
+        val cachedTracks = audioTrackListCache.get(currentChannelLine.playableUrl)
+        if (cachedTracks != null && cachedTracks.isNotEmpty()) {
+            val candidates = cachedTracks.mapIndexed { index, track ->
+                IjkTrackInfoResolver.AudioTrackCandidate(
+                    metadata = track,
+                    streamIndex = track.index ?: index
+                )
+            }
+            audioTrackState.updateAndGet { it.copy(candidates = candidates) }
+            return
+        }
+        
         val trackInfos = runCatching { player?.trackInfo }.getOrNull() ?: return
         val selectedAudioStreamIndex = player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) ?: -1
         
@@ -491,6 +512,10 @@ class IjkVideoPlayerNew(
             selectedAudioStreamIndex = selectedAudioStreamIndex,
             sortMode = Configs.audioTrackSortMode
         )
+        
+        if (candidates.isNotEmpty()) {
+            audioTrackListCache.put(currentChannelLine.playableUrl, candidates.map { it.metadata })
+        }
         
         audioTrackState.updateAndGet { it.copy(candidates = candidates) }
     }

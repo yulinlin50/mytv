@@ -3,6 +3,7 @@ package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player
 import top.yogiczy.mytv.core.util.utils.humanizeAudioChannels
 import top.yogiczy.mytv.core.util.utils.humanizeBitrate
 import top.yogiczy.mytv.core.util.utils.humanizeLanguage
+import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioCodecCompatibilityChecker
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.PlayerMetadata
 import top.yogiczy.mytv.tv.ui.utils.Configs
 import tv.danmaku.ijk.media.player.IjkMediaMeta
@@ -93,6 +94,10 @@ internal object IjkTrackInfoResolver {
             streamIndex = streamIndex,
         )
 
+        val audioMimeType = AudioCodecCompatibilityChecker.codecNameToMimeType(streamMeta?.mCodecName)
+        val isSupported = AudioCodecCompatibilityChecker.isMimeTypeSupported(audioMimeType)
+        val unsupportedReason = AudioCodecCompatibilityChecker.getUnsupportedReason(audioMimeType)
+
         val metadata = PlayerMetadata.AudioTrack(
             index = uiIndex,
             isSelected = isSelected,
@@ -105,6 +110,8 @@ internal object IjkTrackInfoResolver {
             mimeType = streamMeta?.mCodecName,
             language = normalizedLanguage,
             trackId = stableTrackId,
+            isSupported = isSupported,
+            unsupportedReason = unsupportedReason
         )
 
         return AudioTrackCandidate(

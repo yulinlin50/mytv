@@ -202,6 +202,12 @@ object Configs {
         /** 播放器 跳过同一VSync渲染多帧 */
         VIDEO_PLAYER_SKIP_MULTIPLE_FRAMES_ON_SAME_VSYNC,
 
+        /** 播放器 音量淡入淡出启用 */
+        VIDEO_PLAYER_ENABLE_VOLUME_FADE,
+
+        /** 播放器 音量淡入淡出持续时间(ms) */
+        VIDEO_PLAYER_VOLUME_FADE_DURATION_MS,
+
         /** ==================== 主题 ==================== */
         /** 当前应用主题 */
         THEME_APP_CURRENT,
@@ -587,6 +593,16 @@ object Configs {
     var videoPlayerSkipMultipleFramesOnSameVSync: Boolean
         get() = SP.getBoolean(KEY.VIDEO_PLAYER_SKIP_MULTIPLE_FRAMES_ON_SAME_VSYNC.name, true)
         set(value) = SP.putBoolean(KEY.VIDEO_PLAYER_SKIP_MULTIPLE_FRAMES_ON_SAME_VSYNC.name, value)
+
+    /** 播放器 音量淡入淡出启用 */
+    var videoPlayerEnableVolumeFade: Boolean
+        get() = SP.getBoolean(KEY.VIDEO_PLAYER_ENABLE_VOLUME_FADE.name, true)
+        set(value) = SP.putBoolean(KEY.VIDEO_PLAYER_ENABLE_VOLUME_FADE.name, value)
+
+    /** 播放器 音量淡入淡出持续时间(ms) */
+    var videoPlayerVolumeFadeDurationMs: Int
+        get() = SP.getInt(KEY.VIDEO_PLAYER_VOLUME_FADE_DURATION_MS.name, 200)
+        set(value) = SP.putInt(KEY.VIDEO_PLAYER_VOLUME_FADE_DURATION_MS.name, value)
 
     
     /** 音轨记忆（频道URL -> 音轨ID） */

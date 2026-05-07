@@ -521,6 +521,15 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
+    private var _videoPlayerEnableVolumeFade by mutableStateOf(true)
+    var videoPlayerEnableVolumeFade: Boolean
+        get() = _videoPlayerEnableVolumeFade
+        set(value) {
+            _videoPlayerEnableVolumeFade = value
+            Configs.videoPlayerEnableVolumeFade = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
     private var _themeAppCurrent by mutableStateOf<AppThemeDef?>(null)
     var themeAppCurrent: AppThemeDef?
         get() = _themeAppCurrent
@@ -723,6 +732,7 @@ class SettingsViewModel : ViewModel() {
         _videoPlayerForceAudioSoftDecode = Configs.videoPlayerForceAudioSoftDecode
         _videoPlayerStopPreviousMediaItem = Configs.videoPlayerStopPreviousMediaItem
         _videoPlayerSkipMultipleFramesOnSameVSync = Configs.videoPlayerSkipMultipleFramesOnSameVSync
+        _videoPlayerEnableVolumeFade = Configs.videoPlayerEnableVolumeFade
         _themeAppCurrent = Configs.themeAppCurrent
         _themeTextureAlpha = Configs.themeTextureAlpha
         _cloudSyncAutoPull = Configs.cloudSyncAutoPull

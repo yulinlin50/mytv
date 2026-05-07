@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.hls.HlsTrackMetadataEntry
 import top.yogiczy.mytv.core.util.utils.humanizeLanguage
+import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioCodecCompatibilityChecker
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.PlayerMetadata
 import top.yogiczy.mytv.tv.ui.utils.Configs
 
@@ -158,6 +159,10 @@ internal object Media3TrackInfoResolver {
             bitrate = bitrate,
         )
 
+        val audioMimeType = format.sampleMimeType ?: format.containerMimeType ?: audio?.mimeType
+        val isSupported = AudioCodecCompatibilityChecker.isMimeTypeSupported(audioMimeType)
+        val unsupportedReason = AudioCodecCompatibilityChecker.getUnsupportedReason(audioMimeType)
+        
         val metadata = (audio ?: PlayerMetadata.AudioTrack()).copy(
             title = trackTitle,
             roleLabel = listOfNotNull(
@@ -170,9 +175,11 @@ internal object Media3TrackInfoResolver {
             channels = format.channelCount.takeIfPositive() ?: audio?.channels,
             sampleRate = format.sampleRate.takeIfPositive() ?: audio?.sampleRate,
             bitrate = bitrate,
-            mimeType = format.sampleMimeType ?: format.containerMimeType ?: audio?.mimeType,
+            mimeType = audioMimeType,
             language = normalizedLanguage,
             trackId = stableTrackId,
+            isSupported = isSupported,
+            unsupportedReason = unsupportedReason
         )
 
         return AudioTrackCandidate(

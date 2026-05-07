@@ -3,6 +3,8 @@ package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new
 import androidx.media3.common.PlaybackException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.core.data.utils.Logger
 
@@ -56,6 +58,19 @@ sealed class PlayerErrorType {
             is UnknownError -> "播放出错：$message"
         }
     }
+    
+    fun isRecoverable(): Boolean {
+        return this is NetworkError || 
+               this is TimeoutError || 
+               this is DecoderError || 
+               this is FormatError
+    }
+}
+
+interface RecoveryCallback {
+    fun onRetry(retryCount: Int, maxRetries: Int)
+    fun onPlayerSwitch()
+    fun onRecoveryFailed()
 }
 
 class PlayerErrorHandler(
@@ -63,6 +78,26 @@ class PlayerErrorHandler(
     private val coroutineScope: CoroutineScope
 ) {
     private val log = Logger.create("PlayerErrorHandler")
+    
+    private var retryCount = 0
+    private var recoveryJob: Job? = null
+    private var recoveryCallback: RecoveryCallback? = null
+    
+    companion object {
+        private const val MAX_RETRY_COUNT = 3
+        private const val INITIAL_RETRY_DELAY_MS = 1000L
+        private const val MAX_RETRY_DELAY_MS = 4000L
+    }
+    
+    fun setRecoveryCallback(callback: RecoveryCallback) {
+        this.recoveryCallback = callback
+    }
+    
+    fun resetRetryCount() {
+        retryCount = 0
+        recoveryJob?.cancel()
+        recoveryJob = null
+    }
     
     fun handleMedia3Error(ex: PlaybackException) {
         val errorType = when (ex.errorCode) {
@@ -170,6 +205,49 @@ class PlayerErrorHandler(
     internal fun handleError(errorType: PlayerErrorType) {
         stateManager.updateError(errorType.getUserFriendlyMessage())
         reportError(errorType)
+        
+        if (errorType.isRecoverable()) {
+            attemptRecovery(errorType)
+        }
+    }
+    
+    private fun attemptRecovery(errorType: PlayerErrorType) {
+        if (retryCount >= MAX_RETRY_COUNT) {
+            log.w("Max retry count reached, recovery failed")
+            recoveryCallback?.onRecoveryFailed()
+            return
+        }
+        
+        recoveryJob?.cancel()
+        recoveryJob = coroutineScope.launch(Dispatchers.Main) {
+            val delayMs = calculateRetryDelay()
+            log.i("Attempting recovery in ${delayMs}ms (attempt ${retryCount + 1}/$MAX_RETRY_COUNT)")
+            
+            delay(delayMs)
+            
+            retryCount++
+            recoveryCallback?.onRetry(retryCount, MAX_RETRY_COUNT)
+            
+            when (errorType) {
+                is PlayerErrorType.NetworkError,
+                is PlayerErrorType.TimeoutError -> {
+                    log.i("Retrying for network/timeout error")
+                }
+                is PlayerErrorType.DecoderError,
+                is PlayerErrorType.FormatError -> {
+                    log.i("Switching player for decoder/format error")
+                    recoveryCallback?.onPlayerSwitch()
+                }
+                else -> {
+                    log.w("Unknown recoverable error type: ${errorType::class.simpleName}")
+                }
+            }
+        }
+    }
+    
+    private fun calculateRetryDelay(): Long {
+        val exponentialDelay = INITIAL_RETRY_DELAY_MS * (1 shl retryCount)
+        return minOf(exponentialDelay, MAX_RETRY_DELAY_MS)
     }
     
     private fun reportError(errorType: PlayerErrorType) {

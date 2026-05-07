@@ -91,6 +91,20 @@ fun SettingsVideoPlayerScreen(
 
         item {
             SettingsListItem(
+                headlineContent = "音量淡入淡出",
+                supportingContent = "调节音量时平滑过渡",
+                trailingContent = {
+                    Switch(settingsViewModel.videoPlayerEnableVolumeFade, null)
+                },
+                onSelect = {
+                    settingsViewModel.videoPlayerEnableVolumeFade =
+                        !settingsViewModel.videoPlayerEnableVolumeFade
+                },
+            )
+        }
+
+        item {
+            SettingsListItem(
                 headlineContent = "全局显示模式",
                 trailingContent = settingsViewModel.videoPlayerDisplayMode.label,
                 onSelect = toVideoPlayerDisplayModeScreen,

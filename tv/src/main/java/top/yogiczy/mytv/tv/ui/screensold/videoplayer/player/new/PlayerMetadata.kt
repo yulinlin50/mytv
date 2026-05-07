@@ -56,7 +56,9 @@ data class PlayerMetadata(
         val mimeType: String? = null,
         val language: String? = null,
         val decoder: String? = null,
-        val trackId: String? = null
+        val trackId: String? = null,
+        val isSupported: Boolean = true,
+        val unsupportedReason: String? = null
     ) {
         override fun equals(other: Any?): Boolean {
             if (other !is AudioTrack) return false

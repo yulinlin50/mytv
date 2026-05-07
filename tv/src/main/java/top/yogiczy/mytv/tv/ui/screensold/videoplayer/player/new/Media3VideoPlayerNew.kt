@@ -60,6 +60,7 @@ class Media3VideoPlayerNew(
     override val cues: StateFlow<List<Cue>> = state.cues
     private val errorHandler = PlayerErrorHandler(state, coroutineScope)
     private val audioTrackMemoryCache = AudioTrackMemoryCache(maxSize = 100)
+    private val audioTrackListCache = AudioTrackListCache()
     
     private val playerLock = Any()
     @Volatile private var videoPlayer: ExoPlayer? = null
@@ -80,6 +81,11 @@ class Media3VideoPlayerNew(
     
     private val playbackModeState = AtomicReference(PlaybackModeState())
     private val softDecode = AtomicReference<Boolean?>(null)
+    
+    private val volumeFader = VolumeFader(playerScope) { volume ->
+        videoPlayer?.volume = volume
+        state.updateVolume(volume)
+    }
     
     private var cachedUri: Uri? = null
     private var cachedUriString: String? = null
@@ -165,9 +171,7 @@ class Media3VideoPlayerNew(
     }
     
     override fun setVolume(volume: Float) {
-        val v = volume.coerceIn(0f, 1f)
-        videoPlayer?.volume = v
-        state.updateVolume(v)
+        volumeFader.fadeTo(volume)
     }
     
     override fun getVolume(): Float {
@@ -754,22 +758,36 @@ class Media3VideoPlayerNew(
     }
     
     private fun updateTracks() {
-        val videoTracks = extractVideoTracks()
-        val audioTracks = extractAudioTracks()
-        val subtitleTracks = extractSubtitleTracks()
-        
-        state.updateMetadata(
-            state.metadata.value.copy(
-                video = videoTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.video,
-                audio = audioTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.audio,
-                subtitle = subtitleTracks.firstOrNull { it.isSelected == true },
-                videoTracks = videoTracks,
-                audioTracks = audioTracks,
-                subtitleTracks = subtitleTracks
-            )
-        )
-        
-        restoreAudioTrack(audioTracks)
+        playerScope.launch(Dispatchers.Default) {
+            val cachedAudioTracks = audioTrackListCache.get(currentChannelLine.playableUrl)
+            
+            val videoTracks = extractVideoTracks()
+            val audioTracks = if (cachedAudioTracks != null && cachedAudioTracks.isNotEmpty()) {
+                cachedAudioTracks
+            } else {
+                val tracks = extractAudioTracks()
+                if (tracks.isNotEmpty()) {
+                    audioTrackListCache.put(currentChannelLine.playableUrl, tracks)
+                }
+                tracks
+            }
+            val subtitleTracks = extractSubtitleTracks()
+            
+            withContext(Dispatchers.Main) {
+                state.updateMetadata(
+                    state.metadata.value.copy(
+                        video = videoTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.video,
+                        audio = audioTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.audio,
+                        subtitle = subtitleTracks.firstOrNull { it.isSelected == true },
+                        videoTracks = videoTracks,
+                        audioTracks = audioTracks,
+                        subtitleTracks = subtitleTracks
+                    )
+                )
+                
+                restoreAudioTrack(audioTracks)
+            }
+        }
     }
     
     private fun extractVideoTracks(): List<PlayerMetadata.VideoTrack> {
