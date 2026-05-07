@@ -163,12 +163,12 @@ class VideoPlayerStateNew(
         if (isReleased) return
         isReleased = true
         
+        instance.release()
+        
         onReadyListeners.clear()
         onErrorListeners.clear()
         onInterruptListeners.clear()
         onIsBufferingListeners.clear()
-        
-        instance.release()
     }
     
 }

@@ -2,6 +2,7 @@ package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import top.yogiczy.mytv.core.data.utils.Logger
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URI
@@ -10,6 +11,8 @@ import java.nio.charset.StandardCharsets
 
 internal object IjkTsAudioLanguageDetector {
 
+    private val log = Logger.create("IjkTsAudioLanguageDetector")
+    
     private const val PLAYLIST_PROBE_BYTES = 64 * 1024
     private const val TS_PROBE_BYTES = 512 * 1024
     private const val CONNECT_TIMEOUT_MS = 5_000
@@ -83,26 +86,31 @@ internal object IjkTsAudioLanguageDetector {
     }
 
     private fun fetchBytes(url: String, headers: Map<String, String>, maxBytes: Int): ByteArray {
-        val connection = URL(url).openConnection()
-        if (connection is HttpURLConnection) {
-            connection.instanceFollowRedirects = true
-            connection.connectTimeout = CONNECT_TIMEOUT_MS
-            connection.readTimeout = READ_TIMEOUT_MS
-            connection.requestMethod = "GET"
-        }
-        headers.forEach { (key, value) ->
-            connection.setRequestProperty(key, value)
-        }
-
-        connection.getInputStream().use { input ->
-            val output = ByteArrayOutputStream()
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (output.size() < maxBytes) {
-                val read = input.read(buffer, 0, minOf(buffer.size, maxBytes - output.size()))
-                if (read <= 0) break
-                output.write(buffer, 0, read)
+        return runCatching {
+            val connection = URL(url).openConnection()
+            if (connection is HttpURLConnection) {
+                connection.instanceFollowRedirects = true
+                connection.connectTimeout = CONNECT_TIMEOUT_MS
+                connection.readTimeout = READ_TIMEOUT_MS
+                connection.requestMethod = "GET"
             }
-            return output.toByteArray()
+            headers.forEach { (key, value) ->
+                connection.setRequestProperty(key, value)
+            }
+
+            connection.getInputStream().use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (output.size() < maxBytes) {
+                    val read = input.read(buffer, 0, minOf(buffer.size, maxBytes - output.size()))
+                    if (read <= 0) break
+                    output.write(buffer, 0, read)
+                }
+                output.toByteArray()
+            }
+        }.getOrElse { e ->
+            log.e("Failed to fetch bytes from $url", e)
+            ByteArray(0)
         }
     }
 
@@ -215,7 +223,9 @@ internal object IjkTsAudioLanguageDetector {
         )
     }
 
-    private class PsiSectionAssembler {
+    private class PsiSectionAssembler(
+        private val maxSize: Int = PSI_SECTION_MAX_SIZE
+    ) {
         private var buffer = ByteArrayOutputStream()
         private var expectedLength = -1
 
@@ -235,8 +245,14 @@ internal object IjkTsAudioLanguageDetector {
             }
 
             if (payloadStart >= end) return null
+            
+            val bytesToWrite = end - payloadStart
+            if (buffer.size() + bytesToWrite > maxSize) {
+                log.w("PSI section buffer size exceeded max limit: ${buffer.size() + bytesToWrite} > $maxSize")
+                return null
+            }
 
-            buffer.write(data, payloadStart, end - payloadStart)
+            buffer.write(data, payloadStart, bytesToWrite)
             val sectionBytes = buffer.toByteArray()
             if (sectionBytes.size >= 3 && expectedLength < 0) {
                 val sectionLength = ((sectionBytes[1].toInt() and 0x0F) shl 8) or (sectionBytes[2].toInt() and 0xFF)
@@ -255,4 +271,5 @@ internal object IjkTsAudioLanguageDetector {
     private const val PAT_PID = 0
     private const val ISO_639_DESCRIPTOR = 0x0A
     private const val CRC_LENGTH = 4
+    private const val PSI_SECTION_MAX_SIZE = 1024 * 1024
 }

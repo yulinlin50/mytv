@@ -61,9 +61,10 @@ class Media3VideoPlayerNew(
     private val errorHandler = PlayerErrorHandler(state, coroutineScope)
     private val audioTrackMemoryCache = AudioTrackMemoryCache(maxSize = 100)
     
-    private var videoPlayer: ExoPlayer? = null
-    private var surfaceView: SurfaceView? = null
-    private var textureView: TextureView? = null
+    private val playerLock = Any()
+    @Volatile private var videoPlayer: ExoPlayer? = null
+    @Volatile private var surfaceView: SurfaceView? = null
+    @Volatile private var textureView: TextureView? = null
     
     private var currentChannelLine = ChannelLine()
     private val contentTypeAttempts = ConcurrentHashMap<Int, Boolean>()
@@ -105,19 +106,21 @@ class Media3VideoPlayerNew(
     override fun release() {
         if (isReleased.getAndSet(true)) return
         
-        videoPlayer?.stop()
-        videoPlayer?.setVideoSurfaceView(null)
-        
-        playerJob.cancel()
-        
-        videoPlayer?.removeListener(playerListener)
-        videoPlayer?.removeAnalyticsListener(metadataListener)
-        videoPlayer?.removeAnalyticsListener(eventLogger)
-        videoPlayer?.release()
-        videoPlayer = null
-        
-        surfaceView = null
-        textureView = null
+        synchronized(playerLock) {
+            videoPlayer?.stop()
+            videoPlayer?.setVideoSurfaceView(null)
+            
+            playerJob.cancel()
+            
+            videoPlayer?.removeListener(playerListener)
+            videoPlayer?.removeAnalyticsListener(metadataListener)
+            videoPlayer?.removeAnalyticsListener(eventLogger)
+            videoPlayer?.release()
+            videoPlayer = null
+            
+            surfaceView = null
+            textureView = null
+        }
         
         state.reset()
     }
@@ -842,20 +845,22 @@ class Media3VideoPlayerNew(
     }
     
     private fun reInitPlayer() {
-        videoPlayer?.removeListener(playerListener)
-        videoPlayer?.removeAnalyticsListener(metadataListener)
-        videoPlayer?.removeAnalyticsListener(eventLogger)
-        videoPlayer?.stop()
-        videoPlayer?.release()
-        
-        videoPlayer = createPlayer()
-        
-        videoPlayer?.addListener(playerListener)
-        videoPlayer?.addAnalyticsListener(metadataListener)
-        videoPlayer?.addAnalyticsListener(eventLogger)
-        
-        surfaceView?.let { setVideoSurfaceView(it) }
-        textureView?.let { setVideoTextureView(it) }
+        synchronized(playerLock) {
+            videoPlayer?.removeListener(playerListener)
+            videoPlayer?.removeAnalyticsListener(metadataListener)
+            videoPlayer?.removeAnalyticsListener(eventLogger)
+            videoPlayer?.stop()
+            videoPlayer?.release()
+            
+            videoPlayer = createPlayer()
+            
+            videoPlayer?.addListener(playerListener)
+            videoPlayer?.addAnalyticsListener(metadataListener)
+            videoPlayer?.addAnalyticsListener(eventLogger)
+            
+            surfaceView?.let { setVideoSurfaceView(it) }
+            textureView?.let { setVideoTextureView(it) }
+        }
         
         prepare(currentChannelLine)
     }

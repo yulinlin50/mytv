@@ -78,19 +78,36 @@ class IjkVideoPlayerNew(
         }
         
         synchronized(playerLock) {
-            runCatching { player?.setSurface(null) }
-            runCatching { player?.stop() }
+            try {
+                player?.setSurface(null)
+            } catch (e: Exception) {
+                log.e("Failed to set surface to null", e)
+            }
+            
+            try {
+                player?.stop()
+            } catch (e: Exception) {
+                log.e("Failed to stop player", e)
+            }
             
             player?.setOnPreparedListener(null)
             player?.setOnVideoSizeChangedListener(null)
             player?.setOnErrorListener(null)
             player?.setOnInfoListener(null)
             
-            runCatching { player?.release() }
+            try {
+                player?.release()
+            } catch (e: Exception) {
+                log.e("Failed to release player", e)
+            }
             player = null
         }
         
-        cacheSurfaceTexture?.let { runCatching { it.release() } }
+        try {
+            cacheSurfaceTexture?.release()
+        } catch (e: Exception) {
+            log.e("Failed to release surface texture", e)
+        }
         cacheSurfaceTexture = null
         cacheSurfaceView = null
         
@@ -114,7 +131,7 @@ class IjkVideoPlayerNew(
         audioTrackState.set(AudioTrackState())
         
         val trackId = audioTrackMemoryCache.get(line.playableUrl)
-        audioTrackState.set(audioTrackState.get().copy(userSelectedTrackId = trackId))
+        audioTrackState.updateAndGet { it.copy(userSelectedTrackId = trackId) }
         
         updatePlaybackModeState(line)
         
@@ -181,8 +198,10 @@ class IjkVideoPlayerNew(
     
     override fun selectAudioTrack(track: PlayerMetadata.AudioTrack?) {
         if (isReleased.get()) return
-        val currentState = audioTrackState.get()
-        audioTrackState.set(currentState.copy(userSelectedTrackId = track?.trackId))
+        
+        audioTrackState.updateAndGet { currentState ->
+            currentState.copy(userSelectedTrackId = track?.trackId)
+        }
         
         if (track?.trackId != null) {
             audioTrackMemoryCache.put(currentChannelLine.playableUrl, track.trackId)
@@ -200,6 +219,7 @@ class IjkVideoPlayerNew(
             return
         }
         
+        val currentState = audioTrackState.get()
         val candidate = currentState.candidates.getOrNull(track.index) ?: return
         
         val currentStreamIndex = player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) ?: -1
@@ -210,10 +230,12 @@ class IjkVideoPlayerNew(
             player?.selectTrack(candidate.streamIndex)
         }
         
-        val updatedCandidates = currentState.candidates.map { c ->
-            c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
+        audioTrackState.updateAndGet { state ->
+            val updatedCandidates = state.candidates.map { c ->
+                c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
+            }
+            state.copy(candidates = updatedCandidates)
         }
-        audioTrackState.set(currentState.copy(candidates = updatedCandidates))
         
         val updatedAudioTracks = state.metadata.value.audioTracks.map { 
             it.copy(isSelected = it.index == track.index) 
@@ -470,14 +492,14 @@ class IjkVideoPlayerNew(
             sortMode = Configs.audioTrackSortMode
         )
         
-        audioTrackState.set(audioTrackState.get().copy(candidates = candidates))
+        audioTrackState.updateAndGet { it.copy(candidates = candidates) }
     }
     
     private fun restoreAudioTrack() {
         val currentState = audioTrackState.get()
         if (currentState.restored || currentState.candidates.isEmpty()) return
         
-        audioTrackState.set(currentState.copy(restored = true))
+        audioTrackState.updateAndGet { it.copy(restored = true) }
         
         val trackIdToRestore = currentState.userSelectedTrackId ?: return
         val candidate = currentState.candidates.find { trackIdToRestore in it.matchKeys } ?: return
@@ -492,10 +514,12 @@ class IjkVideoPlayerNew(
             }
             
             if (runCatching { player?.selectTrack(candidate.streamIndex) }.isSuccess) {
-                val updatedCandidates = currentState.candidates.map { c ->
-                    c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
+                audioTrackState.updateAndGet { state ->
+                    val updatedCandidates = state.candidates.map { c ->
+                        c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
+                    }
+                    state.copy(candidates = updatedCandidates)
                 }
-                audioTrackState.set(currentState.copy(candidates = updatedCandidates))
             }
         }
     }

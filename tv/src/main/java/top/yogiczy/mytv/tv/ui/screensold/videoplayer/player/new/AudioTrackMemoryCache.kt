@@ -6,7 +6,7 @@ import kotlinx.serialization.decodeFromString
 import top.yogiczy.mytv.core.data.utils.Globals
 
 class AudioTrackMemoryCache(
-    maxSize: Int = 100
+    maxSize: Int = calculateOptimalCacheSize()
 ) {
     private val cache = LruCache<String, String>(maxSize)
     private val lock = Any()
@@ -68,6 +68,15 @@ class AudioTrackMemoryCache(
                 cache.fromMap(map)
             }
             return cache
+        }
+        
+        private fun calculateOptimalCacheSize(): Int {
+            val maxMemoryMB = Runtime.getRuntime().maxMemory() / 1024 / 1024
+            return when {
+                maxMemoryMB >= 512 -> 200
+                maxMemoryMB >= 256 -> 100
+                else -> 50
+            }
         }
     }
 }

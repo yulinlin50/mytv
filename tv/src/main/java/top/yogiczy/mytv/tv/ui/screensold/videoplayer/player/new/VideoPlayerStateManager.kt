@@ -9,10 +9,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.launch
 import androidx.media3.common.text.Cue
+import top.yogiczy.mytv.core.data.utils.Logger
 
 class VideoPlayerStateManager(
     private val coroutineScope: CoroutineScope
 ) : IVideoPlayerState {
+    
+    private val log = Logger.create("VideoPlayerStateManager")
     
     private sealed class StateUpdate {
         data class IsPlaying(val value: Boolean) : StateUpdate()
@@ -27,7 +30,7 @@ class VideoPlayerStateManager(
         object Reset : StateUpdate()
     }
     
-    private val updateChannel = Channel<StateUpdate>(Channel.UNLIMITED)
+    private val updateChannel = Channel<StateUpdate>(capacity = STATE_UPDATE_CHANNEL_CAPACITY)
     
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -96,42 +99,53 @@ class VideoPlayerStateManager(
     }
     
     fun updateIsPlaying(value: Boolean) {
-        updateChannel.trySend(StateUpdate.IsPlaying(value))
+        sendUpdate(StateUpdate.IsPlaying(value))
     }
     
     fun updateIsBuffering(value: Boolean) {
-        updateChannel.trySend(StateUpdate.IsBuffering(value))
+        sendUpdate(StateUpdate.IsBuffering(value))
     }
     
     fun updateError(value: String?) {
-        updateChannel.trySend(StateUpdate.Error(value))
+        sendUpdate(StateUpdate.Error(value))
     }
     
     fun updateDuration(value: Long) {
-        updateChannel.trySend(StateUpdate.Duration(value))
+        sendUpdate(StateUpdate.Duration(value))
     }
     
     fun updateCurrentPosition(value: Long) {
-        updateChannel.trySend(StateUpdate.CurrentPosition(value))
+        sendUpdate(StateUpdate.CurrentPosition(value))
     }
     
     fun updateMetadata(value: PlayerMetadata) {
-        updateChannel.trySend(StateUpdate.Metadata(value))
+        sendUpdate(StateUpdate.Metadata(value))
     }
     
     fun updatePlaybackMode(isPlayback: Boolean, startTime: Long, endTime: Long) {
-        updateChannel.trySend(StateUpdate.PlaybackMode(isPlayback, startTime, endTime))
+        sendUpdate(StateUpdate.PlaybackMode(isPlayback, startTime, endTime))
     }
     
     fun updateVolume(value: Float) {
-        updateChannel.trySend(StateUpdate.Volume(value))
+        sendUpdate(StateUpdate.Volume(value))
     }
     
     fun updateCues(value: List<Cue>) {
-        updateChannel.trySend(StateUpdate.Cues(value))
+        sendUpdate(StateUpdate.Cues(value))
     }
 
     fun reset() {
-        updateChannel.trySend(StateUpdate.Reset)
+        sendUpdate(StateUpdate.Reset)
+    }
+    
+    private fun sendUpdate(update: StateUpdate) {
+        val result = updateChannel.trySend(update)
+        if (!result.isSuccess) {
+            log.w("State update channel is full, dropping message: ${update::class.simpleName}")
+        }
+    }
+    
+    companion object {
+        private const val STATE_UPDATE_CHANNEL_CAPACITY = 100
     }
 }
