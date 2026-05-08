@@ -759,34 +759,35 @@ class Media3VideoPlayerNew(
     }
     
     private fun updateTracks() {
+        val videoTracks = extractVideoTracks()
+        val audioTracks = extractAudioTracks()
+        val subtitleTracks = extractSubtitleTracks()
+        
         playerScope.launch(Dispatchers.Default) {
             val cachedAudioTracks = audioTrackListCache.get(currentChannelLine.playableUrl)
             
-            val videoTracks = extractVideoTracks()
-            val audioTracks = if (cachedAudioTracks != null && cachedAudioTracks.isNotEmpty()) {
+            val finalAudioTracks = if (cachedAudioTracks != null && cachedAudioTracks.isNotEmpty()) {
                 cachedAudioTracks
             } else {
-                val tracks = extractAudioTracks()
-                if (tracks.isNotEmpty()) {
-                    audioTrackListCache.put(currentChannelLine.playableUrl, tracks)
+                if (audioTracks.isNotEmpty()) {
+                    audioTrackListCache.put(currentChannelLine.playableUrl, audioTracks)
                 }
-                tracks
+                audioTracks
             }
-            val subtitleTracks = extractSubtitleTracks()
             
             withContext(Dispatchers.Main) {
                 state.updateMetadata(
                     state.metadata.value.copy(
                         video = videoTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.video,
-                        audio = audioTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.audio,
+                        audio = finalAudioTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.audio,
                         subtitle = subtitleTracks.firstOrNull { it.isSelected == true },
                         videoTracks = videoTracks,
-                        audioTracks = audioTracks,
+                        audioTracks = finalAudioTracks,
                         subtitleTracks = subtitleTracks
                     )
                 )
                 
-                restoreAudioTrack(audioTracks)
+                restoreAudioTrack(finalAudioTracks)
             }
         }
     }
