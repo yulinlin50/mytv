@@ -15,7 +15,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import top.yogiczy.mytv.core.data.entities.channel.ChannelLine
 import top.yogiczy.mytv.core.data.utils.Logger
-import top.yogiczy.mytv.core.data.utils.PlaybackUtil
 import top.yogiczy.mytv.core.util.utils.toHeaders
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.IjkTrackInfoResolver
 import top.yogiczy.mytv.tv.ui.utils.Configs
@@ -27,16 +26,14 @@ import java.util.concurrent.atomic.AtomicReference
 
 class IjkVideoPlayerNew(
     private val context: Context,
-    private val coroutineScope: CoroutineScope
-) : IVideoPlayer {
+    coroutineScope: CoroutineScope
+) : BaseVideoPlayer(coroutineScope) {
     
     private val log = Logger.create("IjkVideoPlayerNew")
     
     override val state = VideoPlayerStateManager(coroutineScope)
     override val cues: StateFlow<List<Cue>> = state.cues
     private val errorHandler = PlayerErrorHandler(state, coroutineScope)
-    private val audioTrackMemoryCache = AudioTrackMemoryCache(maxSize = 100)
-    private val audioTrackListCache = AudioTrackListCache()
     
     private var player: IjkMediaPlayer? = null
     private val playerLock = Any()
@@ -48,10 +45,6 @@ class IjkVideoPlayerNew(
     
     private val jobs = mutableListOf<Job>()
     private val jobsLock = Any()
-    private val isReleased = AtomicBoolean(false)
-    private val isInitialized = AtomicBoolean(false)
-    
-    private val playbackModeState = AtomicReference(PlaybackModeState())
     private val volumeState = AtomicReference(1f)
     
     private val volumeFader = VolumeFader(coroutineScope) { volume ->
@@ -60,8 +53,7 @@ class IjkVideoPlayerNew(
         state.updateVolume(volume)
     }
     
-    private val pendingFadeIn = AtomicReference(false)
-    private val targetSystemVolume = AtomicReference(1f)
+    override fun getVolumeFader(): VolumeFader = volumeFader
     
     private val audioTrackState = AtomicReference(AudioTrackState())
     
@@ -220,17 +212,6 @@ class IjkVideoPlayerNew(
         volumeFader.syncCurrentVolume(volume)
     }
     
-    override fun muteImmediate() {
-        volumeFader.setVolumeImmediate(0f)
-        pendingFadeIn.set(true)
-    }
-    
-    override fun fadeInFromMute(systemVolume: Float) {
-        volumeFader.setVolumeImmediate(0f)
-        targetSystemVolume.set(systemVolume)
-        pendingFadeIn.set(true)
-    }
-    
     override fun selectVideoTrack(track: PlayerMetadata.VideoTrack?) {
         // IJKPlayer视频轨道选择支持有限
     }
@@ -339,124 +320,17 @@ class IjkVideoPlayerNew(
         }
     }
     
-    override fun setPlaybackMode(isPlayback: Boolean) {
-        val currentState = playbackModeState.get()
-        if (currentState.isPlayback != isPlayback) {
-            playbackModeState.set(
-                currentState.copy(
-                    isPlayback = isPlayback,
-                    manuallySet = true,
-                    startTime = 0L,
-                    endTime = 0L
-                )
-            )
-            state.updatePlaybackMode(isPlayback, 0L, 0L)
-        }
-    }
-    
-    override fun isPlaybackMode(): Boolean = playbackModeState.get().isPlayback
-    
-    override fun getPlaybackTimeRange(): Pair<Long, Long>? {
-        val currentState = playbackModeState.get()
-        return if (currentState.isPlayback && currentState.startTime > 0 && currentState.endTime > 0) {
-            Pair(currentState.startTime, currentState.endTime)
-        } else {
-            null
-        }
-    }
-    
     private fun createPlayer(): IjkMediaPlayer {
         return IjkMediaPlayer().apply {
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_clear", 0)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_timeout", 600)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "http-detect-range-support", 0)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect", 5)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect_at_eof", 1)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect_streamed", 1)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect_delay_max", 5)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "timeout", Configs.videoPlayerLoadTimeout)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzemaxduration", 200L)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzeduration", 1000000)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "probesize", 1024 * 512)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "fflags", "fastseek+flush_packets")
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "flush_packets", 1)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "max_delay", 500000)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "max_buffer_size", 1024 * 1024)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "tcp_nodelay", 1)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "rw_timeout", Configs.videoPlayerLoadTimeout)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "auto_convert", 1)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "metadata", 1)
+            (FORMAT_OPTIONS + PLAYER_OPTIONS).forEach { (key, category, value) ->
+                setOption(category, key, value)
+            }
         }
     }
     
     private fun setPlayerOptions() {
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-hevc", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "opensles", 0)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 10)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "start-on-prepared", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "enable-accurate-seek", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "videotoolbox", 1)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "videotoolbox-max-frame-width", 1920)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "videotoolbox-max-frame-height", 1080)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "max-fps", 60)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "overlay-format", android.graphics.PixelFormat.RGBA_8888.toLong().toString())
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "min-frames", 50)
-        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "max-buffer-size", 1024 * 1024 * 2)
-    }
-    
-    private fun updatePlaybackModeState(line: ChannelLine) {
-        val urlIsPlayback = PlaybackUtil.isPlaybackUrl(line.url)
-        val lineSupportsPlayback = line.hasCatchupSupport()
-        
-        val currentState = playbackModeState.get()
-        val newIsPlayback = when {
-            currentState.manuallySet && currentState.isPlayback && (urlIsPlayback || lineSupportsPlayback) -> true
-            currentState.manuallySet && currentState.isPlayback && !urlIsPlayback && !lineSupportsPlayback -> false
-            !currentState.manuallySet && urlIsPlayback -> true
-            else -> false
-        }
-        
-        val (startTime, endTime) = if (newIsPlayback) {
-            PlaybackUtil.extractPlaybackTimeRange(line.url) ?: Pair(0L, 0L)
-        } else {
-            Pair(0L, 0L)
-        }
-        
-        playbackModeState.set(
-            PlaybackModeState(
-                isPlayback = newIsPlayback,
-                startTime = startTime,
-                endTime = endTime,
-                manuallySet = currentState.manuallySet
-            )
-        )
-        
-        state.updatePlaybackMode(newIsPlayback, startTime, endTime)
-    }
-    
-    private fun loadAudioTrackMemory() {
-        coroutineScope.launch(Dispatchers.IO) {
-            runCatching {
-                val jsonString = Configs.channelAudioTrackMemory
-                if (jsonString.isNotBlank()) {
-                    val cache = AudioTrackMemoryCache.fromJsonString(jsonString)
-                    audioTrackMemoryCache.fromMap(cache.toMap())
-                }
-            }
-        }
-    }
-    
-    private fun saveAudioTrackMemory() {
-        coroutineScope.launch(Dispatchers.IO) {
-            runCatching {
-                Configs.channelAudioTrackMemory = audioTrackMemoryCache.toJsonString()
-            }
-        }
+        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "timeout", Configs.videoPlayerLoadTimeout)
+        player?.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "rw_timeout", Configs.videoPlayerLoadTimeout)
     }
     
     private val infoListener = IMediaPlayer.OnInfoListener { _, what, _ ->
@@ -507,10 +381,7 @@ class IjkVideoPlayerNew(
         
         startPositionUpdate()
         
-        if (pendingFadeIn.getAndSet(false)) {
-            volumeFader.syncCurrentVolume(0f)
-            volumeFader.fadeIn(targetSystemVolume.get())
-        }
+        handlePendingFadeIn()
     }
     
     private val videoSizeChangedListener = IMediaPlayer.OnVideoSizeChangedListener { mp, width, height, sarNum, sarDen ->
@@ -535,7 +406,7 @@ class IjkVideoPlayerNew(
         val cachedTracks = audioTrackListCache.get(currentChannelLine.playableUrl)
         if (cachedTracks != null && cachedTracks.isNotEmpty()) {
             val candidates = cachedTracks.mapIndexed { index, track ->
-                IjkTrackInfoResolver.AudioTrackCandidate(
+                AudioTrackCandidate(
                     metadata = track,
                     streamIndex = track.index ?: index
                 )
@@ -648,16 +519,51 @@ class IjkVideoPlayerNew(
         }
     }
     
-    private data class PlaybackModeState(
-        val isPlayback: Boolean = false,
-        val startTime: Long = 0L,
-        val endTime: Long = 0L,
-        val manuallySet: Boolean = false
-    )
-    
     private data class AudioTrackState(
-        val candidates: List<IjkTrackInfoResolver.AudioTrackCandidate> = emptyList(),
+        val candidates: List<AudioTrackCandidate> = emptyList(),
         val userSelectedTrackId: String? = null,
         val restored: Boolean = false
     )
+    
+    private companion object {
+        private val FORMAT_OPTIONS: List<Triple<String, String, Any>> = listOf(
+            Triple("dns_cache_clear", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 0L),
+            Triple("dns_cache_timeout", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 600L),
+            Triple("http-detect-range-support", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 0L),
+            Triple("reconnect", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 5L),
+            Triple("reconnect_at_eof", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+            Triple("reconnect_streamed", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+            Triple("reconnect_delay_max", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 5L),
+            Triple("analyzemaxduration", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 200L),
+            Triple("analyzeduration", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1000000L),
+            Triple("probesize", IjkMediaPlayer.OPT_CATEGORY_FORMAT, (1024 * 512).toLong()),
+            Triple("fflags", IjkMediaPlayer.OPT_CATEGORY_FORMAT, "fastseek+flush_packets"),
+            Triple("flush_packets", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+            Triple("max_delay", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 500000L),
+            Triple("max_buffer_size", IjkMediaPlayer.OPT_CATEGORY_FORMAT, (1024 * 1024).toLong()),
+            Triple("tcp_nodelay", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+            Triple("auto_convert", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+            Triple("metadata", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+        )
+        
+        private val PLAYER_OPTIONS: List<Triple<String, String, Any>> = listOf(
+            Triple("mediacodec", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("mediacodec-all-videos", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("mediacodec-hevc", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("mediacodec-avc", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("mediacodec-auto-rotate", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("mediacodec-handle-resolution-change", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("opensles", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 0L),
+            Triple("framedrop", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 10L),
+            Triple("start-on-prepared", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("enable-accurate-seek", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("videotoolbox", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
+            Triple("videotoolbox-max-frame-width", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1920L),
+            Triple("videotoolbox-max-frame-height", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1080L),
+            Triple("max-fps", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 60L),
+            Triple("min-frames", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 50L),
+            Triple("max-buffer-size", IjkMediaPlayer.OPT_CATEGORY_PLAYER, (1024 * 1024 * 2).toLong()),
+            Triple("overlay-format", IjkMediaPlayer.OPT_CATEGORY_PLAYER, android.graphics.PixelFormat.RGBA_8888.toLong().toString()),
+        )
+    }
 }

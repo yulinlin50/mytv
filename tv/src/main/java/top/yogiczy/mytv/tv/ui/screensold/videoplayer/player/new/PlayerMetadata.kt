@@ -86,35 +86,20 @@ data class PlayerMetadata(
             get() {
                 val parts = mutableListOf<String>()
                 
-                val meaningfulTitle = title?.trim()?.takeIf {
-                    it.isNotEmpty() &&
-                    !it.equals("und", ignoreCase = true) &&
-                    !it.equals("unknown", ignoreCase = true) &&
-                    !it.equals(language, ignoreCase = true)
-                }
-                if (meaningfulTitle != null) parts.add(meaningfulTitle)
+                val cleanTitle = AudioTrackResolverCommon.sanitizeAudioTitle(title)
+                    ?.takeIf { it != language?.trim()?.lowercase() }
+                if (cleanTitle != null) parts.add(cleanTitle)
                 
-                val meaningfulLanguage = language?.trim()
-                    ?.takeUnless {
-                        it.isEmpty() ||
-                        it.equals("und", ignoreCase = true) ||
-                        it.equals("unknown", ignoreCase = true)
-                    }
+                AudioTrackResolverCommon.normalizeTrackLanguage(language)
                     ?.humanizeLanguage()
-                if (meaningfulLanguage != null && meaningfulLanguage != meaningfulTitle) {
-                    parts.add(meaningfulLanguage)
-                }
+                    ?.takeIf { it != parts.firstOrNull() }
+                    ?.let { parts.add(it) }
                 
                 if (!roleLabel.isNullOrBlank()) parts.add(roleLabel)
-                
-                val channelInfo = channelsLabel ?: channels?.humanizeAudioChannels()
-                if (!channelInfo.isNullOrBlank()) parts.add(channelInfo)
-                
-                val codecInfo = codecLabel ?: mimeType?.substringAfter("/")?.takeIf { it.all { c -> c.code <= 0x7F } }
-                if (!codecInfo.isNullOrBlank()) parts.add(codecInfo)
-                
-                val bitrateInfo = bitrate?.takeIf { it > 0 }?.humanizeBitrate()
-                if (!bitrateInfo.isNullOrBlank()) parts.add(bitrateInfo)
+                (channelsLabel ?: channels?.humanizeAudioChannels())?.takeIf { !it.isNullOrBlank() }?.let { parts.add(it) }
+                (codecLabel ?: mimeType?.substringAfter("/")?.takeIf { it.all { c -> c.code <= 0x7F } })
+                    ?.takeIf { !it.isNullOrBlank() }?.let { parts.add(it) }
+                bitrate?.takeIf { it > 0 }?.humanizeBitrate()?.let { parts.add(it) }
                 
                 return parts.distinct().joinToString(" · ")
             }

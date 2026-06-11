@@ -54,14 +54,12 @@ import java.util.concurrent.atomic.AtomicReference
 @OptIn(UnstableApi::class)
 class Media3VideoPlayerNew(
     private val context: Context,
-    private val coroutineScope: CoroutineScope
-) : IVideoPlayer {
+    coroutineScope: CoroutineScope
+) : BaseVideoPlayer(coroutineScope) {
     
     override val state = VideoPlayerStateManager(coroutineScope)
     override val cues: StateFlow<List<Cue>> = state.cues
     private val errorHandler = PlayerErrorHandler(state, coroutineScope)
-    private val audioTrackMemoryCache = AudioTrackMemoryCache(maxSize = 100)
-    private val audioTrackListCache = AudioTrackListCache()
     
     private val playerLock = Any()
     @Volatile private var videoPlayer: ExoPlayer? = null
@@ -77,10 +75,6 @@ class Media3VideoPlayerNew(
     
     private val playerJob = SupervisorJob()
     private val playerScope = CoroutineScope(coroutineScope.coroutineContext + playerJob)
-    private val isReleased = AtomicBoolean(false)
-    private val isInitialized = AtomicBoolean(false)
-    
-    private val playbackModeState = AtomicReference(PlaybackModeState())
     private val softDecode = AtomicReference<Boolean?>(null)
     
     private val volumeFader = VolumeFader(playerScope) { volume ->
@@ -88,8 +82,7 @@ class Media3VideoPlayerNew(
         state.updateVolume(volume)
     }
     
-    private val pendingFadeIn = AtomicReference(false)
-    private val targetSystemVolume = AtomicReference(1f)
+    override fun getVolumeFader(): VolumeFader = volumeFader
     
     private var cachedUri: Uri? = null
     private var cachedUriString: String? = null
@@ -199,17 +192,6 @@ class Media3VideoPlayerNew(
         volumeFader.syncCurrentVolume(volume)
     }
     
-    override fun muteImmediate() {
-        volumeFader.setVolumeImmediate(0f)
-        pendingFadeIn.set(true)
-    }
-    
-    override fun fadeInFromMute(systemVolume: Float) {
-        volumeFader.setVolumeImmediate(0f)
-        targetSystemVolume.set(systemVolume)
-        pendingFadeIn.set(true)
-    }
-    
     override fun selectVideoTrack(track: PlayerMetadata.VideoTrack?) {
         selectTrackByIndex(C.TRACK_TYPE_VIDEO, track?.index)
     }
@@ -268,26 +250,7 @@ class Media3VideoPlayerNew(
         this.textureView = textureView
         videoPlayer?.setVideoTextureView(textureView)
     }
-    
-    override fun setPlaybackMode(isPlayback: Boolean) {
-        val currentState = playbackModeState.get()
-        if (currentState.isPlayback != isPlayback) {
-            playbackModeState.set(currentState.copy(isPlayback = isPlayback))
-            state.updatePlaybackMode(isPlayback, 0L, 0L)
-        }
-    }
-    
-    override fun isPlaybackMode(): Boolean = playbackModeState.get().isPlayback
-    
-    override fun getPlaybackTimeRange(): Pair<Long, Long>? {
-        val currentState = playbackModeState.get()
-        return if (currentState.isPlayback && currentState.startTime > 0 && currentState.endTime > 0) {
-            Pair(currentState.startTime, currentState.endTime)
-        } else {
-            null
-        }
-    }
-    
+
     private fun createPlayer(): ExoPlayer {
         val renderersFactory = DefaultRenderersFactory(context)
             .setExtensionRendererMode(
@@ -344,12 +307,7 @@ class Media3VideoPlayerNew(
             C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory, extractorsFactory)
                 .createMediaSource(mediaItem)
             else -> {
-                errorHandler.handleError(
-                    PlayerErrorType.FormatError(
-                        errorCode = 10002,
-                        message = "Unsupported content type"
-                    )
-                )
+                errorHandler.handleError(PlayerErrorType.FORMAT, "Unsupported content type")
                 null
             }
         }
@@ -456,12 +414,7 @@ class Media3VideoPlayerNew(
             
             setDrmSessionManagerProvider { drmSessionManager }
         }.onFailure {
-            errorHandler.handleError(
-                PlayerErrorType.DrmError(
-                    errorCode = androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_EXPIRED,
-                    message = it.message ?: "DRM license error"
-                )
-            )
+            errorHandler.handleError(PlayerErrorType.DRM, it.message ?: "DRM license error")
         }
     }
     
@@ -495,56 +448,6 @@ class Media3VideoPlayerNew(
             cachedUri = Uri.parse(uriString)
         }
         return cachedUri ?: Uri.parse(uriString)
-    }
-    
-    private fun updatePlaybackModeState(line: ChannelLine) {
-        val urlIsPlayback = PlaybackUtil.isPlaybackUrl(line.url)
-        val lineSupportsPlayback = line.hasCatchupSupport() || urlIsPlayback
-        
-        val currentState = playbackModeState.get()
-        val newIsPlayback = when {
-            currentState.manuallySet && currentState.isPlayback && (urlIsPlayback || lineSupportsPlayback) -> true
-            currentState.manuallySet && currentState.isPlayback && !urlIsPlayback && !lineSupportsPlayback -> false
-            !currentState.manuallySet && urlIsPlayback -> true
-            else -> false
-        }
-        
-        val (startTime, endTime) = if (newIsPlayback) {
-            PlaybackUtil.extractPlaybackTimeRange(line.url) ?: Pair(0L, 0L)
-        } else {
-            Pair(0L, 0L)
-        }
-        
-        playbackModeState.set(
-            PlaybackModeState(
-                isPlayback = newIsPlayback,
-                startTime = startTime,
-                endTime = endTime,
-                manuallySet = currentState.manuallySet
-            )
-        )
-        
-        state.updatePlaybackMode(newIsPlayback, startTime, endTime)
-    }
-    
-    private fun loadAudioTrackMemory() {
-        playerScope.launch(Dispatchers.IO) {
-            runCatching {
-                val jsonString = Configs.channelAudioTrackMemory
-                if (jsonString.isNotBlank()) {
-                    val cache = AudioTrackMemoryCache.fromJsonString(jsonString)
-                    audioTrackMemoryCache.fromMap(cache.toMap())
-                }
-            }
-        }
-    }
-    
-    private fun saveAudioTrackMemory() {
-        playerScope.launch(Dispatchers.IO) {
-            runCatching {
-                Configs.channelAudioTrackMemory = audioTrackMemoryCache.toJsonString()
-            }
-        }
     }
     
     private fun Int.fromIndexFindTrack(type: @C.TrackType Int): Pair<TrackGroup, Int>? {
@@ -627,10 +530,7 @@ class Media3VideoPlayerNew(
                     updateDuration()
                     updateTracks()
                     startPositionUpdate()
-                    if (pendingFadeIn.getAndSet(false)) {
-                        volumeFader.syncCurrentVolume(0f)
-                        volumeFader.fadeIn(targetSystemVolume.get())
-                    }
+                    handlePendingFadeIn()
                 }
                 Player.STATE_ENDED -> {
                     if (retryCount < MAX_RETRY_COUNT && !playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
@@ -692,9 +592,7 @@ class Media3VideoPlayerNew(
     
     private fun retryPlayback() {
         if (retryCount >= MAX_RETRY_COUNT) {
-            errorHandler.handleError(
-                PlayerErrorType.UnknownError(errorCode = 10005, message = "重试次数已用尽")
-            )
+            errorHandler.handleError(PlayerErrorType.UNKNOWN, "重试次数已用尽")
             return
         }
         retryCount++
@@ -827,54 +725,64 @@ class Media3VideoPlayerNew(
         }
     }
     
-    private fun extractVideoTracks(): List<PlayerMetadata.VideoTrack> {
-        val currentVideoFormat = videoPlayer?.videoFormat
-        val currentVideoTrackId = currentVideoFormat?.id
-        
+    private inline fun <T : PlayerMetadata.TrackSelectable> extractTracks(
+        trackType: Int,
+        currentTrackId: String?,
+        crossinline formatToTrack: (Format) -> T,
+        crossinline withIndex: (T, Int) -> T,
+        filterFormat: ((Format) -> Boolean)? = null,
+        matchSelectedById: Boolean = true,
+    ): List<T> {
         return videoPlayer?.currentTracks?.groups
-            ?.filter { it.type == C.TRACK_TYPE_VIDEO }
+            ?.filter { it.type == trackType }
             ?.flatMap { group ->
-                (0 until group.mediaTrackGroup.length).map { trackIndex ->
+                (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
                     val format = group.mediaTrackGroup.getFormat(trackIndex)
+                    if (filterFormat != null && !filterFormat(format)) return@mapNotNull null
                     val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
-                        // 自适应流中同一组内多个轨道都被标记为 selected，
-                        // 通过匹配当前播放的视频格式 ID 来判断真正选中的轨道
-                        currentVideoTrackId != null && format.id == currentVideoTrackId
+                        if (matchSelectedById) currentTrackId != null && format.id == currentTrackId
+                        else true
                     } else {
                         group.isTrackSelected(trackIndex)
                     }
-                    format.toVideoMetadata()
-                        .copy(isSelected = isSelected)
+                    formatToTrack(format).let { withIndex(it, trackIndex) }
+                        .let { track ->
+                            @Suppress("UNCHECKED_CAST")
+                            when (track) {
+                                is PlayerMetadata.VideoTrack -> track.copy(isSelected = isSelected) as T
+                                is PlayerMetadata.AudioTrack -> track.copy(isSelected = isSelected) as T
+                                is PlayerMetadata.SubtitleTrack -> track.copy(isSelected = isSelected) as T
+                                else -> track
+                            }
+                        }
                 }
             }
-            ?.mapIndexed { index, track -> track.copy(index = index) }
+            ?.mapIndexed { index, track -> withIndex(track, index) }
             ?: emptyList()
+    }
+
+    private fun extractVideoTracks(): List<PlayerMetadata.VideoTrack> {
+        val currentTrackId = videoPlayer?.videoFormat?.id
+        return extractTracks(
+            trackType = C.TRACK_TYPE_VIDEO,
+            currentTrackId = currentTrackId,
+            formatToTrack = { it.toVideoMetadata() },
+            withIndex = { track, idx -> track.copy(index = idx) },
+        )
     }
     
     private fun extractAudioTracks(): List<PlayerMetadata.AudioTrack> {
-        val currentAudioFormat = videoPlayer?.audioFormat
-        val currentAudioTrackId = currentAudioFormat?.id
-
-        return videoPlayer?.currentTracks?.groups
-            ?.filter { it.type == C.TRACK_TYPE_AUDIO }
-            ?.flatMap { group ->
-                (0 until group.mediaTrackGroup.length).map { trackIndex ->
-                    val format = group.mediaTrackGroup.getFormat(trackIndex)
-                    val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
-                        currentAudioTrackId != null && format.id == currentAudioTrackId
-                    } else {
-                        group.isTrackSelected(trackIndex)
-                    }
-                    format.toAudioMetadata()
-                        .copy(isSelected = isSelected)
-                }
-            }
-            ?.mapIndexed { index, track -> track.copy(index = index) }
-            ?: emptyList()
+        val currentTrackId = videoPlayer?.audioFormat?.id
+        return extractTracks(
+            trackType = C.TRACK_TYPE_AUDIO,
+            currentTrackId = currentTrackId,
+            formatToTrack = { it.toAudioMetadata() },
+            withIndex = { track, idx -> track.copy(index = idx) },
+        )
     }
 
     private fun extractSubtitleTracks(): List<PlayerMetadata.SubtitleTrack> {
-        val currentTextFormat = runCatching { videoPlayer?.currentTracks?.groups
+        val currentTrackId = videoPlayer?.currentTracks?.groups
             ?.filter { it.type == C.TRACK_TYPE_TEXT }
             ?.flatMap { group ->
                 (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
@@ -882,27 +790,17 @@ class Media3VideoPlayerNew(
                         .takeIf { it.roleFlags == C.ROLE_FLAG_SUBTITLE }
                 }
             }
-            ?.firstOrNull { videoPlayer?.trackSelectionParameters?.preferredTextLanguages?.contains(it.language) == true }
-        }.getOrNull()
-        val currentSubtitleLanguage = currentTextFormat?.language
+            ?.firstOrNull {
+                videoPlayer?.trackSelectionParameters?.preferredTextLanguages?.contains(it.language) == true
+            }?.id
 
-        return videoPlayer?.currentTracks?.groups
-            ?.filter { it.type == C.TRACK_TYPE_TEXT }
-            ?.flatMap { group ->
-                (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
-                    val format = group.mediaTrackGroup.getFormat(trackIndex)
-                    if (format.roleFlags != C.ROLE_FLAG_SUBTITLE) return@mapNotNull null
-                    val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
-                        currentSubtitleLanguage != null && format.language == currentSubtitleLanguage
-                    } else {
-                        group.isTrackSelected(trackIndex)
-                    }
-                    format.toSubtitleMetadata()
-                        .copy(isSelected = isSelected)
-                }
-            }
-            ?.mapIndexed { index, track -> track.copy(index = index) }
-            ?: emptyList()
+        return extractTracks(
+            trackType = C.TRACK_TYPE_TEXT,
+            currentTrackId = currentTrackId,
+            formatToTrack = { it.toSubtitleMetadata() },
+            withIndex = { track, idx -> track.copy(index = idx) },
+            filterFormat = { it.roleFlags == C.ROLE_FLAG_SUBTITLE },
+        )
     }
     
     private fun restoreAudioTrack(audioTracks: List<PlayerMetadata.AudioTrack>) {
@@ -985,13 +883,6 @@ class Media3VideoPlayerNew(
             trackId = id ?: "$sampleMimeType-$language-$bitrate"
         )
     }
-    
-    private data class PlaybackModeState(
-        val isPlayback: Boolean = false,
-        val startTime: Long = 0L,
-        val endTime: Long = 0L,
-        val manuallySet: Boolean = false
-    )
 
     companion object {
         private const val BUFFER_MIN_MS = 5000
