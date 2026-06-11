@@ -202,7 +202,7 @@ private class EpgXmlRepositoryOptimized(
         }
     }
 
-    private fun fetchEpgBody(response: Response, request: okhttp3.Request): InputStream {
+    private suspend fun fetchEpgBody(response: Response, request: okhttp3.Request): InputStream {
         val fetcher = EpgFetcher.instances.firstOrNull { it.isSupport(request.url.toString()) }
             ?: DefaultEpgFetcher()
         val body = response.body ?: throw HttpException("节目单响应体为空", null)
