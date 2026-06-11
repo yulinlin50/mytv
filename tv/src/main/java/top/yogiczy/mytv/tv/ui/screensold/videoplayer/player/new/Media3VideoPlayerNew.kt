@@ -57,9 +57,9 @@ class Media3VideoPlayerNew(
     coroutineScope: CoroutineScope
 ) : BaseVideoPlayer(coroutineScope) {
     
-    override val state = VideoPlayerStateManager(coroutineScope)
-    override val cues: StateFlow<List<Cue>> = state.cues
-    private val errorHandler = PlayerErrorHandler(state, coroutineScope)
+    override val stateManager = VideoPlayerStateManager(coroutineScope)
+    override val cues: StateFlow<List<Cue>> = stateManager.cues
+    private val errorHandler = PlayerErrorHandler(stateManager, coroutineScope)
     
     private val playerLock = Any()
     @Volatile private var videoPlayer: ExoPlayer? = null
@@ -79,7 +79,7 @@ class Media3VideoPlayerNew(
     
     private val volumeFader = VolumeFader(playerScope) { volume ->
         videoPlayer?.volume = volume
-        state.updateVolume(volume)
+        stateManager.updateVolume(volume)
     }
     
     override fun getVolumeFader(): VolumeFader = volumeFader
@@ -125,7 +125,7 @@ class Media3VideoPlayerNew(
             textureView = null
         }
         
-        state.reset()
+        stateManager.reset()
     }
     
     override fun prepare(line: ChannelLine) {
@@ -147,7 +147,7 @@ class Media3VideoPlayerNew(
             videoPlayer?.prepare()
             videoPlayer?.play()
         } else {
-            state.updateError("无法识别的媒体格式")
+            stateManager.updateError("无法识别的媒体格式")
         }
     }
     
@@ -475,12 +475,12 @@ class Media3VideoPlayerNew(
     
     private val playerListener = object : Player.Listener {
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
-            state.updateCues(cueGroup.cues)
+            stateManager.updateCues(cueGroup.cues)
         }
         
         override fun onVideoSizeChanged(videoSize: VideoSize) {
-            state.updateMetadata(
-                state.metadata.value.copy(
+            stateManager.updateMetadata(
+                stateManager.metadata.value.copy(
                     video = PlayerMetadata.VideoTrack(
                         width = videoSize.width,
                         height = videoSize.height
@@ -521,12 +521,12 @@ class Media3VideoPlayerNew(
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
                 Player.STATE_BUFFERING -> {
-                    state.updateError(null)
-                    state.updateIsBuffering(true)
+                    stateManager.updateError(null)
+                    stateManager.updateIsBuffering(true)
                 }
                 Player.STATE_READY -> {
-                    state.updateIsBuffering(false)
-                    state.updateError(null)
+                    stateManager.updateIsBuffering(false)
+                    stateManager.updateError(null)
                     updateDuration()
                     updateTracks()
                     startPositionUpdate()
@@ -539,7 +539,7 @@ class Media3VideoPlayerNew(
         }
         
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            state.updateIsPlaying(isPlaying)
+            stateManager.updateIsPlaying(isPlaying)
         }
         
         override fun onTracksChanged(tracks: Tracks) {
@@ -622,7 +622,7 @@ class Media3VideoPlayerNew(
             }
             else -> duration
         }
-        state.updateDuration(effectiveDuration)
+        stateManager.updateDuration(effectiveDuration)
     }
     
     private val metadataListener = object : AnalyticsListener {
@@ -655,8 +655,8 @@ class Media3VideoPlayerNew(
             format: Format,
             decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
         ) {
-            state.updateMetadata(
-                state.metadata.value.copy(
+            stateManager.updateMetadata(
+                stateManager.metadata.value.copy(
                     audio = PlayerMetadata.AudioTrack(
                         channels = format.channelCount,
                         sampleRate = format.sampleRate,
@@ -680,15 +680,15 @@ class Media3VideoPlayerNew(
     }
     
     private inline fun updateVideoMetadata(update: (PlayerMetadata.VideoTrack) -> PlayerMetadata.VideoTrack) {
-        val current = state.metadata.value
+        val current = stateManager.metadata.value
         val updated = current.video?.let(update) ?: return
-        state.updateMetadata(current.copy(video = updated))
+        stateManager.updateMetadata(current.copy(video = updated))
     }
     
     private inline fun updateAudioMetadata(update: (PlayerMetadata.AudioTrack) -> PlayerMetadata.AudioTrack) {
-        val current = state.metadata.value
+        val current = stateManager.metadata.value
         val updated = current.audio?.let(update) ?: return
-        state.updateMetadata(current.copy(audio = updated))
+        stateManager.updateMetadata(current.copy(audio = updated))
     }
     
     private fun updateTracks() {
@@ -709,10 +709,10 @@ class Media3VideoPlayerNew(
             }
             
             withContext(Dispatchers.Main) {
-                state.updateMetadata(
-                    state.metadata.value.copy(
-                        video = videoTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.video,
-                        audio = finalAudioTracks.firstOrNull { it.isSelected == true } ?: state.metadata.value.audio,
+                stateManager.updateMetadata(
+                    stateManager.metadata.value.copy(
+                        video = videoTracks.firstOrNull { it.isSelected == true } ?: stateManager.metadata.value.video,
+                        audio = finalAudioTracks.firstOrNull { it.isSelected == true } ?: stateManager.metadata.value.audio,
                         subtitle = subtitleTracks.firstOrNull { it.isSelected == true },
                         videoTracks = videoTracks,
                         audioTracks = finalAudioTracks,
@@ -816,7 +816,7 @@ class Media3VideoPlayerNew(
         
         playerScope.launch {
             while (isActive && !isReleased.get()) {
-                videoPlayer?.let { state.updateCurrentPosition(calculateCurrentPosition(it)) }
+                videoPlayer?.let { stateManager.updateCurrentPosition(calculateCurrentPosition(it)) }
                 delay(POSITION_UPDATE_INTERVAL_MS)
             }
         }

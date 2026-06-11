@@ -176,7 +176,7 @@ internal object Media3TrackInfoResolver {
     private fun Int.takeIfPositive(): Int? = takeIf { it > 0 }
 
     private fun String?.toAudioCodecLabel(sampleMimeType: String?): String? {
-        return AudioTrackResolverCommon.toAudioCodecLabel(this)
+        return with(AudioTrackResolverCommon) { this@toAudioCodecLabel.toAudioCodecLabel() }
             ?: sampleMimeType.toAudioMimeTypeLabel()
     }
 

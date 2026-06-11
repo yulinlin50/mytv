@@ -31,9 +31,9 @@ class IjkVideoPlayerNew(
     
     private val log = Logger.create("IjkVideoPlayerNew")
     
-    override val state = VideoPlayerStateManager(coroutineScope)
-    override val cues: StateFlow<List<Cue>> = state.cues
-    private val errorHandler = PlayerErrorHandler(state, coroutineScope)
+    override val stateManager = VideoPlayerStateManager(coroutineScope)
+    override val cues: StateFlow<List<Cue>> = stateManager.cues
+    private val errorHandler = PlayerErrorHandler(stateManager, coroutineScope)
     
     private var player: IjkMediaPlayer? = null
     private val playerLock = Any()
@@ -50,7 +50,7 @@ class IjkVideoPlayerNew(
     private val volumeFader = VolumeFader(coroutineScope) { volume ->
         volumeState.set(volume)
         player?.setVolume(volume, volume)
-        state.updateVolume(volume)
+        stateManager.updateVolume(volume)
     }
     
     override fun getVolumeFader(): VolumeFader = volumeFader
@@ -113,7 +113,7 @@ class IjkVideoPlayerNew(
         cacheSurfaceTexture = null
         cacheSurfaceView = null
         
-        state.reset()
+        stateManager.reset()
     }
     
     override fun prepare(line: ChannelLine) {
@@ -156,7 +156,7 @@ class IjkVideoPlayerNew(
         player?.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "user-agent", userAgent)
         
         setPlayerOptions()
-        state.updateIsBuffering(true)
+        stateManager.updateIsBuffering(true)
         player?.prepareAsync()
     }
     
@@ -258,13 +258,13 @@ class IjkVideoPlayerNew(
             state.copy(candidates = updatedCandidates)
         }
         
-        val updatedAudioTracks = state.metadata.value.audioTracks.map { 
+        val updatedAudioTracks = stateManager.metadata.value.audioTracks.map { 
             it.copy(isSelected = it.index == track.index) 
         }
         val updatedAudio = candidate.metadata.copy(isSelected = true)
         
-        state.updateMetadata(
-            state.metadata.value.copy(
+        stateManager.updateMetadata(
+            stateManager.metadata.value.copy(
                 audio = updatedAudio,
                 audioTracks = updatedAudioTracks
             )
@@ -336,8 +336,8 @@ class IjkVideoPlayerNew(
     private val infoListener = IMediaPlayer.OnInfoListener { _, what, _ ->
         if (isReleased.get()) return@OnInfoListener true
         when (what) {
-            IMediaPlayer.MEDIA_INFO_BUFFERING_START -> state.updateIsBuffering(true)
-            IMediaPlayer.MEDIA_INFO_BUFFERING_END -> state.updateIsBuffering(false)
+            IMediaPlayer.MEDIA_INFO_BUFFERING_START -> stateManager.updateIsBuffering(true)
+            IMediaPlayer.MEDIA_INFO_BUFFERING_END -> stateManager.updateIsBuffering(false)
         }
         true
     }
@@ -353,7 +353,7 @@ class IjkVideoPlayerNew(
         val info = mp.mediaInfo
         if (info != null) {
             val currentAudioMeta = buildCurrentAudioMetadata(info)
-            state.updateMetadata(
+            stateManager.updateMetadata(
                 PlayerMetadata(
                     video = PlayerMetadata.VideoTrack(
                         width = info.mMeta.mVideoStream?.mWidth,
@@ -368,16 +368,16 @@ class IjkVideoPlayerNew(
                 )
             )
         } else {
-            state.updateMetadata(
-                state.metadata.value.copy(
+            stateManager.updateMetadata(
+                stateManager.metadata.value.copy(
                     audioTracks = audioTrackState.get().candidates.map { it.metadata }
                 )
             )
         }
         
-        state.updateError(null)
-        state.updateIsBuffering(false)
-        state.updateDuration(mp.duration)
+        stateManager.updateError(null)
+        stateManager.updateIsBuffering(false)
+        stateManager.updateDuration(mp.duration)
         
         startPositionUpdate()
         
@@ -386,9 +386,9 @@ class IjkVideoPlayerNew(
     
     private val videoSizeChangedListener = IMediaPlayer.OnVideoSizeChangedListener { mp, width, height, sarNum, sarDen ->
         if (isReleased.get()) return@OnVideoSizeChangedListener
-        state.updateMetadata(
-            state.metadata.value.copy(
-                video = state.metadata.value.video?.copy(
+        stateManager.updateMetadata(
+            stateManager.metadata.value.copy(
+                video = stateManager.metadata.value.video?.copy(
                     width = width,
                     height = height
                 )
@@ -483,20 +483,20 @@ class IjkVideoPlayerNew(
                 synchronized(playerLock) {
                     if (!isReleased.get()) {
                         player?.let { p ->
-                            state.updateIsPlaying(p.isPlaying)
-                            state.updateCurrentPosition(p.currentPosition)
+                            stateManager.updateIsPlaying(p.isPlaying)
+                            stateManager.updateCurrentPosition(p.currentPosition)
                         }
                     }
                 }
-                if (retryAudioTracks && state.metadata.value.audioTracks.isEmpty()) {
+                if (retryAudioTracks && stateManager.metadata.value.audioTracks.isEmpty()) {
                     synchronized(playerLock) {
                         if (!isReleased.get()) {
                             val trackInfos = runCatching { player?.trackInfo }.getOrNull()
                             if (trackInfos != null && trackInfos.isNotEmpty()) {
                                 parseAudioTracks()
                                 restoreAudioTrack()
-                                state.updateMetadata(
-                                    state.metadata.value.copy(
+                                stateManager.updateMetadata(
+                                    stateManager.metadata.value.copy(
                                         audioTracks = audioTrackState.get().candidates.map { it.metadata }
                                     )
                                 )

@@ -44,7 +44,7 @@ internal object IjkTrackInfoResolver {
         val rawLanguage: String? = streamMeta?.mLanguage
         val trackTitle = AudioTrackResolverCommon.selectAudioTitle(rawLanguage)
             ?: normalizedLanguage?.humanizeLanguage()
-        val codecLabel = streamMeta?.mCodecName?.let { AudioTrackResolverCommon.toAudioCodecLabel(it) }
+        val codecLabel = with(AudioTrackResolverCommon) { streamMeta?.mCodecName.toAudioCodecLabel() }
         val channels = streamMeta?.mChannelLayout?.let { getChannelCount(it) }
         val channelsLabel = streamMeta?.mChannelLayout?.let { getChannelLabel(it) }
         val sampleRate = streamMeta?.mSampleRate?.takeIf { it > 0 }

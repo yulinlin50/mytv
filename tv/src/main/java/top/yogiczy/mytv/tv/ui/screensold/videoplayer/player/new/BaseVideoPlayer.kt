@@ -20,6 +20,9 @@ abstract class BaseVideoPlayer(
     protected val coroutineScope: CoroutineScope
 ) : IVideoPlayer {
 
+    protected abstract val stateManager: VideoPlayerStateManager
+    override val state: IVideoPlayerState get() = stateManager
+
     protected val playbackModeState = AtomicReference(PlaybackModeState())
     protected val pendingFadeIn = AtomicReference(false)
     protected val targetSystemVolume = AtomicReference(1f)
@@ -33,7 +36,7 @@ abstract class BaseVideoPlayer(
         val currentState = playbackModeState.get()
         if (currentState.isPlayback != isPlayback) {
             playbackModeState.set(currentState.copy(isPlayback = isPlayback))
-            state.updatePlaybackMode(isPlayback, 0L, 0L)
+            stateManager.updatePlaybackMode(isPlayback, 0L, 0L)
         }
     }
 
@@ -90,7 +93,7 @@ abstract class BaseVideoPlayer(
             )
         )
 
-        state.updatePlaybackMode(newIsPlayback, startTime, endTime)
+        stateManager.updatePlaybackMode(newIsPlayback, startTime, endTime)
     }
 
     protected fun loadAudioTrackMemory() {
