@@ -730,7 +730,7 @@ class Media3VideoPlayerNew(
         currentTrackId: String?,
         crossinline formatToTrack: (Format) -> T,
         crossinline withIndex: (T, Int) -> T,
-        filterFormat: ((Format) -> Boolean)? = null,
+        noinline filterFormat: ((Format) -> Boolean)? = null,
         matchSelectedById: Boolean = true,
     ): List<T> {
         return videoPlayer?.currentTracks?.groups
