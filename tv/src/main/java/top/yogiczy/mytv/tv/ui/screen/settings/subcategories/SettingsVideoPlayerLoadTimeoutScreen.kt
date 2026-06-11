@@ -1,34 +1,13 @@
 package top.yogiczy.mytv.tv.ui.screen.settings.subcategories
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import top.yogiczy.mytv.core.util.utils.humanizeMs
-import top.yogiczy.mytv.tv.ui.rememberChildPadding
-import top.yogiczy.mytv.tv.ui.screen.components.AppScreen
-import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
+import top.yogiczy.mytv.tv.ui.screen.settings.components.SelectionOption
+import top.yogiczy.mytv.tv.ui.screen.settings.components.SettingsSelectionScreen
 import top.yogiczy.mytv.tv.ui.theme.MyTvTheme
-import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
-import top.yogiczy.mytv.tv.ui.utils.ifElse
 
 @Composable
 fun SettingsVideoPlayerLoadTimeoutScreen(
@@ -37,57 +16,19 @@ fun SettingsVideoPlayerLoadTimeoutScreen(
     onTimeoutChanged: (Long) -> Unit = {},
     onBackPressed: () -> Unit = {},
 ) {
-    val currentTimeout = timeoutProvider()
     val timeoutList = listOf(3, 5, 10, 15, 20, 25, 30, 60).map { it.toLong() * 1000 }
 
-    val childPadding = rememberChildPadding()
-    val gridState = rememberLazyGridState()
-    val firstItemFocusRequester = remember { FocusRequester() }
-
-    AppScreen(
+    SettingsSelectionScreen(
         modifier = modifier.padding(top = 10.dp),
-        header = { Text("设置 / 播放器 / 加载超时") },
-        canBack = true,
+        title = "设置 / 播放器 / 加载超时",
+        options = timeoutList.map { SelectionOption(value = it, label = it.humanizeMs()) },
+        selectedProvider = timeoutProvider,
+        onSelected = onTimeoutChanged,
+        columns = 6,
+        centered = true,
         onBackPressed = onBackPressed,
-    ) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(6),
-            contentPadding = childPadding.copy(top = 10.dp).paddingValues,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            itemsIndexed(timeoutList) { index, delay ->
-                ListItem(
-                    modifier = Modifier
-                        .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
-                        .handleKeyEvents(onSelect = { onTimeoutChanged(delay) }),
-                    headlineContent = {
-                        Text(
-                            delay.humanizeMs(),
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center,
-                        )
-                    },
-                    trailingContent = {
-                        if (currentTimeout == delay) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.onSurface.copy(0.1f),
-                    ),
-                    selected = false,
-                    onClick = {},
-                )
-            }
-        }
-    }
+    )
 }
-
 
 @Preview(device = "id:Android TV (720p)")
 @Composable

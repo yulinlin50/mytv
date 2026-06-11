@@ -122,12 +122,28 @@ class VideoPlayerStateNew(
         instance.pause()
     }
     
+    fun playWithFadeIn(systemVolume: Float) {
+        instance.playWithFadeIn(systemVolume)
+    }
+    
+    fun pauseWithFadeOut() {
+        instance.pauseWithFadeOut()
+    }
+    
     fun seekTo(position: Long) {
         instance.seekTo(position)
     }
     
     fun stop() {
         instance.stop()
+    }
+    
+    fun muteImmediate() {
+        instance.muteImmediate()
+    }
+    
+    fun fadeInFromMute(systemVolume: Float) {
+        instance.fadeInFromMute(systemVolume)
     }
     
     fun selectVideoTrack(track: PlayerMetadata.VideoTrack?) {
@@ -157,9 +173,11 @@ class VideoPlayerStateNew(
 
     fun initialize() {
         instance.initialize()
+        VideoPlayerVolumeManager.register(instance)
     }
     
     fun release() {
+        VideoPlayerVolumeManager.unregister(instance)
         if (isReleased) return
         isReleased = true
         

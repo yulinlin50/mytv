@@ -88,6 +88,9 @@ class Media3VideoPlayerNew(
         state.updateVolume(volume)
     }
     
+    private val pendingFadeIn = AtomicReference(false)
+    private val targetSystemVolume = AtomicReference(1f)
+    
     private var cachedUri: Uri? = null
     private var cachedUriString: String? = null
     
@@ -163,6 +166,19 @@ class Media3VideoPlayerNew(
         videoPlayer?.pause()
     }
     
+    override fun playWithFadeIn(systemVolume: Float) {
+        videoPlayer?.volume = 0f
+        volumeFader.syncCurrentVolume(0f)
+        videoPlayer?.play()
+        volumeFader.fadeIn(systemVolume)
+    }
+    
+    override fun pauseWithFadeOut() {
+        volumeFader.fadeOut {
+            videoPlayer?.pause()
+        }
+    }
+    
     override fun stop() {
         videoPlayer?.stop()
     }
@@ -177,6 +193,21 @@ class Media3VideoPlayerNew(
     
     override fun getVolume(): Float {
         return videoPlayer?.volume ?: 1f
+    }
+    
+    override fun syncVolume(volume: Float) {
+        volumeFader.syncCurrentVolume(volume)
+    }
+    
+    override fun muteImmediate() {
+        volumeFader.setVolumeImmediate(0f)
+        pendingFadeIn.set(true)
+    }
+    
+    override fun fadeInFromMute(systemVolume: Float) {
+        volumeFader.setVolumeImmediate(0f)
+        targetSystemVolume.set(systemVolume)
+        pendingFadeIn.set(true)
     }
     
     override fun selectVideoTrack(track: PlayerMetadata.VideoTrack?) {
@@ -272,7 +303,7 @@ class Media3VideoPlayerNew(
                 .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 .setMaxVideoSize(Integer.MAX_VALUE, Integer.MAX_VALUE)
-                .setForceHighestSupportedBitrate(false)
+                .setForceHighestSupportedBitrate(true)
                 .setPreferredAudioLanguages("zh", "cmn")
                 .setPreferredTextLanguages("zh")
                 .setSelectUndeterminedTextLanguage(true)
@@ -596,6 +627,10 @@ class Media3VideoPlayerNew(
                     updateDuration()
                     updateTracks()
                     startPositionUpdate()
+                    if (pendingFadeIn.getAndSet(false)) {
+                        volumeFader.syncCurrentVolume(0f)
+                        volumeFader.fadeIn(targetSystemVolume.get())
+                    }
                 }
                 Player.STATE_ENDED -> {
                     if (retryCount < MAX_RETRY_COUNT && !playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
@@ -793,13 +828,23 @@ class Media3VideoPlayerNew(
     }
     
     private fun extractVideoTracks(): List<PlayerMetadata.VideoTrack> {
+        val currentVideoFormat = videoPlayer?.videoFormat
+        val currentVideoTrackId = currentVideoFormat?.id
+        
         return videoPlayer?.currentTracks?.groups
             ?.filter { it.type == C.TRACK_TYPE_VIDEO }
             ?.flatMap { group ->
                 (0 until group.mediaTrackGroup.length).map { trackIndex ->
-                    group.mediaTrackGroup.getFormat(trackIndex)
-                        .toVideoMetadata()
-                        .copy(isSelected = group.isTrackSelected(trackIndex))
+                    val format = group.mediaTrackGroup.getFormat(trackIndex)
+                    val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
+                        // 自适应流中同一组内多个轨道都被标记为 selected，
+                        // 通过匹配当前播放的视频格式 ID 来判断真正选中的轨道
+                        currentVideoTrackId != null && format.id == currentVideoTrackId
+                    } else {
+                        group.isTrackSelected(trackIndex)
+                    }
+                    format.toVideoMetadata()
+                        .copy(isSelected = isSelected)
                 }
             }
             ?.mapIndexed { index, track -> track.copy(index = index) }
@@ -807,28 +852,53 @@ class Media3VideoPlayerNew(
     }
     
     private fun extractAudioTracks(): List<PlayerMetadata.AudioTrack> {
+        val currentAudioFormat = videoPlayer?.audioFormat
+        val currentAudioTrackId = currentAudioFormat?.id
+
         return videoPlayer?.currentTracks?.groups
             ?.filter { it.type == C.TRACK_TYPE_AUDIO }
             ?.flatMap { group ->
                 (0 until group.mediaTrackGroup.length).map { trackIndex ->
-                    group.mediaTrackGroup.getFormat(trackIndex)
-                        .toAudioMetadata()
-                        .copy(isSelected = group.isTrackSelected(trackIndex))
+                    val format = group.mediaTrackGroup.getFormat(trackIndex)
+                    val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
+                        currentAudioTrackId != null && format.id == currentAudioTrackId
+                    } else {
+                        group.isTrackSelected(trackIndex)
+                    }
+                    format.toAudioMetadata()
+                        .copy(isSelected = isSelected)
                 }
             }
             ?.mapIndexed { index, track -> track.copy(index = index) }
             ?: emptyList()
     }
-    
+
     private fun extractSubtitleTracks(): List<PlayerMetadata.SubtitleTrack> {
-        return videoPlayer?.currentTracks?.groups
+        val currentTextFormat = runCatching { videoPlayer?.currentTracks?.groups
             ?.filter { it.type == C.TRACK_TYPE_TEXT }
             ?.flatMap { group ->
                 (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
                     group.mediaTrackGroup.getFormat(trackIndex)
                         .takeIf { it.roleFlags == C.ROLE_FLAG_SUBTITLE }
-                        ?.toSubtitleMetadata()
-                        ?.copy(isSelected = group.isTrackSelected(trackIndex))
+                }
+            }
+            ?.firstOrNull { videoPlayer?.trackSelectionParameters?.preferredTextLanguages?.contains(it.language) == true }
+        }.getOrNull()
+        val currentSubtitleLanguage = currentTextFormat?.language
+
+        return videoPlayer?.currentTracks?.groups
+            ?.filter { it.type == C.TRACK_TYPE_TEXT }
+            ?.flatMap { group ->
+                (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
+                    val format = group.mediaTrackGroup.getFormat(trackIndex)
+                    if (format.roleFlags != C.ROLE_FLAG_SUBTITLE) return@mapNotNull null
+                    val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
+                        currentSubtitleLanguage != null && format.language == currentSubtitleLanguage
+                    } else {
+                        group.isTrackSelected(trackIndex)
+                    }
+                    format.toSubtitleMetadata()
+                        .copy(isSelected = isSelected)
                 }
             }
             ?.mapIndexed { index, track -> track.copy(index = index) }

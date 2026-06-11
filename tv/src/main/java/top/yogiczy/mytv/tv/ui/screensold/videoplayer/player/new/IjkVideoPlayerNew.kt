@@ -60,6 +60,9 @@ class IjkVideoPlayerNew(
         state.updateVolume(volume)
     }
     
+    private val pendingFadeIn = AtomicReference(false)
+    private val targetSystemVolume = AtomicReference(1f)
+    
     private val audioTrackState = AtomicReference(AudioTrackState())
     
     init {
@@ -175,6 +178,23 @@ class IjkVideoPlayerNew(
         player?.pause()
     }
     
+    override fun playWithFadeIn(systemVolume: Float) {
+        if (isReleased.get()) return
+        player?.setVolume(0f, 0f)
+        volumeFader.syncCurrentVolume(0f)
+        player?.start()
+        volumeFader.fadeIn(systemVolume)
+    }
+    
+    override fun pauseWithFadeOut() {
+        if (isReleased.get()) return
+        volumeFader.fadeOut {
+            if (!isReleased.get()) {
+                player?.pause()
+            }
+        }
+    }
+    
     override fun stop() {
         if (isReleased.get()) return
         player?.stop()
@@ -195,6 +215,21 @@ class IjkVideoPlayerNew(
     }
     
     override fun getVolume(): Float = volumeState.get()
+    
+    override fun syncVolume(volume: Float) {
+        volumeFader.syncCurrentVolume(volume)
+    }
+    
+    override fun muteImmediate() {
+        volumeFader.setVolumeImmediate(0f)
+        pendingFadeIn.set(true)
+    }
+    
+    override fun fadeInFromMute(systemVolume: Float) {
+        volumeFader.setVolumeImmediate(0f)
+        targetSystemVolume.set(systemVolume)
+        pendingFadeIn.set(true)
+    }
     
     override fun selectVideoTrack(track: PlayerMetadata.VideoTrack?) {
         // IJKPlayer视频轨道选择支持有限
@@ -471,6 +506,11 @@ class IjkVideoPlayerNew(
         state.updateDuration(mp.duration)
         
         startPositionUpdate()
+        
+        if (pendingFadeIn.getAndSet(false)) {
+            volumeFader.syncCurrentVolume(0f)
+            volumeFader.fadeIn(targetSystemVolume.get())
+        }
     }
     
     private val videoSizeChangedListener = IMediaPlayer.OnVideoSizeChangedListener { mp, width, height, sarNum, sarDen ->

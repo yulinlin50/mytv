@@ -13,6 +13,13 @@ data class PlayerMetadata(
     val audioTracks: List<AudioTrack> = emptyList(),
     val subtitleTracks: List<SubtitleTrack> = emptyList()
 ) {
+    interface TrackSelectable {
+        val trackIndex: Int?
+        val trackIsSelected: Boolean?
+        val trackLabel: String
+        val trackIsSupported: Boolean get() = true
+    }
+
     data class VideoTrack(
         val index: Int? = null,
         val isSelected: Boolean? = null,
@@ -24,7 +31,10 @@ data class PlayerMetadata(
         val mimeType: String? = null,
         val decoder: String? = null,
         val trackId: String? = null
-    ) {
+    ) : TrackSelectable {
+        override val trackIndex: Int? get() = index
+        override val trackIsSelected: Boolean? get() = isSelected
+        override val trackLabel: String get() = shortLabel
         override fun equals(other: Any?): Boolean {
             if (other !is VideoTrack) return false
             if (trackId != null && other.trackId != null) return trackId == other.trackId
@@ -59,7 +69,11 @@ data class PlayerMetadata(
         val trackId: String? = null,
         val isSupported: Boolean = true,
         val unsupportedReason: String? = null
-    ) {
+    ) : TrackSelectable {
+        override val trackIndex: Int? get() = index
+        override val trackIsSelected: Boolean? get() = isSelected
+        override val trackLabel: String get() = shortLabel
+        override val trackIsSupported: Boolean get() = isSupported
         override fun equals(other: Any?): Boolean {
             if (other !is AudioTrack) return false
             if (trackId != null && other.trackId != null) return trackId == other.trackId
@@ -113,7 +127,10 @@ data class PlayerMetadata(
         val mimeType: String? = null,
         val language: String? = null,
         val trackId: String? = null
-    ) {
+    ) : TrackSelectable {
+        override val trackIndex: Int? get() = index
+        override val trackIsSelected: Boolean? get() = isSelected
+        override val trackLabel: String get() = shortLabel
         override fun equals(other: Any?): Boolean {
             if (other !is SubtitleTrack) return false
             if (trackId != null && other.trackId != null) return trackId == other.trackId

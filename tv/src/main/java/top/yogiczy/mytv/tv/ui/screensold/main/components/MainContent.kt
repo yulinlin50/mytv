@@ -1,9 +1,13 @@
 package top.yogiczy.mytv.tv.ui.screensold.main.components
 
+import android.content.Context
+import android.media.AudioManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.core.data.entities.channel.Channel
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList
@@ -24,7 +28,6 @@ import top.yogiczy.mytv.tv.ui.material.popupable
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsSubCategories
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsViewModel
 import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
-import top.yogiczy.mytv.tv.ui.screensold.audiotracks.AudioTracksScreen
 import top.yogiczy.mytv.tv.ui.screensold.channel.ChannelNumberSelectScreen
 import top.yogiczy.mytv.tv.ui.screensold.channel.ChannelScreen
 import top.yogiczy.mytv.tv.ui.screensold.channel.ChannelTempScreen
@@ -36,13 +39,12 @@ import top.yogiczy.mytv.tv.ui.screensold.epg.EpgProgrammeProgressScreen
 import top.yogiczy.mytv.tv.ui.screensold.epg.EpgScreen
 import top.yogiczy.mytv.tv.ui.screensold.epgreverse.EpgReverseScreen
 import top.yogiczy.mytv.tv.ui.screensold.quickop.QuickOpScreen
-import top.yogiczy.mytv.tv.ui.screensold.subtitletracks.SubtitleTracksScreen
+import top.yogiczy.mytv.tv.ui.screensold.trackselectable.TracksScreen
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.VideoPlayerScreen
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.PlayerMetadata
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.rememberVideoPlayerStateNew
 import top.yogiczy.mytv.tv.ui.screensold.videoplayercontroller.VideoPlayerControllerScreen
 import top.yogiczy.mytv.tv.ui.screensold.videoplayerdiaplaymode.VideoPlayerDisplayModeScreen
-import top.yogiczy.mytv.tv.ui.screensold.videotracks.VideoTracksScreen
 import top.yogiczy.mytv.tv.ui.screensold.webview.WebViewScreen
 import top.yogiczy.mytv.tv.ui.utils.handleDragGestures
 import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
@@ -65,6 +67,14 @@ fun MainContent(
     onBackPressed: () -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    
+    val systemVolumeProvider: () -> Float = {
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        if (maxVolume > 0) currentVolume.toFloat() / maxVolume.toFloat() else 1f
+    }
 
     val videoPlayerState =
         rememberVideoPlayerStateNew(defaultDisplayModeProvider = { settingsViewModel.videoPlayerDisplayMode })
@@ -73,6 +83,7 @@ fun MainContent(
         channelGroupListProvider = filteredChannelGroupListProvider,
         favoriteChannelListProvider = favoriteChannelListProvider,
         epgListProvider = epgListProvider,
+        systemVolumeProvider = systemVolumeProvider,
     )
     val channelNumberSelectState = rememberChannelNumberSelectState {
         val idx = it.toInt() - 1
@@ -295,8 +306,8 @@ fun MainContent(
             videoPlayerCurrentPositionProvider = { mainContentState.currentTimelinePosition() },
             videoPlayerDurationProvider = { mainContentState.currentTimelineRange() },
             isPlaybackModeProvider = { videoPlayerState.isPlaybackMode },
-            onVideoPlayerPlay = { videoPlayerState.play() },
-            onVideoPlayerPause = { videoPlayerState.pause() },
+            onVideoPlayerPlay = { videoPlayerState.playWithFadeIn(systemVolumeProvider()) },
+            onVideoPlayerPause = { videoPlayerState.pauseWithFadeOut() },
             onVideoPlayerSeekTo = { mainContentState.seekToPosition(it) },
             onClose = { mainContentState.isVideoPlayerControllerScreenVisible = false },
         )
@@ -322,7 +333,8 @@ fun MainContent(
         visibleProvider = { mainContentState.isVideoTracksScreenVisible },
         onDismissRequest = { mainContentState.isVideoTracksScreenVisible = false },
     ) {
-        VideoTracksScreen(
+        TracksScreen(
+            title = "视轨",
             trackListProvider = { videoPlayerState.metadata.videoTracks },
             onTrackChanged = {
                 videoPlayerState.selectVideoTrack(it)
@@ -336,7 +348,8 @@ fun MainContent(
         visibleProvider = { mainContentState.isAudioTracksScreenVisible },
         onDismissRequest = { mainContentState.isAudioTracksScreenVisible = false },
     ) {
-        AudioTracksScreen(
+        TracksScreen(
+            title = "音轨",
             trackListProvider = { videoPlayerState.metadata.audioTracks },
             onTrackChanged = {
                 videoPlayerState.selectAudioTrack(it)
@@ -350,7 +363,8 @@ fun MainContent(
         visibleProvider = { mainContentState.isSubtitleTracksScreenVisible },
         onDismissRequest = { mainContentState.isSubtitleTracksScreenVisible = false },
     ) {
-        SubtitleTracksScreen(
+        TracksScreen(
+            title = "字幕",
             trackListProvider = { videoPlayerState.metadata.subtitleTracks },
             onTrackChanged = {
                 videoPlayerState.selectSubtitleTrack(it)

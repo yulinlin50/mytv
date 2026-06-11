@@ -49,6 +49,7 @@ fun MultiViewItem(
     viewIndexProvider: () -> Int = { 0 },
     viewCountProvider: () -> Int = { 0 },
     zoomInIndexProvider: () -> Int? = { null },
+    systemVolumeProvider: () -> Float = { 1f },
     onAddChannel: (Channel) -> Unit = {},
     onRemoveChannel: (Channel) -> Unit = {},
     onChangeChannel: (Channel) -> Unit = {},
@@ -182,11 +183,11 @@ fun MultiViewItem(
                 actionsVisible = false
             },
             onVideoPlayerPlay = {
-                player.play()
+                player.playWithFadeIn(systemVolumeProvider())
                 actionsVisible = false
             },
             onVideoPlayerPause = {
-                player.pause()
+                player.pauseWithFadeOut()
                 actionsVisible = false
             },
             onVideoPlayerMute = {

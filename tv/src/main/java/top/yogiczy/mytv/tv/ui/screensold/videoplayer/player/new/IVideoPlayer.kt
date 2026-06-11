@@ -15,11 +15,16 @@ interface IVideoPlayer {
     fun prepare(line: ChannelLine)
     fun play()
     fun pause()
+    fun playWithFadeIn(systemVolume: Float)
+    fun pauseWithFadeOut()
     fun stop()
     fun seekTo(position: Long)
     
     fun setVolume(volume: Float)
     fun getVolume(): Float
+    fun syncVolume(volume: Float)
+    fun muteImmediate()
+    fun fadeInFromMute(systemVolume: Float)
     
     fun selectVideoTrack(track: PlayerMetadata.VideoTrack?)
     fun selectAudioTrack(track: PlayerMetadata.AudioTrack?)

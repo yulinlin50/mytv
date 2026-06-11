@@ -56,6 +56,7 @@ class MainContentState(
     private val favoriteChannelListProvider: () -> ChannelList = { ChannelList() },
     private val epgListProvider: () -> EpgList = { EpgList() },
     private val settingsViewModel: SettingsViewModel,
+    private val systemVolumeProvider: () -> Float = { 1f },
 ) : Loggable("MainContentState") {
     companion object {
         // 使用 DateTimeFormatter 替代 SimpleDateFormat，线程安全且性能更好
@@ -658,6 +659,7 @@ class MainContentState(
         } else {
             clearPlaybackUrlCandidates()
             videoPlayerState.exitPlaybackMode()
+            videoPlayerState.fadeInFromMute(systemVolumeProvider())
             videoPlayerState.prepare(originalLine)
             originalLine
         }
@@ -883,6 +885,7 @@ fun rememberMainContentState(
     favoriteChannelListProvider: () -> ChannelList = { ChannelList() },
     epgListProvider: () -> EpgList = { EpgList() },
     settingsViewModel: SettingsViewModel = settingsVM,
+    systemVolumeProvider: () -> Float = { 1f },
 ): MainContentState {
     val favoriteChannelListProviderUpdated by rememberUpdatedState(favoriteChannelListProvider)
     val epgListProviderUpdated by rememberUpdatedState(epgListProvider)
@@ -895,6 +898,7 @@ fun rememberMainContentState(
             favoriteChannelListProvider = favoriteChannelListProviderUpdated,
             epgListProvider = epgListProviderUpdated,
             settingsViewModel = settingsViewModel,
+            systemVolumeProvider = systemVolumeProvider,
         )
     }
 }

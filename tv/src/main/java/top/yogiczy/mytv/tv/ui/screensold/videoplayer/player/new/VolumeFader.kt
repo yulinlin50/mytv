@@ -39,7 +39,8 @@ class VolumeFader(
     fun fadeTo(
         targetVolume: Float,
         durationMs: Int? = null,
-        force: Boolean = false
+        force: Boolean = false,
+        onComplete: (() -> Unit)? = null
     ) {
         val target = targetVolume.coerceIn(0f, 1f)
         val duration = durationMs ?: Configs.videoPlayerVolumeFadeDurationMs
@@ -47,12 +48,14 @@ class VolumeFader(
         if (!Configs.videoPlayerEnableVolumeFade && !force) {
             setVolumeActual(target)
             currentVolume = target
+            onComplete?.invoke()
             return
         }
         
         if (abs(currentVolume - target) < VOLUME_THRESHOLD) {
             setVolumeActual(target)
             currentVolume = target
+            onComplete?.invoke()
             return
         }
         
@@ -77,6 +80,7 @@ class VolumeFader(
             
             setVolumeActual(target)
             currentVolume = target
+            onComplete?.invoke()
         }
     }
     
@@ -86,8 +90,8 @@ class VolumeFader(
      * @param durationMs 渐变持续时间（毫秒），如果为null则使用配置值
      * @param force 是否强制渐变（忽略配置中的启用状态）
      */
-    fun fadeOut(durationMs: Int? = null, force: Boolean = false) {
-        fadeTo(0f, durationMs, force)
+    fun fadeOut(durationMs: Int? = null, force: Boolean = false, onComplete: (() -> Unit)? = null) {
+        fadeTo(0f, durationMs, force, onComplete)
     }
     
     /**
@@ -125,6 +129,14 @@ class VolumeFader(
      * 获取当前音量
      */
     fun getCurrentVolume(): Float = currentVolume
+    
+    /**
+     * 同步当前音量状态（不触发渐变）
+     * 用于在播放器注册时与系统音量同步
+     */
+    fun syncCurrentVolume(volume: Float) {
+        currentVolume = volume.coerceIn(0f, 1f)
+    }
     
     companion object {
         private const val FADE_STEP_INTERVAL_MS = 10

@@ -1,5 +1,7 @@
 package top.yogiczy.mytv.tv.ui.screen.multiview
 
+import android.content.Context
+import android.media.AudioManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -7,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import top.yogiczy.mytv.core.data.entities.channel.Channel
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList.Companion.channelFirstOrNull
@@ -23,6 +26,15 @@ fun MultiViewScreen(
     epgListProvider: () -> EpgList = { EpgList() },
     onBackPressed: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    
+    val systemVolumeProvider: () -> Float = {
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        if (maxVolume > 0) currentVolume.toFloat() / maxVolume.toFloat() else 1f
+    }
+    
     val channelList =
         remember {
             mutableStateListOf(channelGroupListProvider().channelFirstOrNull() ?: Channel.EMPTY)
@@ -45,6 +57,7 @@ fun MultiViewScreen(
                 viewIndexProvider = { index },
                 viewCountProvider = { channelList.size },
                 zoomInIndexProvider = { zoomInIndex },
+                systemVolumeProvider = systemVolumeProvider,
                 onAddChannel = {
                     if (channelList.size >= MULTI_VIEW_MAX_COUNT) {
                         Snackbar.show("最多只能添加${MULTI_VIEW_MAX_COUNT}个频道")
