@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -58,7 +59,7 @@ fun <T> SettingsSelectionScreen(
         onBackPressed = onBackPressed,
     ) {
         if (columns > 0) {
-            val gridState = rememberLazyListState()
+            val gridState = rememberLazyGridState()
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(columns),
