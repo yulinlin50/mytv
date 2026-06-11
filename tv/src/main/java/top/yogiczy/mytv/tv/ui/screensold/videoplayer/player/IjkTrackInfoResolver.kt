@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player
 
 import top.yogiczy.mytv.core.util.utils.humanizeAudioChannels
+import top.yogiczy.mytv.core.util.utils.humanizeLanguage
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioCodecCompatibilityChecker
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioTrackCandidate
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioTrackResolverCommon
@@ -40,7 +41,8 @@ internal object IjkTrackInfoResolver {
         val isSelected = streamIndex == selectedAudioStreamIndex
 
         val normalizedLanguage = AudioTrackResolverCommon.normalizeTrackLanguage(streamMeta?.mLanguage ?: trackInfo.language)
-        val trackTitle = AudioTrackResolverCommon.selectAudioTitle(streamMeta?.mLanguage)
+        val rawLanguage: String? = streamMeta?.mLanguage
+        val trackTitle = AudioTrackResolverCommon.selectAudioTitle(rawLanguage)
             ?: normalizedLanguage?.humanizeLanguage()
         val codecLabel = streamMeta?.mCodecName?.let { AudioTrackResolverCommon.toAudioCodecLabel(it) }
         val channels = streamMeta?.mChannelLayout?.let { getChannelCount(it) }

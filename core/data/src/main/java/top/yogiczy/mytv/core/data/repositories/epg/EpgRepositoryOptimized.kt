@@ -21,10 +21,6 @@ import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.measureTimedValue
 
-/**
- * 优化的节目单仓库
- * 支持 ETag、Last-Modified 等缓存优化策略
- */
 class EpgRepositoryOptimized(
     private val source: EpgSource,
     private val cacheExpireHours: Int = Constants.EPG_REFRESH_TIME_THRESHOLD
@@ -41,22 +37,15 @@ class EpgRepositoryOptimized(
     private suspend fun refresh(): String {
         log.i("开始刷新节目单缓存（${source.name}）")
         val xml = epgXmlRepository.getXml()
-        
-        // 使用带统计信息的解析
         val (epgList, stats) = EpgParser.fromXmlWithStats(xml)
-        
         if (epgList.isEmpty()) throw Exception("获取节目单为空")
-        
-        // 记录解析统计
+
         log.i("节目单解析统计: 频道=${stats.totalChannels}, 节目=${stats.totalProgrammes}, " +
               "无效=${stats.invalidProgrammes}, 修复=${stats.fixedProgrammes}")
 
         return Globals.json.encodeToString(epgList)
     }
 
-    /**
-     * 获取节目单列表
-     */
     suspend fun getEpgList(): EpgList = withContext(Dispatchers.Default) {
         val effectiveExpireHours = source.expireHours ?: cacheExpireHours
         try {
@@ -66,7 +55,7 @@ class EpgRepositoryOptimized(
                 else isExpired(lastModified, effectiveExpireHours)
             }) { refresh() }
 
-            return@withContext Globals.json.decodeFromString<EpgList>(jsonData).also { epgList ->
+            Globals.json.decodeFromString<EpgList>(jsonData).also { epgList ->
                 log.i("加载节目单（${source.name}）：${epgList.size}个频道，${epgList.sumOf { it.programmeList.size }}个节目")
             }
         } catch (ex: Exception) {
@@ -74,20 +63,14 @@ class EpgRepositoryOptimized(
             throw ex
         }
     }
-    
-    /**
-     * 强制刷新节目单
-     */
+
     suspend fun forceRefresh(): EpgList = withContext(Dispatchers.Default) {
         log.i("强制刷新节目单（${source.name}）")
         epgXmlRepository.clearCache()
         clearCache()
         getEpgList()
     }
-    
-    /**
-     * 检查是否需要刷新
-     */
+
     fun needsRefresh(): Boolean {
         if (source.isLocal) return false
         val effectiveExpireHours = source.expireHours ?: cacheExpireHours
@@ -100,10 +83,6 @@ class EpgRepositoryOptimized(
     }
 }
 
-/**
- * 优化的节目单 XML 获取
- * 支持 HTTP 缓存头（ETag、Last-Modified）
- */
 private class EpgXmlRepositoryOptimized(
     private val source: EpgSource,
     private val cacheExpireHours: Int
@@ -113,162 +92,105 @@ private class EpgXmlRepositoryOptimized(
 ) {
 
     private val log = Logger.create("EpgXmlRepositoryOptimized")
-    
+
     companion object {
         private val xmlSemaphores = ConcurrentHashMap<String, Semaphore>()
-        
-        private fun getSemaphoreForFile(filePath: String): Semaphore {
-            return xmlSemaphores.getOrPut(filePath) { Semaphore(1) }
-        }
+        private fun getSemaphoreForFile(filePath: String) = xmlSemaphores.getOrPut(filePath) { Semaphore(1) }
     }
-    
-    private val metaFile: File by lazy {
-        File(getCacheFile().parent, "${getCacheFile().name}.meta")
-    }
-    
+
+    private val metaFile: File by lazy { File(getCacheFile().parent, "${getCacheFile().name}.meta") }
+
     private data class CacheMeta(
         val etag: String? = null,
         val lastModified: String? = null,
         val cachedAt: Long = 0
     )
-    
-    private fun readMeta(): CacheMeta {
-        if (!metaFile.exists()) {
-            return CacheMeta()
-        }
-        
-        return try {
-            val lines = metaFile.readLines()
-            CacheMeta(
-                etag = lines.getOrNull(0)?.ifBlank { null },
-                lastModified = lines.getOrNull(1)?.ifBlank { null },
-                cachedAt = lines.getOrNull(2)?.toLongOrNull() ?: 0
-            )
-        } catch (e: Exception) {
-            log.w("读取缓存元数据失败: ${e.message}")
-            CacheMeta()
-        }
-    }
-    
-    private fun writeMeta(meta: CacheMeta) {
-        try {
-            metaFile.parentFile?.mkdirs()
-            metaFile.writeText("${meta.etag ?: ""}\n${meta.lastModified ?: ""}\n${meta.cachedAt}")
-        } catch (e: Exception) {
-            log.w("写入缓存元数据失败: ${e.message}")
-        }
-    }
+
+    private fun readMeta(): CacheMeta = runCatching {
+        if (!metaFile.exists()) return CacheMeta()
+        val lines = metaFile.readLines()
+        CacheMeta(
+            etag = lines.getOrNull(0)?.ifBlank { null },
+            lastModified = lines.getOrNull(1)?.ifBlank { null },
+            cachedAt = lines.getOrNull(2)?.toLongOrNull() ?: 0
+        )
+    }.getOrElse { CacheMeta() }
+
+    private fun writeMeta(meta: CacheMeta) = runCatching {
+        metaFile.parentFile?.mkdirs()
+        metaFile.writeText("${meta.etag ?: ""}\n${meta.lastModified ?: ""}\n${meta.cachedAt}")
+    }.onFailure { log.w("写入缓存元数据失败: ${it.message}") }
 
     private fun isExpired(lastModified: Long, expireHours: Int): Boolean {
         val expireMs = expireHours * 60 * 60 * 1000L
         return System.currentTimeMillis() - lastModified >= expireMs
     }
 
-    suspend fun getXml(): InputStream {
-        val semaphore = getSemaphoreForFile(getCacheFile().absolutePath)
-        
-        return semaphore.withPermit {
-            getXmlInternal()
-        }
-    }
-    
+    suspend fun getXml(): InputStream = getSemaphoreForFile(getCacheFile().absolutePath).withPermit { getXmlInternal() }
+
     private suspend fun getXmlInternal(): InputStream {
         val meta = readMeta()
         val effectiveExpireHours = source.expireHours ?: cacheExpireHours
-        
         val cacheFile = getCacheFile()
-        if (!cacheFile.exists() && metaFile.exists()) {
-            metaFile.delete()
-        }
-        val canUseCache = cacheFile.exists() && 
-            !isExpired(cacheFile.lastModified(), effectiveExpireHours)
-        
+
+        if (!cacheFile.exists() && metaFile.exists()) metaFile.delete()
+        val canUseCache = cacheFile.exists() && !isExpired(cacheFile.lastModified(), effectiveExpireHours)
+
+        // 如果缓存有效且非本地源，尝试条件请求（ETag/Last-Modified）
         if (canUseCache && !source.isLocal) {
             try {
                 val t = measureTimedValue {
                     source.url.requestEpg(
                         builder = { builder ->
-                            var newBuilder = builder
-                            meta.etag?.let {
-                                newBuilder = newBuilder.header("If-None-Match", it)
-                                log.d("使用 ETag: $it")
-                            }
-                            meta.lastModified?.let {
-                                newBuilder = newBuilder.header("If-Modified-Since", it)
-                                log.d("使用 Last-Modified: $it")
-                            }
-                            newBuilder
+                            meta.etag?.let { builder.header("If-None-Match", it) }
+                            meta.lastModified?.let { builder.header("If-Modified-Since", it) }
+                            builder
                         }
                     ) { response: Response, request ->
                         if (response.code == 304) {
-                            log.i("节目单未修改（304），使用缓存")
                             writeMeta(meta.copy(cachedAt = System.currentTimeMillis()))
                             return@requestEpg null
                         }
-                        
-                        val newMeta = CacheMeta(
+                        writeMeta(CacheMeta(
                             etag = response.header("ETag"),
                             lastModified = response.header("Last-Modified"),
                             cachedAt = System.currentTimeMillis()
-                        )
-                        writeMeta(newMeta)
-                        
-                        log.d("收到响应: ETag=${newMeta.etag}, Last-Modified=${newMeta.lastModified}")
-                        
-                        val fetcher = EpgFetcher.instances.firstOrNull { 
-                            it.isSupport(request.url.toString()) 
-                        } ?: DefaultEpgFetcher()
-                        val body = response.body ?: throw HttpException("节目单响应体为空", null)
-                        fetcher.fetch(body)
+                        ))
+                        fetchEpgBody(response, request)
                     }
                 }
-                
-                val responseValue = t.value
-                if (responseValue == null) {
-                    return getCacheInputStream()
-                        ?: throw HttpException("缓存数据不存在", null)
+
+                t.value?.let { responseValue ->
+                    log.i("获取节目单（${source.name}）xml成功", null, t.duration)
+                    setCacheInputStream(responseValue)
+                    return getCacheInputStream() ?: throw HttpException("缓存数据不存在", null)
+                } ?: run {
+                    // 304 Not Modified
+                    return getCacheInputStream() ?: throw HttpException("缓存数据不存在", null)
                 }
-
-                log.i("获取节目单（${source.name}）xml成功", null, t.duration)
-
-                setCacheInputStream(responseValue)
-                return getCacheInputStream()
-                    ?: throw HttpException("缓存数据不存在", null)
-                    
             } catch (ex: Exception) {
                 log.w("获取节目单失败，尝试使用缓存: ${ex.message}")
-                val cachedStream = getCacheInputStream()
-                if (cachedStream != null) {
-                    log.i("使用缓存的节目单数据")
-                    return cachedStream
-                }
+                getCacheInputStream()?.let { return it }
                 throw HttpException("获取节目单xml失败，请检查网络连接", ex)
             }
         }
-        
+
+        // 缓存过期或本地源：走标准刷新流程
         return getOrRefreshInputStream(
-            { lastModified, _ -> 
-                if (source.isLocal) false 
-                else isExpired(lastModified, effectiveExpireHours) 
+            { lastModified, _ ->
+                if (source.isLocal) false else isExpired(lastModified, effectiveExpireHours)
             }
         ) {
             log.i("开始获取节目单（${source.name}）xml: ${source.url}")
-
             try {
                 val t = measureTimedValue {
                     source.url.requestEpg { response, request ->
-                        val newMeta = CacheMeta(
+                        writeMeta(CacheMeta(
                             etag = response.header("ETag"),
                             lastModified = response.header("Last-Modified"),
                             cachedAt = System.currentTimeMillis()
-                        )
-                        writeMeta(newMeta)
-                        
-                        val fetcher = EpgFetcher.instances.firstOrNull { 
-                            it.isSupport(request.url.toString()) 
-                        } ?: DefaultEpgFetcher()
-                        val body = response.body ?: throw HttpException("节目单响应体为空", null)
-                        fetcher.fetch(body)
+                        ))
+                        fetchEpgBody(response, request)
                     }
                 }
                 log.i("获取节目单（${source.name}）xml成功", null, t.duration)
@@ -280,15 +202,16 @@ private class EpgXmlRepositoryOptimized(
         }
     }
 
+    private fun fetchEpgBody(response: Response, request: okhttp3.Request): InputStream {
+        val fetcher = EpgFetcher.instances.firstOrNull { it.isSupport(request.url.toString()) }
+            ?: DefaultEpgFetcher()
+        val body = response.body ?: throw HttpException("节目单响应体为空", null)
+        return fetcher.fetch(body)
+    }
+
     override suspend fun clearCache() {
         if (source.isLocal) return
-        try {
-            if (metaFile.exists()) {
-                metaFile.delete()
-            }
-        } catch (e: Exception) {
-            log.w("删除缓存元数据失败: ${e.message}")
-        }
+        runCatching { if (metaFile.exists()) metaFile.delete() }
         super.clearCache()
     }
 }

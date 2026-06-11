@@ -114,16 +114,18 @@ internal object Media3TrackInfoResolver {
             roleFlags = format.roleFlags,
         )
         val legacyTrackId = AudioTrackResolverCommon.buildLegacyAudioTrackId(
-            mimeType = format.sampleMimeType ?: format.containerMimeType,
             language = normalizedLanguage,
             title = trackTitle,
-            groupId = groupId,
+            codecLabel = codecLabel,
             channels = format.channelCount.takeIfPositive() ?: audio?.channels,
             sampleRate = format.sampleRate.takeIfPositive() ?: audio?.sampleRate,
+            bitrate = bitrate,
+            streamIndex = null,
+            mimeType = format.sampleMimeType ?: format.containerMimeType,
             codecs = format.codecs,
             selectionFlags = format.selectionFlags,
             roleFlags = format.roleFlags,
-            bitrate = bitrate,
+            groupId = groupId,
         )
 
         val audioMimeType = format.sampleMimeType ?: format.containerMimeType ?: audio?.mimeType

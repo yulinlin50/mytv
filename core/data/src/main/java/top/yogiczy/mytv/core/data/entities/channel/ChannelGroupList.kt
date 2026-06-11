@@ -3,9 +3,6 @@ package top.yogiczy.mytv.core.data.entities.channel
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
-/**
- * 频道分组列表
- */
 @Serializable
 @Immutable
 data class ChannelGroupList(
@@ -27,29 +24,29 @@ data class ChannelGroupList(
         })
 
         fun ChannelGroupList.channelGroupIdx(channel: Channel) =
-            this.indexOfFirst { group -> group.channelList.any { it == channel } }
+            indexOfFirst { group -> group.channelList.any { it == channel } }
 
         fun ChannelGroupList.chanelGroup(channel: Channel) = this[channelGroupIdx(channel)]
 
         fun ChannelGroupList.channelIdx(channel: Channel) =
             channelList.indexOfFirst { it == channel }
 
-        fun ChannelGroupList.channelFirstOrNull() = this.firstOrNull()?.channelList?.firstOrNull()
+        fun ChannelGroupList.channelFirstOrNull() = firstOrNull()?.channelList?.firstOrNull()
 
-        fun ChannelGroupList.channelLastOrNull() = this.lastOrNull()?.channelList?.lastOrNull()
+        fun ChannelGroupList.channelLastOrNull() = lastOrNull()?.channelList?.lastOrNull()
 
         val ChannelGroupList.channelList: ChannelList
-            get() = ChannelList(this.asSequence().flatMap { it.channelList.asSequence() }.toList())
+            get() = ChannelList(asSequence().flatMap { it.channelList.asSequence() }.toList())
     }
 
-    fun withMetadata() = ChannelGroupList(map { group ->
-        val channelIndexMap = channelList.withIndex().associate { it.value to it.index }
+    fun withMetadata(): ChannelGroupList {
+        val allChannels = channelList
+        val channelIndexMap = allChannels.withIndex().associate { it.value to it.index }
 
-        group.copy(channelList = ChannelList(group.channelList.map { channel ->
-            channel.copy(
-                index = channelIndexMap[channel] ?: -1,
-                iptvSourceId = channel.iptvSourceId
-            )
-        }))
-    })
+        return ChannelGroupList(map { group ->
+            group.copy(channelList = ChannelList(group.channelList.map { channel ->
+                channel.copy(index = channelIndexMap[channel] ?: -1)
+            }))
+        })
+    }
 }

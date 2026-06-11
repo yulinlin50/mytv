@@ -2,49 +2,15 @@ package top.yogiczy.mytv.core.data.entities.channel
 
 import kotlinx.serialization.Serializable
 
-/**
- * 频道
- */
 @Serializable
 data class Channel(
-    /**
-     * 频道名称
-     */
     val name: String = "",
-
-    /**
-     * 标准频道名称
-     */
     val standardName: String = name,
-
-    /**
-     * 节目单名称，用于查询节目单
-     */
     val epgName: String = "",
-
-    /**
-     * 节目单ID，tvg-id，用于精确匹配节目单
-     */
     val epgId: String? = null,
-
-    /**
-     * 线路列表
-     */
     val lineList: ChannelLineList = ChannelLineList(listOf(ChannelLine.EXAMPLE)),
-
-    /**
-     * 台标
-     */
     val logo: String? = null,
-
-    /**
-     * 频道号
-     */
     val index: Int = -1,
-
-    /**
-     * 所属直播源ID，用于关联节目单
-     */
     val iptvSourceId: String? = null,
 ) {
     companion object {
@@ -66,20 +32,13 @@ data class Channel(
         val EMPTY = Channel()
     }
 
-    val no: String
-        get() = (index + 1).toString().padStart(2, '0')
+    val no: String get() = (index + 1).toString().padStart(2, '0')
 
     fun isEmptyOrElse(defaultValue: () -> Channel) = if (this == EMPTY) defaultValue() else this
 
-    override fun equals(other: Any?): Boolean {
-        if (other !is Channel) return false
+    // 仅按 name + lineList 判等，忽略 index/iptvSourceId 等运行时属性
+    override fun equals(other: Any?) =
+        other is Channel && name == other.name && lineList == other.lineList
 
-        return name == other.name && lineList == other.lineList
-    }
-
-    override fun hashCode(): Int {
-        var result = name.hashCode()
-        result = 31 * result + lineList.hashCode()
-        return result
-    }
+    override fun hashCode(): Int = 31 * name.hashCode() + lineList.hashCode()
 }

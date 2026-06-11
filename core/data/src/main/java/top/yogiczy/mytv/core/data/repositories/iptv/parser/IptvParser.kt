@@ -9,23 +9,10 @@ import top.yogiczy.mytv.core.data.entities.channel.ChannelLineList
 import top.yogiczy.mytv.core.data.entities.channel.ChannelList
 import top.yogiczy.mytv.core.data.utils.ChannelAlias
 
-/**
- * 直播源数据解析接口
- */
 interface IptvParser {
-    /**
-     * 是否支持该直播源格式
-     */
     fun isSupport(url: String, data: String): Boolean
-
-    /**
-     * 解析直播源数据
-     */
     suspend fun parse(data: String): List<ChannelItem>
-
-    suspend fun getEpgUrl(data: String): String? {
-        return null
-    }
+    suspend fun getEpgUrl(data: String): String? = null
 
     companion object {
         val instances = listOf(
@@ -47,58 +34,44 @@ interface IptvParser {
         val manifestType: String? = null,
         val licenseType: String? = null,
         val licenseKey: String? = null,
-        // 回放相关属性（KODI/APTV标准）
         val catchup: String? = null,
         val catchupSource: String? = null,
         val catchupDays: Int? = null,
         val timeshift: Int? = null,
-        // 时区偏移（小时），用于EPG时间校正
         val tvgShift: Double? = null,
     ) {
+        /** 直接转换为 ChannelLine，避免逐字段映射 */
+        fun toChannelLine() = ChannelLine(
+            url = url,
+            httpUserAgent = httpUserAgent,
+            manifestType = manifestType,
+            licenseType = licenseType,
+            licenseKey = licenseKey,
+            catchup = catchup,
+            catchupSource = catchupSource,
+            catchupDays = catchupDays,
+            timeshift = timeshift,
+            tvgShift = tvgShift,
+        )
+
         companion object {
-            private fun List<ChannelItem>.toChannelList(): ChannelList {
-                return ChannelList(groupBy { it.name }
-                    .map { (channelName, channelList) ->
-                        val first = channelList.first()
+            private fun List<ChannelItem>.toChannelList(): ChannelList =
+                ChannelList(groupBy { it.name }.map { (channelName, items) ->
+                    val first = items.first()
+                    Channel(
+                        name = channelName,
+                        standardName = ChannelAlias.standardChannelName(channelName),
+                        epgName = ChannelAlias.standardChannelName(first.epgName),
+                        epgId = first.epgId,
+                        lineList = ChannelLineList(items.distinctBy { it.url }.map { it.toChannelLine() }),
+                        logo = first.logo,
+                    )
+                })
 
-                        Channel(
-                            name = channelName,
-                            standardName = ChannelAlias.standardChannelName(channelName),
-                            epgName = ChannelAlias.standardChannelName(first.epgName),
-                            epgId = first.epgId,
-                            lineList = ChannelLineList(
-                                channelList.distinctBy { it.url }
-                                    .map {
-                                        ChannelLine(
-                                            url = it.url,
-                                            httpUserAgent = it.httpUserAgent,
-                                            manifestType = it.manifestType,
-                                            licenseType = it.licenseType,
-                                            licenseKey = it.licenseKey,
-                                            // 回放相关属性
-                                            catchup = it.catchup,
-                                            catchupSource = it.catchupSource,
-                                            catchupDays = it.catchupDays,
-                                            timeshift = it.timeshift,
-                                            // 时区偏移
-                                            tvgShift = it.tvgShift,
-                                        )
-                                    }
-                            ),
-                            logo = first.logo,
-                        )
-                    })
-            }
-
-            fun List<ChannelItem>.toChannelGroupList(): ChannelGroupList {
-                return ChannelGroupList(groupBy { it.groupName }
-                    .map { (groupName, channelList) ->
-                        ChannelGroup(
-                            name = groupName,
-                            channelList = channelList.toChannelList(),
-                        )
-                    })
-            }
+            fun List<ChannelItem>.toChannelGroupList(): ChannelGroupList =
+                ChannelGroupList(groupBy { it.groupName }.map { (groupName, items) ->
+                    ChannelGroup(name = groupName, channelList = items.toChannelList())
+                })
         }
     }
 }

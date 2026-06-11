@@ -150,18 +150,11 @@ class ChannelTrieIndex(epgs: List<Epg> = emptyList()) {
             UnifiedCacheManager.clearCache(UnifiedCacheManager.CacheNames.NORMALIZE)
         }
         
-        private fun replaceChineseNumbers(text: String): String {
-            return text
-                .replace("一", "1")
-                .replace("二", "2")
-                .replace("三", "3")
-                .replace("四", "4")
-                .replace("五", "5")
-                .replace("六", "6")
-                .replace("七", "7")
-                .replace("八", "8")
-                .replace("九", "9")
-                .replace("零", "0")
+        private val chineseDigits = mapOf('一' to '1', '二' to '2', '三' to '3', '四' to '4', '五' to '5',
+            '六' to '6', '七' to '7', '八' to '8', '九' to '9', '零' to '0')
+
+        private fun replaceChineseNumbers(text: String): String = buildString(text.length) {
+            for (c in text) append(chineseDigits[c] ?: c)
         }
 
         fun normalizeForIndex(name: String): String {
