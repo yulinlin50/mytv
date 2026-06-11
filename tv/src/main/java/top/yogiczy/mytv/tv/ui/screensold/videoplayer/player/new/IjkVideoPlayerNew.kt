@@ -322,8 +322,9 @@ class IjkVideoPlayerNew(
     
     private fun createPlayer(): IjkMediaPlayer {
         return IjkMediaPlayer().apply {
-            (FORMAT_OPTIONS + PLAYER_OPTIONS).forEach { (key, category, value) ->
-                setOption(category, key, value)
+            (FORMAT_OPTIONS + PLAYER_OPTIONS).forEach { opt ->
+                if (opt.longValue != null) setOption(opt.category, opt.key, opt.longValue)
+                else if (opt.strValue != null) setOption(opt.category, opt.key, opt.strValue)
             }
         }
     }
@@ -526,44 +527,49 @@ class IjkVideoPlayerNew(
     )
     
     private companion object {
-        private val FORMAT_OPTIONS: List<Triple<String, String, Any>> = listOf(
-            Triple("dns_cache_clear", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 0L),
-            Triple("dns_cache_timeout", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 600L),
-            Triple("http-detect-range-support", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 0L),
-            Triple("reconnect", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 5L),
-            Triple("reconnect_at_eof", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
-            Triple("reconnect_streamed", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
-            Triple("reconnect_delay_max", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 5L),
-            Triple("analyzemaxduration", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 200L),
-            Triple("analyzeduration", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1000000L),
-            Triple("probesize", IjkMediaPlayer.OPT_CATEGORY_FORMAT, (1024 * 512).toLong()),
-            Triple("fflags", IjkMediaPlayer.OPT_CATEGORY_FORMAT, "fastseek+flush_packets"),
-            Triple("flush_packets", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
-            Triple("max_delay", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 500000L),
-            Triple("max_buffer_size", IjkMediaPlayer.OPT_CATEGORY_FORMAT, (1024 * 1024).toLong()),
-            Triple("tcp_nodelay", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
-            Triple("auto_convert", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
-            Triple("metadata", IjkMediaPlayer.OPT_CATEGORY_FORMAT, 1L),
+        private data class IjkOption(val category: Int, val key: String, val longValue: Long? = null, val strValue: String? = null) {
+            constructor(category: Int, key: String, value: Long) : this(category, key, longValue = value)
+            constructor(category: Int, key: String, value: String) : this(category, key, strValue = value)
+        }
+
+        private val FORMAT_OPTIONS = listOf(
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_clear", 0L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_timeout", 600L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "http-detect-range-support", 0L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect", 5L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect_at_eof", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect_streamed", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect_delay_max", 5L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzemaxduration", 200L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzeduration", 1000000L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "probesize", (1024 * 512).toLong()),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "fflags", "fastseek+flush_packets"),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "flush_packets", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "max_delay", 500000L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "max_buffer_size", (1024 * 1024).toLong()),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "tcp_nodelay", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "auto_convert", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "metadata", 1L),
         )
-        
-        private val PLAYER_OPTIONS: List<Triple<String, String, Any>> = listOf(
-            Triple("mediacodec", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("mediacodec-all-videos", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("mediacodec-hevc", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("mediacodec-avc", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("mediacodec-auto-rotate", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("mediacodec-handle-resolution-change", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("opensles", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 0L),
-            Triple("framedrop", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 10L),
-            Triple("start-on-prepared", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("enable-accurate-seek", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("videotoolbox", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1L),
-            Triple("videotoolbox-max-frame-width", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1920L),
-            Triple("videotoolbox-max-frame-height", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 1080L),
-            Triple("max-fps", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 60L),
-            Triple("min-frames", IjkMediaPlayer.OPT_CATEGORY_PLAYER, 50L),
-            Triple("max-buffer-size", IjkMediaPlayer.OPT_CATEGORY_PLAYER, (1024 * 1024 * 2).toLong()),
-            Triple("overlay-format", IjkMediaPlayer.OPT_CATEGORY_PLAYER, android.graphics.PixelFormat.RGBA_8888.toLong().toString()),
+
+        private val PLAYER_OPTIONS = listOf(
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-all-videos", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-hevc", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-avc", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "opensles", 0L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 10L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "start-on-prepared", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "enable-accurate-seek", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "videotoolbox", 1L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "videotoolbox-max-frame-width", 1920L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "videotoolbox-max-frame-height", 1080L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "max-fps", 60L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "min-frames", 50L),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "max-buffer-size", (1024 * 1024 * 2).toLong()),
+            IjkOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "overlay-format", android.graphics.PixelFormat.RGBA_8888.toLong().toString()),
         )
     }
 }
