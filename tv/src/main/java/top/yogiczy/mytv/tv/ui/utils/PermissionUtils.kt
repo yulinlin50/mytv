@@ -103,6 +103,7 @@ fun rememberReadExternalStoragePermission(): Pair<Boolean, () -> Unit> {
         if (hasPermission) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Snackbar.show("需要授予「管理全部文件」权限才能读取本地文件", type = SnackbarType.PRIMARY)
             runCatching {
                 val intent =
                     Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

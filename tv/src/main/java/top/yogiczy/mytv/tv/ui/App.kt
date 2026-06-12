@@ -80,9 +80,11 @@ fun App(
         Visibility({ settingsViewModel.debugShowLayoutGrids }) { PreviewWithLayoutGrids { } }
     }
 
-    if (settingsViewModel.iptvSourceList.any { it.needExternalStoragePermission() }) {
-        val (hasPermission, requestPermission) = rememberReadExternalStoragePermission()
-        LaunchedEffect(Unit) { if (!hasPermission) requestPermission() }
+    val needsPermission = settingsViewModel.iptvSourceList.any { it.needExternalStoragePermission() }
+    val (hasPermission, requestPermission) = rememberReadExternalStoragePermission()
+
+    LaunchedEffect(needsPermission) {
+        if (needsPermission && !hasPermission) requestPermission()
     }
 
     LaunchedEffect(settingsViewModel.iptvSourceList) {
