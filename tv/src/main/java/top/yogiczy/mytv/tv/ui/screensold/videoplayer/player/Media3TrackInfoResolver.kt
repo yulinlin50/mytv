@@ -6,7 +6,6 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.hls.HlsTrackMetadataEntry
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioCodecCompatibilityChecker
 import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.AudioTrackCandidate
@@ -53,33 +52,9 @@ internal object Media3TrackInfoResolver {
                 ?.let { return it }
         }
 
-        if (format.roleFlags and C.ROLE_FLAG_SUBTITLE != 0 || format.roleFlags and C.ROLE_FLAG_CAPTION != 0) {
+        if (format.roleFlags and (C.ROLE_FLAG_SUBTITLE or C.ROLE_FLAG_CAPTION) != 0) {
             return C.TRACK_TYPE_TEXT
         }
-
-        val codecs = format.codecs
-        val hasVideoCodec = !codecs.isNullOrBlank() && Util.getCodecsOfType(codecs, C.TRACK_TYPE_VIDEO) != null
-        val hasAudioCodec = !codecs.isNullOrBlank() && Util.getCodecsOfType(codecs, C.TRACK_TYPE_AUDIO) != null
-        val hasTextCodec = !codecs.isNullOrBlank() && Util.getCodecsOfType(codecs, C.TRACK_TYPE_TEXT) != null
-
-        val hasVideoProperties = format.width > 0 || format.height > 0 || format.frameRate > 0f
-        val hasAudioProperties = format.channelCount > 0 || format.sampleRate > 0 || AudioTrackResolverCommon.normalizeTrackLanguage(format.language) != null
-
-        if (hasTextCodec && !hasVideoCodec && !hasAudioCodec) return C.TRACK_TYPE_TEXT
-
-        if (hasVideoCodec && hasAudioCodec) {
-            return when {
-                hasVideoProperties -> C.TRACK_TYPE_VIDEO
-                hasAudioProperties -> C.TRACK_TYPE_AUDIO
-                else -> C.TRACK_TYPE_VIDEO
-            }
-        }
-
-        if (hasVideoCodec) return C.TRACK_TYPE_VIDEO
-        if (hasAudioCodec) return C.TRACK_TYPE_AUDIO
-        if (hasTextCodec) return C.TRACK_TYPE_TEXT
-        if (hasAudioProperties) return C.TRACK_TYPE_AUDIO
-        if (hasVideoProperties) return C.TRACK_TYPE_VIDEO
 
         return C.TRACK_TYPE_UNKNOWN
     }
@@ -104,7 +79,7 @@ internal object Media3TrackInfoResolver {
         val codecLabel = format.codecs.toAudioCodecLabel(format.sampleMimeType ?: format.containerMimeType)
             ?: audio?.codecLabel
 
-        val stableTrackId = AudioTrackResolverCommon.buildStableAudioTrackId(
+        val stableTrackId = AudioTrackResolverCommon.buildAudioTrackId(
             mimeType = format.sampleMimeType ?: format.containerMimeType,
             language = normalizedLanguage,
             title = trackTitle,
@@ -112,20 +87,10 @@ internal object Media3TrackInfoResolver {
             codecLabel = codecLabel,
             channels = format.channelCount.takeIfPositive() ?: audio?.channels,
             roleFlags = format.roleFlags,
-        )
-        val legacyTrackId = AudioTrackResolverCommon.buildLegacyAudioTrackId(
-            language = normalizedLanguage,
-            title = trackTitle,
-            codecLabel = codecLabel,
-            channels = format.channelCount.takeIfPositive() ?: audio?.channels,
             sampleRate = format.sampleRate.takeIfPositive() ?: audio?.sampleRate,
             bitrate = bitrate,
-            streamIndex = null,
-            mimeType = format.sampleMimeType ?: format.containerMimeType,
             codecs = format.codecs,
             selectionFlags = format.selectionFlags,
-            roleFlags = format.roleFlags,
-            groupId = groupId,
         )
 
         val audioMimeType = format.sampleMimeType ?: format.containerMimeType ?: audio?.mimeType
@@ -155,7 +120,6 @@ internal object Media3TrackInfoResolver {
             metadata = metadata,
             matchKeys = listOfNotNull(
                 metadata.trackId,
-                legacyTrackId,
                 format.id?.trim()?.takeIf { it.isNotEmpty() },
             ).filter { it.isNotBlank() }.toSet(),
         )

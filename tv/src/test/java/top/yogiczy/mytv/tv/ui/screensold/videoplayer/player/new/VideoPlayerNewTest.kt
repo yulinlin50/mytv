@@ -118,7 +118,7 @@ class VideoPlayerNewTest {
             mimeType = "audio/aac"
         )
         
-        val label = audioTrack.shortLabel
+        val label = audioTrack.formatLabel()
         assertNotNull("Label should not be null", label)
         assertTrue("Label should not be empty", label.isNotEmpty())
     }

@@ -58,8 +58,8 @@ class Media3TrackInfoResolverTest {
 
         assertEquals("English", candidate.metadata.title)
         assertEquals(128000, candidate.metadata.bitrate)
-        assertTrue(candidate.metadata.shortLabel.contains("English"))
-        assertFalse(candidate.metadata.shortLabel.contains("en-US"))
+        assertTrue(candidate.metadata.formatLabel().contains("English"))
+        assertFalse(candidate.metadata.formatLabel().contains("en-US"))
     }
 
     @Test

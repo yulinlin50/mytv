@@ -73,12 +73,12 @@ fun rememberLazyListRuntime(
 inline fun <T> LazyListScope.items(
     items: List<T>,
     runtime: LazyListRuntime,
-    noinline key: ((item: T) -> Any)? = null,
+    key: (item: T) -> Any = { items.indexOf(it) },
     crossinline contentType: (item: T) -> Any? = { null },
     crossinline itemContent: @Composable LazyItemScope.(itemModifier: Modifier, item: T) -> Unit,
 ) = items(
     count = items.size,
-    key = if (key != null) { index: Int -> key(items[index]) } else { index: Int -> index },
+    key = { index: Int -> key(items[index]) },
     contentType = { index -> contentType(items[index]) }
 ) { index ->
     val itemModifier = Modifier
@@ -119,12 +119,12 @@ inline fun <T> LazyListScope.items(
 inline fun <T> LazyListScope.itemsIndexed(
     items: List<T>,
     runtime: LazyListRuntime,
-    noinline key: ((index: Int, item: T) -> Any)? = null,
+    key: (index: Int, item: T) -> Any = { index, _ -> index },
     crossinline contentType: (index: Int, item: T) -> Any? = { _, _ -> null },
     crossinline itemContent: @Composable (LazyItemScope.(itemModifier: Modifier, index: Int, item: T) -> Unit),
 ) = items(
     count = items.size,
-    key = if (key != null) { index: Int -> key(index, items[index]) } else { index: Int -> index },
+    key = { index: Int -> key(index, items[index]) },
     contentType = { index -> contentType(index, items[index]) },
 ) { index ->
     val itemModifier = Modifier

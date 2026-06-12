@@ -2,13 +2,11 @@ package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new
 
 import android.content.Context
 import android.net.Uri
-import android.util.Base64
 import android.view.SurfaceView
 import android.view.TextureView
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Format
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
@@ -17,22 +15,12 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.dash.DashMediaSource
-import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
-import androidx.media3.exoplayer.drm.FrameworkMediaDrm
-import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
-import androidx.media3.exoplayer.hls.HlsMediaSource
-import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.util.EventLogger
-import androidx.media3.extractor.DefaultExtractorsFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,10 +32,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import top.yogiczy.mytv.core.data.entities.channel.ChannelLine
-import top.yogiczy.mytv.core.data.utils.PlaybackUtil
-import top.yogiczy.mytv.core.util.utils.toHeaders
 import top.yogiczy.mytv.tv.ui.utils.Configs
-import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -67,11 +53,15 @@ class Media3VideoPlayerNew(
     @Volatile private var textureView: TextureView? = null
     
     private var currentChannelLine = ChannelLine()
-    private val contentTypeAttempts = ConcurrentHashMap<Int, Boolean>()
+    private val formatFallbackQueue = LinkedList<Int>()
     private var forcedContentType: Int? = null
-    private var isFormatFallback = false
-    private var retryCount = 0
     private var lastUsedContentType: Int = C.CONTENT_TYPE_OTHER
+    
+    private val mediaSourceFactory = MediaSourceFactory(
+        context = context,
+        playbackModeState = { playbackModeState.get().isPlayback },
+        onDrmError = { msg -> errorHandler.handleError(PlayerErrorType.DRM, msg) }
+    )
     
     private val playerJob = SupervisorJob()
     private val playerScope = CoroutineScope(coroutineScope.coroutineContext + playerJob)
@@ -84,15 +74,8 @@ class Media3VideoPlayerNew(
     
     override fun getVolumeFader(): VolumeFader = volumeFader
     
-    private var cachedUri: Uri? = null
-    private var cachedUriString: String? = null
-    
     private val eventLogger = EventLogger()
-    
-    private val extractorsFactory = DefaultExtractorsFactory()
-        .setTsExtractorTimestampSearchBytes(TS_TIMESTAMP_SEARCH_BYTES)
-        .setConstantBitrateSeekingEnabled(true)
-    
+
     init {
         videoPlayer = createPlayer()
         loadAudioTrackMemory()
@@ -132,12 +115,8 @@ class Media3VideoPlayerNew(
         if (isReleased.get()) return
         
         currentChannelLine = line
-        if (!isFormatFallback) {
-            contentTypeAttempts.clear()
-            forcedContentType = null
-            retryCount = 0
-        }
-        isFormatFallback = false
+        formatFallbackQueue.clear()
+        forcedContentType = null
         
         updatePlaybackModeState(line)
         
@@ -289,165 +268,12 @@ class Media3VideoPlayerNew(
     }
     
     private fun createMediaSource(): MediaSource? {
-        val uriString = if (playbackModeState.get().isPlayback) {
-            currentChannelLine.url
-        } else {
-            currentChannelLine.playableUrl
+        val mediaSource = mediaSourceFactory.create(currentChannelLine, forcedContentType)
+        if (mediaSource != null) {
+            val uriString = if (playbackModeState.get().isPlayback) currentChannelLine.url else currentChannelLine.playableUrl
+            lastUsedContentType = Util.inferContentType(Uri.parse(uriString))
         }
-        val uri = getCachedUri(uriString)
-        val contentType = detectContentType(uriString)
-        lastUsedContentType = contentType
-        val mediaItem = createMediaItem(uri, contentType)
-        val dataSourceFactory = getDataSourceFactory()
-        
-        return when (contentType) {
-            C.CONTENT_TYPE_HLS -> createHlsMediaSource(mediaItem, dataSourceFactory)
-            C.CONTENT_TYPE_DASH -> createDashMediaSource(mediaItem, dataSourceFactory)
-            C.CONTENT_TYPE_RTSP -> RtspMediaSource.Factory().createMediaSource(mediaItem)
-            C.CONTENT_TYPE_OTHER -> ProgressiveMediaSource.Factory(dataSourceFactory, extractorsFactory)
-                .createMediaSource(mediaItem)
-            else -> {
-                errorHandler.handleError(PlayerErrorType.FORMAT, "Unsupported content type")
-                null
-            }
-        }
-    }
-    
-    private fun detectContentType(uriString: String): Int {
-        forcedContentType?.let { return it }
-        
-        if (uriString.startsWith("rtp://")) return C.CONTENT_TYPE_RTSP
-        
-        when (currentChannelLine.manifestType?.lowercase()) {
-            "mpd" -> return C.CONTENT_TYPE_DASH
-            "m3u8", "hls" -> return C.CONTENT_TYPE_HLS
-        }
-        
-        val urlLower = uriString.lowercase()
-        when {
-            urlLower.contains(".m3u8") -> return C.CONTENT_TYPE_HLS
-            urlLower.contains(".mpd") -> return C.CONTENT_TYPE_DASH
-            urlLower.contains(".flv") -> return C.CONTENT_TYPE_OTHER
-            urlLower.startsWith("rtmp://") || urlLower.startsWith("rtmps://") -> return C.CONTENT_TYPE_OTHER
-        }
-        
-        val inferredType = Util.inferContentType(getCachedUri(uriString))
-        if (inferredType != C.CONTENT_TYPE_OTHER) return inferredType
-        
-        return C.CONTENT_TYPE_OTHER
-    }
-    
-    private fun createMediaItem(uri: Uri, contentType: Int): MediaItem {
-        val isPlayback = playbackModeState.get().isPlayback
-        val isHlsLive = contentType == C.CONTENT_TYPE_HLS && !isPlayback
-        
-        return when {
-            isPlayback -> MediaItem.Builder()
-                .setUri(uri)
-                .setLiveConfiguration(
-                    MediaItem.LiveConfiguration.Builder()
-                        .setTargetOffsetMs(C.TIME_UNSET)
-                        .setMinOffsetMs(C.TIME_UNSET)
-                        .setMaxOffsetMs(C.TIME_UNSET)
-                        .setMinPlaybackSpeed(1.0f)
-                        .setMaxPlaybackSpeed(1.0f)
-                        .build()
-                )
-                .build()
-            isHlsLive -> MediaItem.Builder()
-                .setUri(uri)
-                .setLiveConfiguration(
-                    MediaItem.LiveConfiguration.Builder()
-                        .setTargetOffsetMs(C.TIME_UNSET)
-                        .build()
-                )
-                .build()
-            else -> MediaItem.fromUri(uri)
-        }
-    }
-    
-    private fun createHlsMediaSource(
-        mediaItem: MediaItem,
-        dataSourceFactory: DefaultDataSource.Factory
-    ): HlsMediaSource {
-        return HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(false)
-            .setTimestampAdjusterInitializationTimeoutMs(HLS_TIMESTAMP_TIMEOUT_MS)
-            .createMediaSource(mediaItem)
-    }
-    
-    private fun createDashMediaSource(
-        mediaItem: MediaItem,
-        dataSourceFactory: DefaultDataSource.Factory
-    ): DashMediaSource {
-        return DashMediaSource.Factory(dataSourceFactory)
-            .apply {
-                if (currentChannelLine.licenseType == "clearkey" && 
-                    currentChannelLine.licenseKey != null) {
-                    setupDrm()
-                }
-            }
-            .createMediaSource(mediaItem)
-    }
-    
-    private fun DashMediaSource.Factory.setupDrm() {
-        runCatching {
-            val (drmKeyId, drmKey) = currentChannelLine.licenseKey!!.split(":")
-            val encodedDrmKey = Base64.encodeToString(
-                drmKey.chunked(2).map { it.toInt(16).toByte() }.toByteArray(),
-                Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
-            )
-            val encodedDrmKeyId = Base64.encodeToString(
-                drmKeyId.chunked(2).map { it.toInt(16).toByte() }.toByteArray(),
-                Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
-            )
-            val drmBody = "{\"keys\":[{\"kty\":\"oct\",\"k\":\"$encodedDrmKey\",\"kid\":\"$encodedDrmKeyId\"}],\"type\":\"temporary\"}"
-            
-            val drmCallback = LocalMediaDrmCallback(drmBody.toByteArray())
-            val drmSessionManager = DefaultDrmSessionManager.Builder()
-                .setMultiSession(true)
-                .setUuidAndExoMediaDrmProvider(
-                    C.CLEARKEY_UUID,
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
-                .build(drmCallback)
-            
-            setDrmSessionManagerProvider { drmSessionManager }
-        }.onFailure {
-            errorHandler.handleError(PlayerErrorType.DRM, it.message ?: "DRM license error")
-        }
-    }
-    
-    private fun getDataSourceFactory(): DefaultDataSource.Factory {
-        val baseHeaders = Configs.videoPlayerHeaders.toHeaders()
-        val headers = baseHeaders.toMutableMap().apply {
-            put("Connection", "keep-alive")
-            put("Accept-Encoding", "identity")
-        }
-        
-        val userAgent = baseHeaders["User-Agent"]
-            ?: currentChannelLine.httpUserAgent
-            ?: Configs.videoPlayerUserAgent
-        
-        return DefaultDataSource.Factory(
-            context,
-            DefaultHttpDataSource.Factory().apply {
-                setUserAgent(userAgent)
-                setDefaultRequestProperties(headers)
-                setConnectTimeoutMs(CONNECT_TIMEOUT_MS)
-                setReadTimeoutMs(READ_TIMEOUT_MS)
-                setKeepPostFor302Redirects(true)
-                setAllowCrossProtocolRedirects(true)
-            }
-        )
-    }
-    
-    private fun getCachedUri(uriString: String): Uri {
-        if (cachedUriString != uriString || cachedUri == null) {
-            cachedUriString = uriString
-            cachedUri = Uri.parse(uriString)
-        }
-        return cachedUri ?: Uri.parse(uriString)
+        return mediaSource
     }
     
     private fun Int.fromIndexFindTrack(type: @C.TrackType Int): Pair<TrackGroup, Int>? {
@@ -498,13 +324,7 @@ class Media3VideoPlayerNew(
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                 androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> {
-                    val hasMoreFormats = listOf(
-                        C.CONTENT_TYPE_OTHER,
-                        C.CONTENT_TYPE_HLS,
-                        C.CONTENT_TYPE_DASH
-                    ).any { contentTypeAttempts[it] != true }
-                    
-                    if (hasMoreFormats) {
+                    if (formatFallbackQueue.isNotEmpty()) {
                         handleParsingError(ex)
                     } else {
                         retryPlayback()
@@ -527,13 +347,14 @@ class Media3VideoPlayerNew(
                 Player.STATE_READY -> {
                     stateManager.updateIsBuffering(false)
                     stateManager.updateError(null)
+                    errorHandler.resetRetryCount()
                     updateDuration()
                     updateTracks()
                     startPositionUpdate()
                     handlePendingFadeIn()
                 }
                 Player.STATE_ENDED -> {
-                    if (retryCount < MAX_RETRY_COUNT && !playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
+                    if (!playbackModeState.get().isPlayback && isLiveStream()) retryPlayback()
                 }
             }
         }
@@ -556,28 +377,18 @@ class Media3VideoPlayerNew(
     }
     
     private fun handleParsingError(ex: androidx.media3.common.PlaybackException) {
-        contentTypeAttempts[lastUsedContentType] = true
+        if (formatFallbackQueue.isEmpty()) {
+            formatFallbackQueue.addAll(
+                listOf(C.CONTENT_TYPE_OTHER, C.CONTENT_TYPE_HLS, C.CONTENT_TYPE_DASH)
+            )
+        }
 
-        when {
-            contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true -> {
-                contentTypeAttempts[C.CONTENT_TYPE_OTHER] = true
-                forcedContentType = C.CONTENT_TYPE_OTHER
-                isFormatFallback = true
-                prepare(currentChannelLine)
-            }
-            contentTypeAttempts[C.CONTENT_TYPE_HLS] != true -> {
-                contentTypeAttempts[C.CONTENT_TYPE_HLS] = true
-                forcedContentType = C.CONTENT_TYPE_HLS
-                isFormatFallback = true
-                prepare(currentChannelLine)
-            }
-            contentTypeAttempts[C.CONTENT_TYPE_DASH] != true -> {
-                contentTypeAttempts[C.CONTENT_TYPE_DASH] = true
-                forcedContentType = C.CONTENT_TYPE_DASH
-                isFormatFallback = true
-                prepare(currentChannelLine)
-            }
-            else -> errorHandler.handleMedia3Error(ex)
+        val nextType = formatFallbackQueue.poll()
+        if (nextType != null && nextType != lastUsedContentType) {
+            forcedContentType = nextType
+            prepare(currentChannelLine)
+        } else {
+            errorHandler.handleMedia3Error(ex)
         }
     }
     
@@ -591,13 +402,8 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        if (retryCount >= MAX_RETRY_COUNT) {
-            errorHandler.handleError(PlayerErrorType.UNKNOWN, "重试次数已用尽")
-            return
-        }
-        retryCount++
         playerScope.launch {
-            delay(1000L * retryCount)
+            delay(2000L)
             if (!isReleased.get()) {
                 videoPlayer?.seekToDefaultPosition()
                 videoPlayer?.prepare()
@@ -692,9 +498,9 @@ class Media3VideoPlayerNew(
     }
     
     private fun updateTracks() {
-        val videoTracks = extractVideoTracks()
-        val audioTracks = extractAudioTracks()
-        val subtitleTracks = extractSubtitleTracks()
+        val videoTracks = TrackExtractor.extractVideoTracks(videoPlayer)
+        val audioTracks = TrackExtractor.extractAudioTracks(videoPlayer)
+        val subtitleTracks = TrackExtractor.extractSubtitleTracks(videoPlayer)
         
         playerScope.launch(Dispatchers.Default) {
             val cachedAudioTracks = audioTrackListCache.get(currentChannelLine.playableUrl)
@@ -723,84 +529,6 @@ class Media3VideoPlayerNew(
                 restoreAudioTrack(finalAudioTracks)
             }
         }
-    }
-    
-    private inline fun <T : PlayerMetadata.TrackSelectable> extractTracks(
-        trackType: Int,
-        currentTrackId: String?,
-        crossinline formatToTrack: (Format) -> T,
-        crossinline withIndex: (T, Int) -> T,
-        noinline filterFormat: ((Format) -> Boolean)? = null,
-        matchSelectedById: Boolean = true,
-    ): List<T> {
-        return videoPlayer?.currentTracks?.groups
-            ?.filter { it.type == trackType }
-            ?.flatMap { group ->
-                (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
-                    val format = group.mediaTrackGroup.getFormat(trackIndex)
-                    if (filterFormat != null && !filterFormat(format)) return@mapNotNull null
-                    val isSelected = if (group.length > 1 && group.isTrackSelected(trackIndex)) {
-                        if (matchSelectedById) currentTrackId != null && format.id == currentTrackId
-                        else true
-                    } else {
-                        group.isTrackSelected(trackIndex)
-                    }
-                    formatToTrack(format).let { withIndex(it, trackIndex) }
-                        .let { track ->
-                            @Suppress("UNCHECKED_CAST")
-                            when (track) {
-                                is PlayerMetadata.VideoTrack -> track.copy(isSelected = isSelected) as T
-                                is PlayerMetadata.AudioTrack -> track.copy(isSelected = isSelected) as T
-                                is PlayerMetadata.SubtitleTrack -> track.copy(isSelected = isSelected) as T
-                                else -> track
-                            }
-                        }
-                }
-            }
-            ?.mapIndexed { index, track -> withIndex(track, index) }
-            ?: emptyList()
-    }
-
-    private fun extractVideoTracks(): List<PlayerMetadata.VideoTrack> {
-        val currentTrackId = videoPlayer?.videoFormat?.id
-        return extractTracks(
-            trackType = C.TRACK_TYPE_VIDEO,
-            currentTrackId = currentTrackId,
-            formatToTrack = { it.toVideoMetadata() },
-            withIndex = { track, idx -> track.copy(index = idx) },
-        )
-    }
-    
-    private fun extractAudioTracks(): List<PlayerMetadata.AudioTrack> {
-        val currentTrackId = videoPlayer?.audioFormat?.id
-        return extractTracks(
-            trackType = C.TRACK_TYPE_AUDIO,
-            currentTrackId = currentTrackId,
-            formatToTrack = { it.toAudioMetadata() },
-            withIndex = { track, idx -> track.copy(index = idx) },
-        )
-    }
-
-    private fun extractSubtitleTracks(): List<PlayerMetadata.SubtitleTrack> {
-        val currentTrackId = videoPlayer?.currentTracks?.groups
-            ?.filter { it.type == C.TRACK_TYPE_TEXT }
-            ?.flatMap { group ->
-                (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
-                    group.mediaTrackGroup.getFormat(trackIndex)
-                        .takeIf { it.roleFlags == C.ROLE_FLAG_SUBTITLE }
-                }
-            }
-            ?.firstOrNull {
-                videoPlayer?.trackSelectionParameters?.preferredTextLanguages?.contains(it.language) == true
-            }?.id
-
-        return extractTracks(
-            trackType = C.TRACK_TYPE_TEXT,
-            currentTrackId = currentTrackId,
-            formatToTrack = { it.toSubtitleMetadata() },
-            withIndex = { track, idx -> track.copy(index = idx) },
-            filterFormat = { it.roleFlags == C.ROLE_FLAG_SUBTITLE },
-        )
     }
     
     private fun restoreAudioTrack(audioTracks: List<PlayerMetadata.AudioTrack>) {
@@ -852,51 +580,13 @@ class Media3VideoPlayerNew(
         
         prepare(currentChannelLine)
     }
-    
-    private fun Format.toVideoMetadata(): PlayerMetadata.VideoTrack {
-        return PlayerMetadata.VideoTrack(
-            width = width,
-            height = height,
-            frameRate = frameRate,
-            bitrate = bitrate,
-            mimeType = sampleMimeType,
-            trackId = id ?: "$sampleMimeType-$width-$height-$frameRate-$bitrate"
-        )
-    }
-    
-    private fun Format.toAudioMetadata(): PlayerMetadata.AudioTrack {
-        return PlayerMetadata.AudioTrack(
-            channels = channelCount,
-            sampleRate = sampleRate,
-            bitrate = bitrate,
-            mimeType = sampleMimeType,
-            language = language,
-            trackId = id ?: "$sampleMimeType-$language-$bitrate"
-        )
-    }
-    
-    private fun Format.toSubtitleMetadata(): PlayerMetadata.SubtitleTrack {
-        return PlayerMetadata.SubtitleTrack(
-            bitrate = bitrate,
-            mimeType = sampleMimeType,
-            language = language,
-            trackId = id ?: "$sampleMimeType-$language-$bitrate"
-        )
-    }
 
     companion object {
         private const val BUFFER_MIN_MS = 5000
         private const val BUFFER_MAX_MS = 30000
         private const val BUFFER_PLAYBACK_START_MS = 1000
         private const val BUFFER_PLAYBACK_RESUME_MS = 2000
-        private const val CONNECT_TIMEOUT_MS = 10000
-        private const val READ_TIMEOUT_MS = 60000
-        private const val HLS_TIMESTAMP_TIMEOUT_MS = 30000L
         private const val POSITION_UPDATE_INTERVAL_MS = 500L
         private const val SEEK_INCREMENT_MS = 10000L
-        private const val TS_TIMESTAMP_SEARCH_BYTES = 1000 * 1024
-        // 4 retries: provides enough recovery attempts for transient failures while preventing infinite loops;
-        // boundary check is centralized in onPlayerError() so live-stream reconnects via retryPlayback() are not throttled
-        private const val MAX_RETRY_COUNT = 4
     }
 }

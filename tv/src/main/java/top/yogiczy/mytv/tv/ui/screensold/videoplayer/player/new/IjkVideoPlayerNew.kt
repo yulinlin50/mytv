@@ -38,13 +38,11 @@ class IjkVideoPlayerNew(
     private var player: IjkMediaPlayer? = null
     private val playerLock = Any()
     
-    private var cacheSurfaceView: SurfaceView? = null
-    private var cacheSurfaceTexture: Surface? = null
+    private var cachedSurface: Any? = null  // SurfaceView | Surface
     
     private var currentChannelLine = ChannelLine()
     
-    private val jobs = mutableListOf<Job>()
-    private val jobsLock = Any()
+    private var positionUpdateJob: Job? = null
     private val volumeState = AtomicReference(1f)
     
     private val volumeFader = VolumeFader(coroutineScope) { volume ->
@@ -74,10 +72,8 @@ class IjkVideoPlayerNew(
     override fun release() {
         if (isReleased.getAndSet(true)) return
         
-        synchronized(jobsLock) {
-            jobs.forEach { it.cancel() }
-            jobs.clear()
-        }
+        positionUpdateJob?.cancel()
+        positionUpdateJob = null
         
         synchronized(playerLock) {
             try {
@@ -105,13 +101,8 @@ class IjkVideoPlayerNew(
             player = null
         }
         
-        try {
-            cacheSurfaceTexture?.release()
-        } catch (e: Exception) {
-            log.e("Failed to release surface texture", e)
-        }
-        cacheSurfaceTexture = null
-        cacheSurfaceView = null
+        (cachedSurface as? Surface)?.let { runCatching { it.release() } }
+        cachedSurface = null
         
         stateManager.reset()
     }
@@ -190,10 +181,8 @@ class IjkVideoPlayerNew(
     override fun stop() {
         if (isReleased.get()) return
         player?.stop()
-        synchronized(jobsLock) {
-            jobs.forEach { it.cancel() }
-            jobs.clear()
-        }
+        positionUpdateJob?.cancel()
+        positionUpdateJob = null
     }
     
     override fun seekTo(position: Long) {
@@ -276,46 +265,27 @@ class IjkVideoPlayerNew(
     }
     
     override fun setVideoSurfaceView(surfaceView: SurfaceView) {
-        cacheSurfaceView = surfaceView
-        cacheSurfaceTexture?.let { 
-            runCatching { it.release() }
-                .onFailure { log.w("Failed to release surface texture", it) }
-        }
-        cacheSurfaceTexture = null
-        
+        (cachedSurface as? Surface)?.let { runCatching { it.release() } }
+        cachedSurface = surfaceView
         if (!isReleased.get()) {
             runCatching { player?.setDisplay(surfaceView.holder) }
-                .onFailure { log.w("Failed to set display", it) }
         }
     }
     
     override fun setVideoTextureView(textureView: TextureView) {
-        cacheSurfaceView = null
+        (cachedSurface as? Surface)?.let { runCatching { it.release() } }
+        cachedSurface = null
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(
-                surfaceTexture: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {
-                cacheSurfaceTexture = Surface(surfaceTexture)
-                player?.setSurface(cacheSurfaceTexture)
+            override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, w: Int, h: Int) {
+                Surface(surfaceTexture).also { cachedSurface = it; player?.setSurface(it) }
             }
-            
-            override fun onSurfaceTextureSizeChanged(
-                surfaceTexture: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {}
-            
+            override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, w: Int, h: Int) {}
             override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
-                if (!isReleased.get()) {
-                    runCatching { player?.setSurface(null) }
-                }
-                cacheSurfaceTexture?.let { runCatching { it.release() } }
-                cacheSurfaceTexture = null
+                if (!isReleased.get()) runCatching { player?.setSurface(null) }
+                (cachedSurface as? Surface)?.let { runCatching { it.release() } }
+                cachedSurface = null
                 return true
             }
-            
             override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) {}
         }
     }
@@ -345,8 +315,10 @@ class IjkVideoPlayerNew(
 
     private val preparedListener = IMediaPlayer.OnPreparedListener { mp ->
         if (isReleased.get()) return@OnPreparedListener
-        cacheSurfaceView?.let { mp.setDisplay(it.holder) }
-        cacheSurfaceTexture?.let { mp.setSurface(it) }
+        when (val s = cachedSurface) {
+            is SurfaceView -> mp.setDisplay(s.holder)
+            is Surface -> mp.setSurface(s)
+        }
         
         parseAudioTracks()
         restoreAudioTrack()
@@ -377,6 +349,7 @@ class IjkVideoPlayerNew(
         }
         
         stateManager.updateError(null)
+        errorHandler.resetRetryCount()
         stateManager.updateIsBuffering(false)
         stateManager.updateDuration(mp.duration)
         
@@ -478,7 +451,9 @@ class IjkVideoPlayerNew(
     }
     
     private fun startPositionUpdate() {
-        val job = coroutineScope.launch {
+        if (isReleased.get()) return
+        positionUpdateJob?.cancel()
+        positionUpdateJob = coroutineScope.launch {
             var retryAudioTracks = true
             while (isActive && !isReleased.get()) {
                 synchronized(playerLock) {
@@ -507,15 +482,6 @@ class IjkVideoPlayerNew(
                     }
                 }
                 delay(500)
-            }
-        }
-        synchronized(jobsLock) {
-            jobs.forEach { it.cancel() }
-            jobs.clear()
-            if (!isReleased.get()) {
-                jobs.add(job)
-            } else {
-                job.cancel()
             }
         }
     }

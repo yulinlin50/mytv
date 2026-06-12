@@ -72,7 +72,7 @@ data class PlayerMetadata(
     ) : TrackSelectable {
         override val trackIndex: Int? get() = index
         override val trackIsSelected: Boolean? get() = isSelected
-        override val trackLabel: String get() = shortLabel
+        override val trackLabel: String get() = formatLabel()
         override val trackIsSupported: Boolean get() = isSupported
         override fun equals(other: Any?): Boolean {
             if (other !is AudioTrack) return false
@@ -81,28 +81,6 @@ data class PlayerMetadata(
         }
 
         override fun hashCode(): Int = trackId?.hashCode() ?: (index ?: 0)
-
-        val shortLabel: String
-            get() {
-                val parts = mutableListOf<String>()
-                
-                val cleanTitle = AudioTrackResolverCommon.sanitizeAudioTitle(title)
-                    ?.takeIf { it != language?.trim()?.lowercase() }
-                if (cleanTitle != null) parts.add(cleanTitle)
-                
-                AudioTrackResolverCommon.normalizeTrackLanguage(language)
-                    ?.humanizeLanguage()
-                    ?.takeIf { it != parts.firstOrNull() }
-                    ?.let { parts.add(it) }
-                
-                if (!roleLabel.isNullOrBlank()) parts.add(roleLabel)
-                (channelsLabel ?: channels?.humanizeAudioChannels())?.takeIf { !it.isNullOrBlank() }?.let { parts.add(it) }
-                (codecLabel ?: mimeType?.substringAfter("/")?.takeIf { it.all { c -> c.code <= 0x7F } })
-                    ?.takeIf { !it.isNullOrBlank() }?.let { parts.add(it) }
-                bitrate?.takeIf { it > 0 }?.humanizeBitrate()?.let { parts.add(it) }
-                
-                return parts.distinct().joinToString(" · ")
-            }
     }
 
     data class SubtitleTrack(
@@ -127,4 +105,25 @@ data class PlayerMetadata(
         val shortLabel: String
             get() = listOfNotNull(language?.humanizeLanguage()).joinToString(", ")
     }
+}
+
+fun PlayerMetadata.AudioTrack.formatLabel(): String {
+    val parts = mutableListOf<String>()
+
+    val cleanTitle = AudioTrackResolverCommon.sanitizeAudioTitle(title)
+        ?.takeIf { it != language?.trim()?.lowercase() }
+    if (cleanTitle != null) parts.add(cleanTitle)
+
+    AudioTrackResolverCommon.normalizeTrackLanguage(language)
+        ?.humanizeLanguage()
+        ?.takeIf { it != parts.firstOrNull() }
+        ?.let { parts.add(it) }
+
+    if (!roleLabel.isNullOrBlank()) parts.add(roleLabel)
+    (channelsLabel ?: channels?.humanizeAudioChannels())?.takeIf { !it.isNullOrBlank() }?.let { parts.add(it) }
+    (codecLabel ?: mimeType?.substringAfter("/")?.takeIf { it.all { c -> c.code <= 0x7F } })
+        ?.takeIf { !it.isNullOrBlank() }?.let { parts.add(it) }
+    bitrate?.takeIf { it > 0 }?.humanizeBitrate()?.let { parts.add(it) }
+
+    return parts.distinct().joinToString(" · ")
 }

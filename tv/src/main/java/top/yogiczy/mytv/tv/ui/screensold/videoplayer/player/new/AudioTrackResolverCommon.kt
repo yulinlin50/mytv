@@ -56,7 +56,7 @@ internal object AudioTrackResolverCommon {
             ?.takeIf { it.isNotEmpty() }
     }
 
-    fun buildStableAudioTrackId(
+    fun buildAudioTrackId(
         language: String?,
         title: String?,
         codecLabel: String?,
@@ -65,6 +65,10 @@ internal object AudioTrackResolverCommon {
         mimeType: String? = null,
         groupId: String? = null,
         roleFlags: Int = 0,
+        sampleRate: Int? = null,
+        bitrate: Int? = null,
+        codecs: String? = null,
+        selectionFlags: Int = 0,
     ): String {
         val hasDistinctInfo = !language.isNullOrBlank() || !title.isNullOrBlank()
         val parts = if (hasDistinctInfo) {
@@ -74,6 +78,8 @@ internal object AudioTrackResolverCommon {
                 title.toTrackIdPart(),
                 codecLabel.toTrackIdPart(),
                 channels?.takeIf { it > 0 }?.toString(),
+                sampleRate?.takeIf { it > 0 }?.toString(),
+                bitrate?.takeIf { it > 0 }?.toString(),
             )
         } else {
             listOfNotNull(
@@ -88,35 +94,6 @@ internal object AudioTrackResolverCommon {
         return parts.joinToString("-").ifBlank { "audio-stream$streamIndex" }
     }
 
-    fun buildLegacyAudioTrackId(
-        language: String?,
-        title: String?,
-        codecLabel: String?,
-        channels: Int?,
-        sampleRate: Int?,
-        bitrate: Int?,
-        streamIndex: Int?,
-        mimeType: String? = null,
-        codecs: String? = null,
-        selectionFlags: Int = 0,
-        roleFlags: Int = 0,
-        groupId: String? = null,
-    ): String? {
-        return listOfNotNull(
-            mimeType,
-            language,
-            title,
-            groupId,
-            channels?.takeIf { it > 0 }?.toString(),
-            sampleRate?.takeIf { it > 0 }?.toString(),
-            codecs?.takeIfMeaningful(),
-            bitrate?.takeIf { it > 0 }?.toString(),
-            streamIndex?.toString(),
-            selectionFlags.takeIf { it != 0 }?.toString(),
-            roleFlags.takeIf { it != 0 }?.toString(),
-        ).joinToString("-").takeIf { it.isNotBlank() }
-    }
-
     fun dedupeAndSortAudioTracks(
         tracks: List<AudioTrackCandidate>,
         sortMode: Configs.AudioTrackSortMode,
@@ -125,45 +102,30 @@ internal object AudioTrackResolverCommon {
             .groupBy { it.metadata.trackId.orEmpty().ifBlank { "audio-${it.metadata.index ?: -1}" } }
             .values
             .map { duplicates ->
-                val preferred = duplicates.maxWithOrNull(
+                duplicates.maxWithOrNull(
                     compareBy<AudioTrackCandidate>(
                         { if (it.metadata.isSelected == true) 1 else 0 },
-                        { it.metadata.richnessScore() },
                         { it.metadata.bitrate ?: 0 },
                         { it.metadata.channels ?: 0 },
-                        { -(it.metadata.index ?: Int.MAX_VALUE) },
                     )
-                ) ?: duplicates.first()
-
-                preferred.copy(
+                )?.copy(
                     matchKeys = duplicates.flatMapTo(linkedSetOf<String>()) { it.matchKeys }
-                )
+                ) ?: duplicates.first()
             }
             .sortedWith(audioTrackComparator(sortMode))
     }
 
     private fun audioTrackComparator(sortMode: Configs.AudioTrackSortMode): Comparator<AudioTrackCandidate> {
-        val baseComparator = when (sortMode) {
-            Configs.AudioTrackSortMode.CHANNELS -> compareByDescending<AudioTrackCandidate> {
-                it.metadata.channels ?: 0
-            }.thenByDescending {
-                it.metadata.bitrate ?: 0
-            }.thenBy { it.languageSortKey() }
-                .thenBy { it.titleSortKey() }
-                .thenBy { it.metadata.index ?: Int.MAX_VALUE }
+        val baseComparator: Comparator<AudioTrackCandidate> = when (sortMode) {
+            Configs.AudioTrackSortMode.CHANNELS -> compareByDescending<AudioTrackCandidate> { it.metadata.channels ?: 0 }
+                .thenByDescending { it.metadata.bitrate ?: 0 }.thenBy { it.metadata.index ?: Int.MAX_VALUE }
 
-            Configs.AudioTrackSortMode.BITRATE -> compareByDescending<AudioTrackCandidate> {
-                it.metadata.bitrate ?: 0
-            }.thenByDescending {
-                it.metadata.channels ?: 0
-            }.thenBy { it.languageSortKey() }
-                .thenBy { it.titleSortKey() }
-                .thenBy { it.metadata.index ?: Int.MAX_VALUE }
+            Configs.AudioTrackSortMode.BITRATE -> compareByDescending<AudioTrackCandidate> { it.metadata.bitrate ?: 0 }
+                .thenByDescending { it.metadata.channels ?: 0 }.thenBy { it.metadata.index ?: Int.MAX_VALUE }
 
             Configs.AudioTrackSortMode.LANGUAGE -> compareBy<AudioTrackCandidate>(
                 { it.languageSortKey() },
-                { it.titleSortKey() },
-                { it.metadata.codecLabel?.lowercase() ?: it.metadata.roleLabel?.lowercase() ?: "\uFFFF" },
+                { it.metadata.codecLabel?.lowercase() ?: "\uFFFF" },
             ).thenByDescending { it.metadata.channels ?: 0 }
                 .thenByDescending { it.metadata.bitrate ?: 0 }
                 .thenBy { it.metadata.index ?: Int.MAX_VALUE }
@@ -175,40 +137,20 @@ internal object AudioTrackResolverCommon {
         ).then(baseComparator)
     }
 
-    fun AudioTrackCandidate.languageSortKey(): String {
+    private fun AudioTrackCandidate.languageSortKey(): String {
         return metadata.language?.humanizeLanguage()?.lowercase()
             ?: metadata.title?.lowercase()
             ?: "\uFFFF"
     }
 
-    fun AudioTrackCandidate.titleSortKey(): String {
-        return metadata.title?.lowercase()
-            ?: metadata.codecLabel?.lowercase()
-            ?: "\uFFFF"
-    }
-
-    fun AudioTrackCandidate.languagePriorityScore(): Int {
+    private fun AudioTrackCandidate.languagePriorityScore(): Int {
         val lang = metadata.language?.lowercase() ?: return 100
         return when {
-            lang.startsWith("zh") -> 0
-            lang == "chi" -> 0
-            lang == "cmn" -> 0
-            lang == "en" -> 1
-            lang == "eng" -> 1
+            lang.startsWith("zh") || lang == "chi" || lang == "cmn" -> 0
+            lang == "en" || lang == "eng" -> 1
             lang == "und" -> 99
             else -> 50
         }
-    }
-
-    fun PlayerMetadata.AudioTrack.richnessScore(): Int {
-        var score = 0
-        if (!title.isNullOrBlank()) score += 4
-        if (!language.isNullOrBlank()) score += 3
-        if (!roleLabel.isNullOrBlank()) score += 2
-        if (!codecLabel.isNullOrBlank()) score += 2
-        if ((channels ?: 0) > 0) score += 1
-        if ((bitrate ?: 0) > 0) score += 1
-        return score
     }
 
     fun String?.toAudioCodecLabel(): String? {
@@ -233,11 +175,6 @@ internal object AudioTrackResolverCommon {
                 if (upper.all { it.code <= 0x7F }) upper else null
             }
         }
-    }
-
-    private fun String?.takeIfMeaningful(): String? {
-        val trimmed = this?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return trimmed.takeUnless { it.lowercase() in invalidTrackValues }
     }
 
     fun Int.takeIfPositive(): Int? = takeIf { it > 0 }

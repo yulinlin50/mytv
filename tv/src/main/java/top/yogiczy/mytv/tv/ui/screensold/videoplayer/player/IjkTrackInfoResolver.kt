@@ -50,21 +50,11 @@ internal object IjkTrackInfoResolver {
         val sampleRate = streamMeta?.mSampleRate?.takeIf { it > 0 }
         val bitrate = streamMeta?.mBitrate?.takeIf { it > 0 }?.toInt()
 
-        val stableTrackId = AudioTrackResolverCommon.buildStableAudioTrackId(
+        val stableTrackId = AudioTrackResolverCommon.buildAudioTrackId(
             language = normalizedLanguage,
             title = trackTitle,
             codecLabel = codecLabel,
             channels = channels,
-            streamIndex = streamIndex,
-        )
-
-        val legacyTrackId = AudioTrackResolverCommon.buildLegacyAudioTrackId(
-            language = normalizedLanguage,
-            title = trackTitle,
-            codecLabel = codecLabel,
-            channels = channels,
-            sampleRate = sampleRate,
-            bitrate = bitrate,
             streamIndex = streamIndex,
         )
 
@@ -93,24 +83,13 @@ internal object IjkTrackInfoResolver {
             streamIndex = streamIndex,
             matchKeys = setOfNotNull(
                 stableTrackId,
-                legacyTrackId,
                 streamIndex.toString(),
             ).filter { it.isNotBlank() }.toSet(),
         )
     }
 
     private fun extractStreamMeta(trackInfo: ITrackInfo): IjkMediaMeta.IjkStreamMeta? {
-        return if (trackInfo is IjkTrackInfo) {
-            try {
-                val field = IjkTrackInfo::class.java.getDeclaredField("mStreamMeta")
-                field.isAccessible = true
-                field.get(trackInfo) as? IjkMediaMeta.IjkStreamMeta
-            } catch (e: Exception) {
-                null
-            }
-        } else {
-            null
-        }
+        return (trackInfo as? IjkTrackInfo)?.streamMeta
     }
 
     internal fun getChannelCount(channelLayout: Long): Int? {

@@ -16,10 +16,27 @@ object AudioTrackCache {
     }
 
     class TrackListCache {
-        private val cache = LruCache<String, List<PlayerMetadata.AudioTrack>>(optimalCacheSize())
+        private val cache = LruCache<String, CacheEntry>(optimalCacheSize())
 
-        @Synchronized fun get(url: String): List<PlayerMetadata.AudioTrack>? = cache.get(url)
-        @Synchronized fun put(url: String, tracks: List<PlayerMetadata.AudioTrack>) = cache.put(url, tracks)
+        data class CacheEntry(
+            val tracks: List<PlayerMetadata.AudioTrack>,
+            val timestamp: Long = System.currentTimeMillis(),
+        )
+
+        companion object {
+            private const val TTL_MS = 30_000L
+        }
+
+        @Synchronized fun get(url: String): List<PlayerMetadata.AudioTrack>? {
+            val entry = cache.get(url) ?: return null
+            if (System.currentTimeMillis() - entry.timestamp > TTL_MS) {
+                cache.remove(url)
+                return null
+            }
+            return entry.tracks
+        }
+        @Synchronized fun put(url: String, tracks: List<PlayerMetadata.AudioTrack>) =
+            cache.put(url, CacheEntry(tracks))
         @Synchronized fun remove(url: String) = cache.remove(url)
         @Synchronized fun clear() = cache.evictAll()
         @Synchronized fun size(): Int = cache.size()
