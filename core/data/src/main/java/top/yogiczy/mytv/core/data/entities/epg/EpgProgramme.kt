@@ -29,7 +29,7 @@ data class EpgProgramme(
             title = "节目标题",
         )
 
-        val EMPTY get() {
+        val EMPTY: EpgProgramme get() {
             val todayStart = LocalDate.now()
                 .atStartOfDay(ZoneId.systemDefault())
                 .toInstant()
