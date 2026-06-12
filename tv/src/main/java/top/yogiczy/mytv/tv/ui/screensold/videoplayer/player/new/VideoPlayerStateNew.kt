@@ -60,12 +60,10 @@ class VideoPlayerStateNew(
     
     internal val onReadyListeners = CopyOnWriteArrayList<() -> Unit>()
     internal val onErrorListeners = CopyOnWriteArrayList<() -> Unit>()
-    private val onInterruptListeners = CopyOnWriteArrayList<() -> Unit>()
     internal val onIsBufferingListeners = CopyOnWriteArrayList<(Boolean) -> Unit>()
     
     fun onReady(listener: () -> Unit) { if (!isReleased) onReadyListeners.add(listener) }
     fun onError(listener: () -> Unit) { if (!isReleased) onErrorListeners.add(listener) }
-    fun onInterrupt(listener: () -> Unit) { if (!isReleased) onInterruptListeners.add(listener) }
     fun onIsBuffering(listener: (Boolean) -> Unit) { if (!isReleased) onIsBufferingListeners.add(listener) }
     
     fun enterPlaybackMode(startTime: Long, endTime: Long) {
@@ -111,7 +109,7 @@ class VideoPlayerStateNew(
         isReleased = true
         instance.release()
         onReadyListeners.clear(); onErrorListeners.clear()
-        onInterruptListeners.clear(); onIsBufferingListeners.clear()
+        onIsBufferingListeners.clear()
     }
 }
 

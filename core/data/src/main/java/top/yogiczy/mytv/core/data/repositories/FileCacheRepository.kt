@@ -85,7 +85,7 @@ abstract class FileCacheRepository(
                 data = null
             }
 
-            if (data == null || data.available() == 0) {
+            if (data == null) {
                 val newData = refreshOp()
                 if (newData != null) {
                     setCacheInputStream(newData)

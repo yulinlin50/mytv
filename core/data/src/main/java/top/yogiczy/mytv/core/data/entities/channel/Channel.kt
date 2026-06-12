@@ -36,7 +36,10 @@ data class Channel(
 
     fun isEmptyOrElse(defaultValue: () -> Channel) = if (this == EMPTY) defaultValue() else this
 
-    // 仅按 name + lineList 判等，忽略 index/iptvSourceId 等运行时属性
+    /**
+     * 仅按 name + lineList 判等，忽略 standardName / epgName / epgId / logo / index / iptvSourceId 等运行时或辅助属性。
+     * 注意：copy() 产生的对象可能 equals 但仍持有不同字段值；用于 HashSet/Map 等集合时需留意。
+     */
     override fun equals(other: Any?) =
         other is Channel && name == other.name && lineList == other.lineList
 

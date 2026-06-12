@@ -16,6 +16,7 @@ object ChannelAlias : Loggable("ChannelAlias") {
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
         nameCache.evictAll()
+        _reverseIndex = null
         _aliasMap = runCatching {
             Globals.json.decodeFromString<Map<String, List<String>>>(aliasFile.readText())
         }.getOrElse { emptyMap() }
@@ -49,14 +50,24 @@ object ChannelAlias : Loggable("ChannelAlias") {
     }
 
     private fun findAliasName(name: String): String? {
-        return aliasMap.keys.firstOrNull { it.equals(name, ignoreCase = true) }
-            ?: aliasMap.entries.firstOrNull { entry ->
-                entry.value.any { it.equals(name, ignoreCase = true) }
-            }?.key
-            ?: defaultAlias.keys.firstOrNull { it.equals(name, ignoreCase = true) }
-            ?: defaultAlias.entries.firstOrNull { entry ->
-                entry.value.any { it.equals(name, ignoreCase = true) }
-            }?.key
+        return reverseIndex[name.lowercase()]
+    }
+
+    private var _reverseIndex: Map<String, String>? = null
+
+    private val reverseIndex: Map<String, String> get() {
+        _reverseIndex?.let { return it }
+        val map = mutableMapOf<String, String>()
+        fun index(source: Map<String, List<String>>) {
+            for ((key, values) in source) {
+                map[key.lowercase()] = key
+                for (v in values) map[v.lowercase()] = key
+            }
+        }
+        index(aliasMap)
+        index(defaultAlias)
+        _reverseIndex = map
+        return map
     }
 
     private val defaultAlias by lazy {

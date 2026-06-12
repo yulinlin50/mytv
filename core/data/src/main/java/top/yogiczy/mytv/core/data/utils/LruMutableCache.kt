@@ -2,6 +2,7 @@ package top.yogiczy.mytv.core.data.utils
 
 import androidx.collection.LruCache
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.jvm.Synchronized
 
 /**
  * LRU 缓存，支持时间戳过期机制
@@ -37,12 +38,11 @@ class LruMutableCache<K : Any, V : Any>(maxSize: Int) : LruCache<K, V>(maxSize) 
     }
 
     override fun entryRemoved(evicted: Boolean, key: K, oldValue: V, newValue: V?) {
-        if (!evicted) {
-            timestampMap.remove(key)
-        }
+        timestampMap.remove(key)
         super.entryRemoved(evicted, key, oldValue, newValue)
     }
 
+    @Synchronized
     fun getOrPut(key: K, defaultValue: () -> V): V {
         val cachedValue = getTimestamped(key)
         if (cachedValue != null) {

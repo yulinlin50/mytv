@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.tv.ui.screen.main
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -16,7 +17,7 @@ import top.yogiczy.mytv.core.data.entities.channel.Channel
 import top.yogiczy.mytv.core.data.entities.channel.ChannelFavorite
 import top.yogiczy.mytv.core.data.entities.channel.ChannelFavoriteList
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList
-import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList.Companion.chanelGroup
+import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList.Companion.channelGroup
 import top.yogiczy.mytv.core.data.entities.channel.ChannelList
 import top.yogiczy.mytv.core.data.entities.epg.EpgList
 import top.yogiczy.mytv.tv.ui.material.Snackbar
@@ -47,7 +48,10 @@ fun MainScreen(
     val coroutineScope = rememberCoroutineScope()
     val uiState by mainViewModel.uiState.collectAsState()
 
-    mainViewModel.needRefresh = { settingsViewModel.refresh() }
+    DisposableEffect(mainViewModel) {
+        mainViewModel.needRefresh = { settingsViewModel.refresh() }
+        onDispose { mainViewModel.needRefresh = {} }
+    }
 
     val channelGroupList = (uiState as? MainUiState.Ready)?.channelGroupList ?: ChannelGroupList()
     val filteredChannelGroupList = (uiState as? MainUiState.Ready)?.filteredChannelGroupList ?: ChannelGroupList()
@@ -81,7 +85,7 @@ fun MainScreen(
             val favoriteChannel = ChannelFavorite(
                 channel = channel,
                 iptvSourceName = "merged",
-                groupName = filteredChannelGroupListProvider().chanelGroup(channel).name,
+                groupName = filteredChannelGroupListProvider().channelGroup(channel)?.name ?: "",
             )
 
             settingsViewModel.iptvChannelFavoriteList =

@@ -29,13 +29,13 @@ data class EpgProgramme(
             title = "节目标题",
         )
 
-        val EMPTY by lazy {
+        val EMPTY get() {
             val todayStart = LocalDate.now()
                 .atStartOfDay(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli()
             
-            EpgProgramme(
+            return EpgProgramme(
                 startAt = todayStart,
                 endAt = todayStart + (24 * 3600 - 1) * 1000,
                 title = "精彩节目",

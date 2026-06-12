@@ -62,7 +62,6 @@ fun Drawer(
         DrawerPosition.Center -> Modifier
     }
 
-    val appThemeDef = settingsVM.themeAppCurrent
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 

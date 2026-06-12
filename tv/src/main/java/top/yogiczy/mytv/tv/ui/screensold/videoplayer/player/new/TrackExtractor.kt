@@ -77,7 +77,15 @@ internal object TrackExtractor {
                     }
                 }
             }
-            ?.mapIndexed { index, track -> track }
+            ?.mapIndexed { index, track ->
+                @Suppress("UNCHECKED_CAST")
+                when (track) {
+                    is PlayerMetadata.VideoTrack -> track.copy(index = index) as T
+                    is PlayerMetadata.AudioTrack -> track.copy(index = index) as T
+                    is PlayerMetadata.SubtitleTrack -> track.copy(index = index) as T
+                    else -> track
+                }
+            }
             ?: emptyList()
     }
 }

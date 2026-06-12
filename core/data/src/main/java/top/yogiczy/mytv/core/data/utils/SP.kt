@@ -21,12 +21,13 @@ object SP {
             return op(key, defValue) ?: defValue
         } catch (ex: Exception) {
             log.e("SP", ex)
-            sp.edit().remove(key).commit()
+            sp.edit().remove(key).apply()
             return defValue
         }
     }
 
-    fun getString(key: String, defValue: String) = safeGet(key, defValue, sp::getString)
+    fun getString(key: String, defValue: String): String =
+        safeGet(key, defValue) { k, d -> sp.getString(k, d) }
     fun putString(key: String, value: String) =
         runCatching { sp.edit().putString(key, value).apply() }.getOrElse { }
 

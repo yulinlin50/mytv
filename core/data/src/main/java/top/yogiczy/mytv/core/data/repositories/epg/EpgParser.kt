@@ -293,6 +293,7 @@ object EpgParser : Loggable("EpgParser") {
                                 } catch (e: Exception) {
                                     parseErrors.add("解析节目失败：${e.message}")
                                     invalidProgrammeCount++
+                                    eventType = parser.eventType
                                     // 发生异常时，尝试跳过 programme 标签
                                     try {
                                         while (parser.eventType != XmlPullParser.END_TAG && 

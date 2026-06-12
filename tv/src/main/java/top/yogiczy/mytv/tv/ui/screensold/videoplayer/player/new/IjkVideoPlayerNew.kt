@@ -40,6 +40,8 @@ class IjkVideoPlayerNew(
     
     private var cachedSurface: Any? = null  // SurfaceView | Surface
     
+    private var currentTextureView: TextureView? = null
+
     private var currentChannelLine = ChannelLine()
     
     private var positionUpdateJob: Job? = null
@@ -103,6 +105,7 @@ class IjkVideoPlayerNew(
         
         (cachedSurface as? Surface)?.let { runCatching { it.release() } }
         cachedSurface = null
+        currentTextureView = null
         
         stateManager.reset()
     }
@@ -111,6 +114,7 @@ class IjkVideoPlayerNew(
         if (isReleased.get()) return
         
         player?.reset()
+        applyAllOptions()
         
         // 必须重新设置监听器：虽然 reset() 不会清除监听器，但 release() 会清除，
         // 而 initialize() 只执行一次，所以需要在 prepare() 中确保监听器被设置
@@ -273,8 +277,10 @@ class IjkVideoPlayerNew(
     }
     
     override fun setVideoTextureView(textureView: TextureView) {
+        currentTextureView?.surfaceTextureListener = null
         (cachedSurface as? Surface)?.let { runCatching { it.release() } }
         cachedSurface = null
+        currentTextureView = textureView
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, w: Int, h: Int) {
                 Surface(surfaceTexture).also { cachedSurface = it; player?.setSurface(it) }
@@ -292,10 +298,14 @@ class IjkVideoPlayerNew(
     
     private fun createPlayer(): IjkMediaPlayer {
         return IjkMediaPlayer().apply {
-            (FORMAT_OPTIONS + PLAYER_OPTIONS).forEach { opt ->
-                if (opt.longValue != null) setOption(opt.category, opt.key, opt.longValue)
-                else if (opt.strValue != null) setOption(opt.category, opt.key, opt.strValue)
-            }
+            applyAllOptions()
+        }
+    }
+    
+    private fun applyAllOptions() {
+        (FORMAT_OPTIONS + PLAYER_OPTIONS).forEach { opt ->
+            if (opt.longValue != null) player?.setOption(opt.category, opt.key, opt.longValue)
+            else if (opt.strValue != null) player?.setOption(opt.category, opt.key, opt.strValue)
         }
     }
     

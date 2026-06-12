@@ -49,7 +49,7 @@ data class Epg(
                     next = sortedProgrammes.getOrNull(liveIndex + 1)
                 ) else EpgProgrammeRecent()
             }
-            log.v("recentProgramme: ${channelList.firstOrNull()}", null, t.duration)
+            log.d("recentProgramme: ${channelList.firstOrNull()}", null, t.duration)
             return t.value
         }
 

@@ -356,14 +356,6 @@ class MainContentState(
             }
         }
 
-        videoPlayerState.onInterrupt {
-            changeCurrentChannel(
-                _currentChannel,
-                _currentChannelLineIdx,
-                _currentPlaybackEpgProgramme
-            )
-        }
-
         videoPlayerState.onIsBuffering { isBuffering ->
             if (isBuffering) {
                 _isTempChannelScreenVisible = true

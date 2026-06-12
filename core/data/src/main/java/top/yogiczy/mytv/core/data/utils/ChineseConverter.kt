@@ -1,7 +1,5 @@
 package top.yogiczy.mytv.core.data.utils
 
-import java.util.concurrent.ConcurrentHashMap
-
 object ChineseConverter {
     private val traditionalToSimplifiedMap: Map<Char, Char>
 
@@ -60,10 +58,10 @@ object ChineseConverter {
             '立' to '立', '提' to '提', '各' to '各', '開' to '开',
             '百' to '百', '慕' to '慕', '格' to '格', '陵' to '陵',
             '道' to '道', '耳' to '耳', '他' to '他', '浦' to '浦',
-            '路' to '路', '吉' to '几', '拜' to '拜', '旦' to '旦',
+            '路' to '路', '拜' to '拜', '旦' to '旦',
             '以' to '以', '色' to '色', '嫩' to '嫩', '也' to '也',
             '酋' to '酋', '卡' to '卡', '塔' to '塔', '林' to '林',
-            '共' to '共', '和' to '和', '基' to '几', '孟' to '孟',
+            '共' to '共', '和' to '和', '孟' to '孟',
             '不' to '不', '錫' to '锡', '金' to '金', '代' to '代',
             '夫' to '夫', '老' to '老', '柬' to '柬', '埔' to '埔',
             '寨' to '寨', '越' to '越', '文' to '文', '菲' to '菲',
@@ -73,23 +71,23 @@ object ChineseConverter {
             '喀' to '喀', '皮' to '皮', '礁' to '礁', '洋' to '洋',
             '土' to '土', '島' to '岛'
         )
-        traditionalToSimplifiedMap = pairs.toMap()
+        traditionalToSimplifiedMap = pairs.filter { it.first != it.second }.toMap()
     }
 
     private const val CACHE_MAX_SIZE = 1000
-    private val simplifyCache = ConcurrentHashMap<String, String>()
+    private val simplifyCache = LruMutableCache<String, String>(CACHE_MAX_SIZE)
 
     fun toSimplified(text: String): String {
         if (text.isEmpty()) return text
-        simplifyCache[text]?.let { return it }
+        simplifyCache.getTimestamped(text)?.let { return it }
 
         val result = buildString(text.length) {
             for (char in text) append(traditionalToSimplifiedMap[char] ?: char)
         }
 
-        if (simplifyCache.size < CACHE_MAX_SIZE) simplifyCache[text] = result
+        simplifyCache.putTimestamped(text, result)
         return result
     }
 
-    fun clearCache() = simplifyCache.clear()
+    fun clearCache() = simplifyCache.clearAll()
 }

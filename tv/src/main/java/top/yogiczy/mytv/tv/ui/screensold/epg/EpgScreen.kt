@@ -28,7 +28,9 @@ import top.yogiczy.mytv.tv.ui.tooling.PreviewWithLayoutGrids
 import top.yogiczy.mytv.tv.ui.utils.backHandler
 import top.yogiczy.mytv.tv.ui.utils.focusOnLaunched
 import top.yogiczy.mytv.tv.ui.utils.gridColumns
-import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -48,14 +50,14 @@ fun EpgScreen(
     val screenAutoCloseState = rememberScreenAutoCloseState(onTimeout = onClose)
 
     val epg = epgProvider()
-    val dateFormat = remember { SimpleDateFormat("E MM-dd", Locale.getDefault()) }
+    val dateFormat = remember { DateTimeFormatter.ofPattern("E MM-dd", Locale.getDefault()).withZone(ZoneId.systemDefault()) }
     
     // 使用 remember 缓存日期分组计算
     val programDayGroup = remember(epg.programmeList) {
-        epg.programmeList.groupBy { dateFormat.format(it.startAt) }
+        epg.programmeList.groupBy { dateFormat.format(Instant.ofEpochMilli(it.startAt)) }
     }
     
-    val currentDayDefault = remember { dateFormat.format(System.currentTimeMillis()) }
+    val currentDayDefault = remember { dateFormat.format(Instant.ofEpochMilli(System.currentTimeMillis())) }
     var currentDay by remember(programDayGroup) { 
         mutableStateOf(if (programDayGroup.containsKey(currentDayDefault)) currentDayDefault else programDayGroup.keys.firstOrNull() ?: "") 
     }

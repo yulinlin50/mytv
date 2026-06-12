@@ -34,24 +34,22 @@ object UnifiedCacheManager {
 
     private val caches = ConcurrentHashMap<String, LruCache<*>>()
 
-    data class CacheConfig(val maxSize: Int = DEFAULT_MAX_SIZE, val expiryMs: Long = DEFAULT_EXPIRY_MS)
+    @Suppress("UNCHECKED_CAST")
+    fun <V : Any> get(cacheName: String, key: String): V? =
+        (caches.getOrPut(cacheName) { LruCache<V>(DEFAULT_MAX_SIZE, DEFAULT_EXPIRY_MS) } as LruCache<V>).get(key)
 
-    private fun <V : Any> ensureCache(name: String, config: CacheConfig = CacheConfig()): LruCache<V> {
-        return caches.getOrPut(name) { LruCache<V>(config.maxSize, config.expiryMs) } as LruCache<V>
+    @Suppress("UNCHECKED_CAST")
+    fun <V : Any> put(cacheName: String, key: String, value: V) {
+        val cache = caches.getOrPut(cacheName) { LruCache<V>(DEFAULT_MAX_SIZE, DEFAULT_EXPIRY_MS) } as LruCache<V>
+        cache.put(key, value)
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun <V : Any> get(cacheName: String, key: String): V? =
-        (caches[cacheName] as? LruCache<V>)?.get(key)
-
-    fun <V : Any> put(cacheName: String, key: String, value: V) {
-        (caches[cacheName] as? LruCache<V>)?.put(key, value)
-    }
-
     fun <V : Any> getOrPut(cacheName: String, key: String, defaultValue: () -> V): V {
-        get<V>(cacheName, key)?.let { return it }
+        val cache = caches.getOrPut(cacheName) { LruCache<V>(DEFAULT_MAX_SIZE, DEFAULT_EXPIRY_MS) } as LruCache<V>
+        cache.get(key)?.let { return it }
         val value = defaultValue()
-        put(cacheName, key, value)
+        cache.put(key, value)
         return value
     }
 
@@ -73,16 +71,5 @@ object UnifiedCacheManager {
         const val NORMALIZE = "normalize"
         const val SUBSTRING_MATCH = "substring_match"
         const val CHANNEL_NAME = "channel_name"
-    }
-
-    init {
-        ensureCache<String>(CacheNames.RECENT_PROGRAMME, CacheConfig(maxSize = 200, expiryMs = 30 * 60 * 1000L))
-        ensureCache<String>(CacheNames.CHANNEL_MATCH, CacheConfig(maxSize = 4096))
-        ensureCache<Long>(CacheNames.TIME_PARSE, CacheConfig(maxSize = 10000))
-        ensureCache<String>(CacheNames.EPG_DATA, CacheConfig(maxSize = 100, expiryMs = 300_000L))
-        ensureCache<Any>(CacheNames.CHANNEL_INDEX, CacheConfig(maxSize = 50, expiryMs = 600_000L))
-        ensureCache<String>(CacheNames.NORMALIZE, CacheConfig(maxSize = 2048))
-        ensureCache<String>(CacheNames.SUBSTRING_MATCH, CacheConfig(maxSize = 500))
-        ensureCache<String>(CacheNames.CHANNEL_NAME, CacheConfig(maxSize = 5000))
     }
 }

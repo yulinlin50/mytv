@@ -18,13 +18,14 @@ class RetryInterceptor(
         repeat(maxRetry + 1) { attempt ->
             try {
                 response?.close()
-                response = chain.proceed(request)
+                val resp = chain.proceed(request)
+                response = resp
                 
-                if (response!!.isSuccessful || response!!.code !in retryOnErrors) {
-                    return response!!
+                if (resp.isSuccessful || resp.code !in retryOnErrors) {
+                    return resp
                 }
                 
-                Log.w("RetryInterceptor", "请求失败 (${response!!.code})，准备重试 (${attempt + 1}/$maxRetry)")
+                Log.w("RetryInterceptor", "请求失败 (${resp.code})，准备重试 (${attempt + 1}/$maxRetry)")
                 
             } catch (e: IOException) {
                 exception = e

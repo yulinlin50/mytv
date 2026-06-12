@@ -13,7 +13,6 @@ data class PlaybackModeState(
     val isPlayback: Boolean = false,
     val startTime: Long = 0L,
     val endTime: Long = 0L,
-    val manuallySet: Boolean = false,
 )
 
 abstract class BaseVideoPlayer(
@@ -62,23 +61,10 @@ abstract class BaseVideoPlayer(
         pendingFadeIn.set(true)
     }
 
-    protected fun updatePlaybackModeState(line: ChannelLine, checkCatchupSupport: Boolean = true) {
+    protected fun updatePlaybackModeState(line: ChannelLine) {
         val urlIsPlayback = PlaybackUtil.isPlaybackUrl(line.url)
-        val lineSupportsPlayback = if (checkCatchupSupport) {
-            line.hasCatchupSupport() || urlIsPlayback
-        } else {
-            urlIsPlayback
-        }
 
-        val currentState = playbackModeState.get()
-        val newIsPlayback = when {
-            currentState.manuallySet && currentState.isPlayback && (urlIsPlayback || lineSupportsPlayback) -> true
-            currentState.manuallySet && currentState.isPlayback && !urlIsPlayback && !lineSupportsPlayback -> false
-            !currentState.manuallySet && urlIsPlayback -> true
-            else -> false
-        }
-
-        val (startTime, endTime) = if (newIsPlayback) {
+        val (startTime, endTime) = if (urlIsPlayback) {
             PlaybackUtil.extractPlaybackTimeRange(line.url) ?: Pair(0L, 0L)
         } else {
             Pair(0L, 0L)
@@ -86,14 +72,13 @@ abstract class BaseVideoPlayer(
 
         playbackModeState.set(
             PlaybackModeState(
-                isPlayback = newIsPlayback,
+                isPlayback = urlIsPlayback,
                 startTime = startTime,
                 endTime = endTime,
-                manuallySet = currentState.manuallySet
             )
         )
 
-        stateManager.updatePlaybackMode(newIsPlayback, startTime, endTime)
+        stateManager.updatePlaybackMode(urlIsPlayback, startTime, endTime)
     }
 
     protected fun loadAudioTrackMemory() {

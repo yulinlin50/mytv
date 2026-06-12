@@ -74,8 +74,6 @@ fun SettingsCategoriesScreen(
     onBackPressed: () -> Unit = {},
 ) {
     val childPadding = rememberChildPadding()
-    // 使用 key 确保返回时重新创建，避免焦点状态混乱
-    val screenKey = remember { System.currentTimeMillis() }
 
     AppScreen(
         modifier = modifier.padding(top = 10.dp),
@@ -92,7 +90,7 @@ fun SettingsCategoriesScreen(
         var canHandleClick by remember { mutableStateOf(false) }
 
         // 延迟确保列表已准备好且防止快速点击问题
-        LaunchedEffect(screenKey) {
+        LaunchedEffect(Unit) {
             kotlinx.coroutines.delay(50)
             focusRequesters.getOrNull(targetIndex)?.saveRequestFocus()
             kotlinx.coroutines.delay(100)

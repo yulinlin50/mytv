@@ -153,6 +153,10 @@ class ChannelTrieIndex(epgs: List<Epg> = emptyList()) {
         private val chineseDigits = mapOf('一' to '1', '二' to '2', '三' to '3', '四' to '4', '五' to '5',
             '六' to '6', '七' to '7', '八' to '8', '九' to '9', '零' to '0')
 
+        private val BRACKET_REGEX = Regex("\\([^)]*\\)|\\[[^]]*\\]|\\{[^}]*\\}")
+        private val QUALITY_REGEX = Regex("(hd|标清|高清|4k|8k|超清|蓝光|藍光|uhd|sdr|hdr)")
+        private val PUNCT_REGEX = Regex("[\\s\\p{Punct}]")
+
         private fun replaceChineseNumbers(text: String): String = buildString(text.length) {
             for (c in text) append(chineseDigits[c] ?: c)
         }
@@ -162,17 +166,14 @@ class ChannelTrieIndex(epgs: List<Epg> = emptyList()) {
             
             return UnifiedCacheManager.getOrPut(UnifiedCacheManager.CacheNames.NORMALIZE, name) {
                 val simplified = ChineseConverter.toSimplified(name)
-                val withoutBrackets = simplified
-                    .replace(Regex("\\([^)]*\\)"), "")
-                    .replace(Regex("\\[[^]]*\\]"), "")
-                    .replace(Regex("\\{[^}]*\\}"), "")
+                val withoutBrackets = BRACKET_REGEX.replace(simplified, "")
                 
                 val withArabicNumbers = replaceChineseNumbers(withoutBrackets)
                 
                 withArabicNumbers
                     .lowercase()
-                    .replace(Regex("(hd|标清|高清|4k|8k|超清|蓝光|藍光|uhd|sdr|hdr)"), "")
-                    .replace(Regex("[\\s\\p{Punct}]"), "")
+                    .replace(QUALITY_REGEX, "")
+                    .replace(PUNCT_REGEX, "")
                     .trim()
             }
         }

@@ -11,7 +11,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody
-import okhttp3.internal.closeQuietly
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -69,7 +68,7 @@ suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation 
     enqueue(object : Callback {
         override fun onResponse(call: Call, response: Response) {
             continuation.resume(response) {
-                response.body?.let { response.closeQuietly() }
+                response.close()
             }
         }
 

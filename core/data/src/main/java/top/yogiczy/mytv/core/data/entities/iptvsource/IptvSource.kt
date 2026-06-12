@@ -55,7 +55,7 @@ data class IptvSource(
     /**
      * 唯一标识符
      */
-    val id: String = java.util.UUID.randomUUID().toString(),
+    val id: String = generateCacheHash("$name@$url"),
 ) {
     /**
      * 生成缓存文件名，使用SHA-256哈希避免冲突

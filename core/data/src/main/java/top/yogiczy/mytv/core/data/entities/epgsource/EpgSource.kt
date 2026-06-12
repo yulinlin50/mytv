@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.Globals
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * 节目单来源
@@ -31,8 +32,10 @@ data class EpgSource(
     val expireHours: Int? = null,
 ) {
 
-    fun cacheFileName(ext: String) =
-        "${cacheDir.name}/epg_source_${url.hashCode().toUInt().toString(16)}.$ext"
+    fun cacheFileName(ext: String): String {
+        val hash = generateCacheHash(url)
+        return "${cacheDir.name}/epg_source_$hash.$ext"
+    }
 
     fun getEffectiveExpireHours(): Int {
         return expireHours ?: Constants.EPG_REFRESH_TIME_THRESHOLD
@@ -40,6 +43,13 @@ data class EpgSource(
 
     companion object {
         val cacheDir by lazy { File(Globals.cacheDir, "epg_source_cache") }
+
+        fun generateCacheHash(url: String): String {
+            return MessageDigest.getInstance("SHA-256")
+                .digest(url.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
+                .take(16)
+        }
 
         val EXAMPLE = EpgSource(
             name = "测试节目单1",

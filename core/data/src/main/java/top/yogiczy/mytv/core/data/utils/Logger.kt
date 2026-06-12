@@ -17,7 +17,6 @@ class Logger private constructor(private val tag: String) {
         addHistoryItem(HistoryItem(level, tag, msg, throwable?.message))
     }
 
-    fun v(message: String, throwable: Throwable? = null, duration: Duration? = null) = log(LevelType.DEBUG, message, throwable, duration)
     fun d(message: String, throwable: Throwable? = null, duration: Duration? = null) = log(LevelType.DEBUG, message, throwable, duration)
     fun i(message: String, throwable: Throwable? = null, duration: Duration? = null) = log(LevelType.INFO, message, throwable, duration)
     fun w(message: String, throwable: Throwable? = null, duration: Duration? = null) = log(LevelType.WARN, message, throwable, duration)
@@ -27,14 +26,17 @@ class Logger private constructor(private val tag: String) {
     companion object {
         fun create(tag: String) = Logger(tag)
 
+        private val historyLock = Any()
         private var _history = mutableListOf<HistoryItem>()
-        val history: List<HistoryItem> get() = _history
+        val history: List<HistoryItem> get() = synchronized(historyLock) { _history.toList() }
 
         fun addHistoryItem(item: HistoryItem) {
             if (item.level in listOf(LevelType.INFO, LevelType.WARN, LevelType.ERROR)) {
-                _history.add(item)
-                if (_history.size > Constants.LOG_HISTORY_MAX_SIZE) {
-                    _history = _history.takeLast(Constants.LOG_HISTORY_MAX_SIZE).toMutableList()
+                synchronized(historyLock) {
+                    _history.add(item)
+                    while (_history.size > Constants.LOG_HISTORY_MAX_SIZE) {
+                        _history.removeAt(0)
+                    }
                 }
             }
         }
@@ -53,5 +55,5 @@ class Logger private constructor(private val tag: String) {
 }
 
 abstract class Loggable(private val tag: String) {
-    protected val log: Logger get() = Logger.create(tag)
+    protected val log: Logger by lazy { Logger.create(tag) }
 }

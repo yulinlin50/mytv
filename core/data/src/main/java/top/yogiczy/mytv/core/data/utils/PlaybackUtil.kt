@@ -67,14 +67,20 @@ object PlaybackUtil {
     private val REGEX_TIMESHIFT_URL = Regex("""(?:[?&]|/)timeshift(?:=|/)""", RegexOption.IGNORE_CASE)
     private val REGEX_CATCHUP_URL = Regex("""[?&]catchup=""", RegexOption.IGNORE_CASE)
 
-    // 公开的时间格式，供其他模块使用
-    val UTC_TIME_FORMAT by lazy {
+    // 公开的时间格式，供其他模块使用（ThreadLocal 保证线程安全）
+    val UTC_TIME_FORMAT: SimpleDateFormat
+        get() = utcTimeFormatTL.get()!!
+
+    val LOCAL_TIME_FORMAT: SimpleDateFormat
+        get() = localTimeFormatTL.get()!!
+
+    private val utcTimeFormatTL = ThreadLocal.withInitial {
         SimpleDateFormat("yyyyMMddHHmmss", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
     }
 
-    val LOCAL_TIME_FORMAT by lazy {
+    private val localTimeFormatTL = ThreadLocal.withInitial {
         SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).apply {
             timeZone = TimeZone.getDefault()
         }

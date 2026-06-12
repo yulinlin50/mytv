@@ -314,7 +314,7 @@ class MainViewModel : ViewModel() {
                 }
 
                 // 第四步：并行加载去重后的节目单源，并添加并发控制
-                val semaphore = Semaphore(2) // 限制并发数为2，避免低性能设备过载
+                val semaphore = Semaphore(maxOf(2, Runtime.getRuntime().availableProcessors()))
                 val epgLists = withContext(Dispatchers.IO) {
                     epgLoadTasks.values.map { task ->
                         async {

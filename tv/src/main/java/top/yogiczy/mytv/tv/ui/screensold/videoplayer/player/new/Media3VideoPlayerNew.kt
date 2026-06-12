@@ -53,6 +53,9 @@ class Media3VideoPlayerNew(
     private var currentChannelLine = ChannelLine()
     private val formatFallbackQueue = LinkedList<Int>()
     private var forcedContentType: Int? = null
+    private var positionUpdateJob: Job? = null
+    private var retryPlaybackJob: Job? = null
+    private var retryPlaybackCount = 0
     
     private val mediaSourceFactory = MediaSourceFactory(
         context = context,
@@ -349,6 +352,7 @@ class Media3VideoPlayerNew(
                     stateManager.updateIsBuffering(false)
                     stateManager.updateError(null)
                     errorHandler.resetRetryCount()
+                    retryPlaybackCount = 0
                     updateDuration()
                     updateTracks()
                     startPositionUpdate()
@@ -402,9 +406,12 @@ class Media3VideoPlayerNew(
     }
     
     private fun retryPlayback() {
-        playerScope.launch {
+        if (retryPlaybackCount >= MAX_RETRY_PLAYBACK) return
+        retryPlaybackJob?.cancel()
+        retryPlaybackJob = playerScope.launch {
             delay(2000L)
             if (!isReleased.get()) {
+                retryPlaybackCount++
                 videoPlayer?.seekToDefaultPosition()
                 videoPlayer?.prepare()
             }
@@ -541,8 +548,8 @@ class Media3VideoPlayerNew(
     
     private fun startPositionUpdate() {
         if (isReleased.get()) return
-        
-        playerScope.launch {
+        positionUpdateJob?.cancel()
+        positionUpdateJob = playerScope.launch {
             while (isActive && !isReleased.get()) {
                 videoPlayer?.let { stateManager.updateCurrentPosition(calculateCurrentPosition(it)) }
                 delay(POSITION_UPDATE_INTERVAL_MS)
@@ -588,5 +595,6 @@ class Media3VideoPlayerNew(
         private const val BUFFER_PLAYBACK_RESUME_MS = 2000
         private const val POSITION_UPDATE_INTERVAL_MS = 500L
         private const val SEEK_INCREMENT_MS = 10000L
+        private const val MAX_RETRY_PLAYBACK = 3
     }
 }

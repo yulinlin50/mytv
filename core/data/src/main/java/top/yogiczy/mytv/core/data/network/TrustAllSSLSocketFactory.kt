@@ -43,12 +43,18 @@ object TrustAllSSLSocketFactory {
         sslContext.socketFactory!!
     }
     
+    private val safeSslContext: SSLContext by lazy {
+        val context = SSLContext.getInstance("TLS")
+        context.init(null, arrayOf(safeTrustManager), null)
+        context
+    }
+    
     fun getSSLSocketFactory(trustAll: Boolean): SSLSocketFactory {
         return if (trustAll) {
             Log.w(TAG, "Using unsafe SSL configuration - certificate validation disabled")
             unsafeSslSocketFactory
         } else {
-            SSLContext.getDefault().socketFactory
+            safeSslContext.socketFactory
         }
     }
     

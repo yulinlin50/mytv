@@ -37,14 +37,15 @@ fun FavoritesScreen(
     epgListProvider: () -> EpgList = { EpgList() },
     onBackPressed: () -> Unit = {},
 ) {
-    val channelFavoriteGroupList =
-        ChannelGroupList(channelFavoriteListProvider().let { channelFavoriteList ->
+    val channelFavoriteList = channelFavoriteListProvider()
+    val channelFavoriteGroupList = remember(channelFavoriteList) {
+        ChannelGroupList(channelFavoriteList.let {
             val groupAll = ChannelGroup(
                 name = "全部",
-                channelList = ChannelList(channelFavoriteList.map { it.channel })
+                channelList = ChannelList(it.map { it.channel })
             )
 
-            listOf(groupAll) + channelFavoriteList
+            listOf(groupAll) + it
                 .groupBy { it.iptvSourceName }
                 .map { (iptvSourceName, channelFavoriteList) ->
                     ChannelGroup(
@@ -53,6 +54,7 @@ fun FavoritesScreen(
                     )
                 }
         })
+    }
 
     var currentChannelGroupIdx by rememberSaveable { mutableIntStateOf(0) }
     val currentChannelGroup = remember(currentChannelGroupIdx, channelFavoriteGroupList) {

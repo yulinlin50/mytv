@@ -28,12 +28,6 @@ enum class PlayerErrorType(val isRecoverable: Boolean) {
     }
 }
 
-interface RecoveryCallback {
-    fun onRetry(retryCount: Int, maxRetries: Int)
-    fun onPlayerSwitch()
-    fun onRecoveryFailed()
-}
-
 class PlayerErrorHandler(
     private val stateManager: VideoPlayerStateManager,
     private val coroutineScope: CoroutineScope
@@ -42,16 +36,11 @@ class PlayerErrorHandler(
 
     private var retryCount = 0
     private var recoveryJob: Job? = null
-    private var recoveryCallback: RecoveryCallback? = null
 
     companion object {
         private const val MAX_RETRY_COUNT = 3
         private const val INITIAL_RETRY_DELAY_MS = 1000L
         private const val MAX_RETRY_DELAY_MS = 4000L
-    }
-
-    fun setRecoveryCallback(callback: RecoveryCallback) {
-        this.recoveryCallback = callback
     }
 
     fun resetRetryCount() {
@@ -107,7 +96,6 @@ class PlayerErrorHandler(
     private fun attemptRecovery(errorType: PlayerErrorType) {
         if (retryCount >= MAX_RETRY_COUNT) {
             log.w("Max retry count reached, recovery failed")
-            recoveryCallback?.onRecoveryFailed()
             return
         }
 
@@ -119,7 +107,6 @@ class PlayerErrorHandler(
             delay(delayMs)
 
             retryCount++
-            recoveryCallback?.onRetry(retryCount, MAX_RETRY_COUNT)
 
             when (errorType) {
                 PlayerErrorType.NETWORK, PlayerErrorType.TIMEOUT -> {
@@ -127,7 +114,6 @@ class PlayerErrorHandler(
                 }
                 PlayerErrorType.DECODER, PlayerErrorType.FORMAT -> {
                     log.i("Switching player for decoder/format error")
-                    recoveryCallback?.onPlayerSwitch()
                 }
                 else -> {
                     log.w("Unknown recoverable error type: $errorType")
