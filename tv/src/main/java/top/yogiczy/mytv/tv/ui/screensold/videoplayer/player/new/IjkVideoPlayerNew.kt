@@ -422,14 +422,12 @@ class IjkVideoPlayerNew(
                 }
                 player?.selectTrack(candidate.streamIndex)
             }
-            
-            if (runCatching { player?.selectTrack(candidate.streamIndex) }.isSuccess) {
-                audioTrackState.updateAndGet { state ->
-                    val updatedCandidates = state.candidates.map { c ->
-                        c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
-                    }
-                    state.copy(candidates = updatedCandidates)
+
+            audioTrackState.updateAndGet { state ->
+                val updatedCandidates = state.candidates.map { c ->
+                    c.copy(metadata = c.metadata.copy(isSelected = c.streamIndex == candidate.streamIndex))
                 }
+                state.copy(candidates = updatedCandidates)
             }
         }
     }

@@ -1,7 +1,6 @@
 package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new
 
 import android.content.Context
-import android.net.Uri
 import android.view.SurfaceView
 import android.view.TextureView
 import androidx.annotation.OptIn
@@ -14,7 +13,6 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -55,7 +53,6 @@ class Media3VideoPlayerNew(
     private var currentChannelLine = ChannelLine()
     private val formatFallbackQueue = LinkedList<Int>()
     private var forcedContentType: Int? = null
-    private var lastUsedContentType: Int = C.CONTENT_TYPE_OTHER
     
     private val mediaSourceFactory = MediaSourceFactory(
         context = context,
@@ -117,6 +114,15 @@ class Media3VideoPlayerNew(
         currentChannelLine = line
         formatFallbackQueue.clear()
         forcedContentType = null
+        
+        internalPrepare(line)
+    }
+
+    private fun internalPrepare(line: ChannelLine) {
+        if (isReleased.get()) return
+        
+        currentChannelLine = line
+        // 不清空 formatFallbackQueue — 由 handleParsingError 管理格式降级队列
         
         updatePlaybackModeState(line)
         
@@ -268,12 +274,7 @@ class Media3VideoPlayerNew(
     }
     
     private fun createMediaSource(): MediaSource? {
-        val mediaSource = mediaSourceFactory.create(currentChannelLine, forcedContentType)
-        if (mediaSource != null) {
-            val uriString = if (playbackModeState.get().isPlayback) currentChannelLine.url else currentChannelLine.playableUrl
-            lastUsedContentType = Util.inferContentType(Uri.parse(uriString))
-        }
-        return mediaSource
+        return mediaSourceFactory.create(currentChannelLine, forcedContentType)
     }
     
     private fun Int.fromIndexFindTrack(type: @C.TrackType Int): Pair<TrackGroup, Int>? {
@@ -383,13 +384,12 @@ class Media3VideoPlayerNew(
             )
         }
 
-        val nextType = formatFallbackQueue.poll()
-        if (nextType != null && nextType != lastUsedContentType) {
-            forcedContentType = nextType
-            prepare(currentChannelLine)
-        } else {
+        val nextType = formatFallbackQueue.poll() ?: run {
             errorHandler.handleMedia3Error(ex)
+            return
         }
+        forcedContentType = nextType
+        internalPrepare(currentChannelLine)
     }
     
     private fun handleDecoderInitError(ex: androidx.media3.common.PlaybackException) {
@@ -578,7 +578,7 @@ class Media3VideoPlayerNew(
             textureView?.let { setVideoTextureView(it) }
         }
         
-        prepare(currentChannelLine)
+        internalPrepare(currentChannelLine)
     }
 
     companion object {

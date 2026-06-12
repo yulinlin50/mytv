@@ -81,6 +81,12 @@ data class PlayerMetadata(
         }
 
         override fun hashCode(): Int = trackId?.hashCode() ?: (index ?: 0)
+
+        val shortLabel: String
+            get() = listOfNotNull(
+                title?.takeIf { it != language?.trim()?.lowercase() },
+                language?.humanizeLanguage()
+            ).joinToString(", ")
     }
 
     data class SubtitleTrack(

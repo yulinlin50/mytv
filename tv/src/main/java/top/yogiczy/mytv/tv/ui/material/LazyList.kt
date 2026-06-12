@@ -73,7 +73,7 @@ fun rememberLazyListRuntime(
 inline fun <T> LazyListScope.items(
     items: List<T>,
     runtime: LazyListRuntime,
-    key: (item: T) -> Any = { items.indexOf(it) },
+    crossinline key: (item: T) -> Any = { items.indexOf(it) },
     crossinline contentType: (item: T) -> Any? = { null },
     crossinline itemContent: @Composable LazyItemScope.(itemModifier: Modifier, item: T) -> Unit,
 ) = items(
@@ -119,7 +119,7 @@ inline fun <T> LazyListScope.items(
 inline fun <T> LazyListScope.itemsIndexed(
     items: List<T>,
     runtime: LazyListRuntime,
-    key: (index: Int, item: T) -> Any = { index, _ -> index },
+    crossinline key: (index: Int, item: T) -> Any = { index, _ -> index },
     crossinline contentType: (index: Int, item: T) -> Any? = { _, _ -> null },
     crossinline itemContent: @Composable (LazyItemScope.(itemModifier: Modifier, index: Int, item: T) -> Unit),
 ) = items(
