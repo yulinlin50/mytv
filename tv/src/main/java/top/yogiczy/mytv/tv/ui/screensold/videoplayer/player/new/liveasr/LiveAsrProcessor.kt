@@ -1,6 +1,11 @@
 package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr
 
 import android.content.Context
+import android.graphics.Color
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
 import androidx.media3.common.text.Cue
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.nl.languageid.LanguageIdentification
@@ -65,9 +70,13 @@ class LiveAsrProcessor(
                     processAudioBuffer()
                     delay(BUFFER_DURATION_MS)
                 }
-            } catch (e: Exception) {
-                // 引擎初始化失败，静默处理
+            } catch (e: Throwable) {
+                // 引擎初始化失败（包括 UnsatisfiedLinkError 等 Error），静默处理
+                withContext(Dispatchers.Main) {
+                    onCues(emptyList())
+                }
             } finally {
+                running.set(false)
                 releaseEngines()
             }
         }
@@ -126,9 +135,26 @@ class LiveAsrProcessor(
             }
         } ?: recognizedText
 
-        // 生成字幕 Cue
+        // 生成字幕 Cue（应用样式和位置配置）
+        val styledText = applySubtitleStyle(translatedText)
+
         val cue = Cue.Builder()
-            .setText(translatedText)
+            .setText(styledText)
+            .apply {
+                when (Configs.subtitleLivePosition) {
+                    "top" -> {
+                        setPosition(0.5f)
+                        setLine(0.1f, Cue.LINE_TYPE_FRACTION)
+                        setAnchor(Cue.ANCHOR_TYPE_START)
+                    }
+                    "center" -> {
+                        setPosition(0.5f)
+                        setLine(0.5f, Cue.LINE_TYPE_FRACTION)
+                        setAnchor(Cue.ANCHOR_TYPE_MIDDLE)
+                    }
+                    // "bottom" 使用默认值，不额外设置
+                }
+            }
             .build()
 
         withContext(Dispatchers.Main) {
@@ -211,5 +237,42 @@ class LiveAsrProcessor(
             translateEngine = null
             languageId = null
         }
+    }
+
+    /**
+     * 应用字幕样式：文字颜色 + 背景颜色
+     */
+    private fun applySubtitleStyle(text: String): SpannableString {
+        val spannable = SpannableString(text)
+
+        // 文字颜色
+        val textColor = when (Configs.subtitleLiveTextColor) {
+            "yellow" -> Color.YELLOW
+            "green" -> Color.GREEN
+            "cyan" -> Color.CYAN
+            else -> Color.WHITE
+        }
+        spannable.setSpan(
+            ForegroundColorSpan(textColor),
+            0, text.length,
+            SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+
+        // 背景颜色
+        val bgColor = when (Configs.subtitleLiveBgColor) {
+            "black" -> Color.BLACK
+            "semi-transparent" -> Color.argb(180, 0, 0, 0)
+            "none" -> null
+            else -> Color.argb(180, 0, 0, 0)
+        }
+        if (bgColor != null) {
+            spannable.setSpan(
+                BackgroundColorSpan(bgColor),
+                0, text.length,
+                SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        return spannable
     }
 }

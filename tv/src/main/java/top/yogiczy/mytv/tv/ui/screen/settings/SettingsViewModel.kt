@@ -615,6 +615,42 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
+    private var _subtitleLiveFontSize by mutableStateOf("medium")
+    var subtitleLiveFontSize: String
+        get() = _subtitleLiveFontSize
+        set(value) {
+            _subtitleLiveFontSize = value
+            Configs.subtitleLiveFontSize = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveTextColor by mutableStateOf("white")
+    var subtitleLiveTextColor: String
+        get() = _subtitleLiveTextColor
+        set(value) {
+            _subtitleLiveTextColor = value
+            Configs.subtitleLiveTextColor = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveBgColor by mutableStateOf("semi-transparent")
+    var subtitleLiveBgColor: String
+        get() = _subtitleLiveBgColor
+        set(value) {
+            _subtitleLiveBgColor = value
+            Configs.subtitleLiveBgColor = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLivePosition by mutableStateOf("bottom")
+    var subtitleLivePosition: String
+        get() = _subtitleLivePosition
+        set(value) {
+            _subtitleLivePosition = value
+            Configs.subtitleLivePosition = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
     private var _themeAppCurrent by mutableStateOf<AppThemeDef?>(null)
     var themeAppCurrent: AppThemeDef?
         get() = _themeAppCurrent
@@ -827,6 +863,10 @@ class SettingsViewModel : ViewModel() {
         _subtitleLiveTranslateApiKey = Configs.subtitleLiveTranslateApiKey
         _subtitleLiveTranslateRegion = Configs.subtitleLiveTranslateRegion
         _subtitleLiveTranslateTarget = Configs.subtitleLiveTranslateTarget
+        _subtitleLiveFontSize = Configs.subtitleLiveFontSize
+        _subtitleLiveTextColor = Configs.subtitleLiveTextColor
+        _subtitleLiveBgColor = Configs.subtitleLiveBgColor
+        _subtitleLivePosition = Configs.subtitleLivePosition
         _themeAppCurrent = Configs.themeAppCurrent
         _themeTextureAlpha = Configs.themeTextureAlpha
         _cloudSyncAutoPull = Configs.cloudSyncAutoPull

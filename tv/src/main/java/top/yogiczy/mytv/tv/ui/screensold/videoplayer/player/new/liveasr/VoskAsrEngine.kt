@@ -23,14 +23,14 @@ class VoskAsrEngine : AsrEngine {
             // 确保模型已下载（未下载则自动下载 + 通知栏进度）
             val modelDir: File = try {
                 ModelManager.ensureModel(context, ModelManager.VOSK_EN)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 throw IllegalStateException("Vosk 模型不可用: ${e.message}")
             }
 
             this.model = Model(modelDir.absolutePath)
             this.recognizer = Recognizer(this.model, 16000f)
             this.running = true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             running = false
             throw e
         }

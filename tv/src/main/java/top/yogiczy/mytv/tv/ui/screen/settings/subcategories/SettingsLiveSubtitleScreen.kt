@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
@@ -31,6 +33,10 @@ fun SettingsLiveSubtitleScreen(
     var showAsrRegionDialog by remember { mutableStateOf(false) }
     var showTranslateApiKeyDialog by remember { mutableStateOf(false) }
     var showTranslateRegionDialog by remember { mutableStateOf(false) }
+    var showFontSizeSelector by remember { mutableStateOf(false) }
+    var showTextColorSelector by remember { mutableStateOf(false) }
+    var showBgColorSelector by remember { mutableStateOf(false) }
+    var showPositionSelector by remember { mutableStateOf(false) }
 
     val asrProvider = settingsViewModel.subtitleLiveAsrProvider
     val translateProvider = settingsViewModel.subtitleLiveTranslateProvider
@@ -170,11 +176,84 @@ fun SettingsLiveSubtitleScreen(
         )
     }
 
+    // 字幕字体大小选择器
+    if (showFontSizeSelector) {
+        SettingsSelectionScreen(
+            title = "字幕字体大小",
+            options = listOf(
+                SelectionOption("small", "小"),
+                SelectionOption("medium", "中（默认）"),
+                SelectionOption("large", "大"),
+            ),
+            selectedProvider = { settingsViewModel.subtitleLiveFontSize },
+            onSelected = { value ->
+                settingsViewModel.subtitleLiveFontSize = value
+                showFontSizeSelector = false
+            },
+            onBackPressed = { showFontSizeSelector = false },
+        )
+    }
+
+    // 字幕文字颜色选择器
+    if (showTextColorSelector) {
+        SettingsSelectionScreen(
+            title = "字幕文字颜色",
+            options = listOf(
+                SelectionOption("white", "白色（默认）"),
+                SelectionOption("yellow", "黄色"),
+                SelectionOption("green", "绿色"),
+                SelectionOption("cyan", "青色"),
+            ),
+            selectedProvider = { settingsViewModel.subtitleLiveTextColor },
+            onSelected = { value ->
+                settingsViewModel.subtitleLiveTextColor = value
+                showTextColorSelector = false
+            },
+            onBackPressed = { showTextColorSelector = false },
+        )
+    }
+
+    // 字幕背景颜色选择器
+    if (showBgColorSelector) {
+        SettingsSelectionScreen(
+            title = "字幕背景颜色",
+            options = listOf(
+                SelectionOption("semi-transparent", "半透明黑（默认）"),
+                SelectionOption("black", "纯黑"),
+                SelectionOption("none", "无背景"),
+            ),
+            selectedProvider = { settingsViewModel.subtitleLiveBgColor },
+            onSelected = { value ->
+                settingsViewModel.subtitleLiveBgColor = value
+                showBgColorSelector = false
+            },
+            onBackPressed = { showBgColorSelector = false },
+        )
+    }
+
+    // 字幕显示位置选择器
+    if (showPositionSelector) {
+        SettingsSelectionScreen(
+            title = "字幕显示位置",
+            options = listOf(
+                SelectionOption("bottom", "底部（默认）"),
+                SelectionOption("center", "居中"),
+                SelectionOption("top", "顶部"),
+            ),
+            selectedProvider = { settingsViewModel.subtitleLivePosition },
+            onSelected = { value ->
+                settingsViewModel.subtitleLivePosition = value
+                showPositionSelector = false
+            },
+            onBackPressed = { showPositionSelector = false },
+        )
+    }
+
     // 主列表
     SettingsCategoryScreen(
         header = { Text("实时字幕设置") },
         onBackPressed = onBackPressed,
-    ) {
+    ) { firstItemFocusRequester ->
         // 语音识别部分
         item {
             Text(
@@ -187,6 +266,7 @@ fun SettingsLiveSubtitleScreen(
 
         item {
             SettingsListItem(
+                modifier = Modifier.focusRequester(firstItemFocusRequester),
                 headlineContent = "语音识别引擎",
                 supportingContent = asrProviderLabel(asrProvider),
                 onSelect = { showAsrProviderSelector = true },
@@ -306,6 +386,62 @@ fun SettingsLiveSubtitleScreen(
                 link = true,
             )
         }
+
+        // 字幕样式部分
+        item {
+            Text(
+                "字幕样式",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+            )
+        }
+
+        item {
+            SettingsListItem(
+                headlineContent = "字体大小",
+                supportingContent = fontSizeLabel(settingsViewModel.subtitleLiveFontSize),
+                onSelect = { showFontSizeSelector = true },
+                link = true,
+            )
+        }
+
+        item {
+            SettingsListItem(
+                headlineContent = "文字颜色",
+                supportingContent = textColorLabel(settingsViewModel.subtitleLiveTextColor),
+                onSelect = { showTextColorSelector = true },
+                link = true,
+            )
+        }
+
+        item {
+            SettingsListItem(
+                headlineContent = "背景颜色",
+                supportingContent = bgColorLabel(settingsViewModel.subtitleLiveBgColor),
+                onSelect = { showBgColorSelector = true },
+                link = true,
+            )
+        }
+
+        // 字幕位置部分
+        item {
+            Text(
+                "字幕位置",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+            )
+        }
+
+        item {
+            SettingsListItem(
+                headlineContent = "显示位置",
+                supportingContent = positionLabel(settingsViewModel.subtitleLivePosition),
+                onSelect = { showPositionSelector = true },
+                link = true,
+            )
+        }
     }
 }
 
@@ -345,6 +481,35 @@ private fun targetLangLabel(code: String): String = when (code) {
     else -> code
 }
 
+private fun fontSizeLabel(size: String): String = when (size) {
+    "small" -> "小"
+    "medium" -> "中"
+    "large" -> "大"
+    else -> size
+}
+
+private fun textColorLabel(color: String): String = when (color) {
+    "white" -> "白色"
+    "yellow" -> "黄色"
+    "green" -> "绿色"
+    "cyan" -> "青色"
+    else -> color
+}
+
+private fun bgColorLabel(color: String): String = when (color) {
+    "semi-transparent" -> "半透明黑"
+    "black" -> "纯黑"
+    "none" -> "无背景"
+    else -> color
+}
+
+private fun positionLabel(position: String): String = when (position) {
+    "bottom" -> "底部"
+    "center" -> "居中"
+    "top" -> "顶部"
+    else -> position
+}
+
 private fun apiKeyDisplay(key: String): String =
     if (key.isBlank()) "未设置"
     else if (key.length <= 4) "****"
@@ -369,9 +534,10 @@ private fun ApiKeyInputDialog(
                 onDismiss()
             }
         },
-    ) {
+    ) { firstItemFocusRequester ->
         item {
             SettingsListItem(
+                modifier = Modifier.focusRequester(firstItemFocusRequester),
                 headlineContent = "输入 $title",
                 supportingContent = input.ifBlank { "请通过推送输入或按返回键清空" },
             )

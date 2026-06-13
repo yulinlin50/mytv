@@ -234,10 +234,12 @@ class Media3VideoPlayerNew(
         liveAsrProcessor?.stop()
         liveAsrProcessor = null
         audioCaptureProcessor.setActive(false)
+        // 清除实时字幕，恢复内嵌字幕
+        stateManager.updateCues(emptyList())
     }
 
     override fun toggleLiveSubtitle() {
-        if (liveAsrProcessor?.isRunning() == true) {
+        if (liveAsrProcessor != null) {
             stopLiveSubtitle()
         } else {
             startLiveSubtitle()
@@ -354,7 +356,7 @@ class Media3VideoPlayerNew(
     private val playerListener = object : Player.Listener {
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
             // 实时字幕运行时，跳过内嵌字幕更新，避免覆盖
-            if (liveAsrProcessor?.isRunning() != true) {
+            if (liveAsrProcessor == null) {
                 stateManager.updateCues(cueGroup.cues)
             }
         }

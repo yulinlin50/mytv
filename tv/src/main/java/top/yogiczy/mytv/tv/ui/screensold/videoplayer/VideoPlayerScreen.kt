@@ -80,12 +80,30 @@ fun VideoPlayerScreen(
 
         if (state.instance is Media3VideoPlayerNew) {
             val cues by state.instance.cues.collectAsState()
+            val position = Configs.subtitleLivePosition
+            val fontSize = Configs.subtitleLiveFontSize
+
+            val alignment = when (position) {
+                "top" -> Alignment.TopCenter
+                "center" -> Alignment.Center
+                else -> Alignment.BottomCenter
+            }
+
+            val fontSizeFraction = when (fontSize) {
+                "small" -> 0.04f
+                "large" -> 0.08f
+                else -> 0.06f
+            }
+
             AndroidView(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(alignment)
                     .fillMaxWidth(),
                 factory = { SubtitleView(context) },
-                update = { it.setCues(cues) },
+                update = { view ->
+                    view.setCues(cues)
+                    view.setFractionalTextSize(fontSizeFraction)
+                },
             )
         }
     }

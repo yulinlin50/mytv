@@ -129,6 +129,18 @@ object Configs {
         /** 翻译目标语言：zh / en / ja / ko 等（默认 zh） */
         SUBTITLE_LIVE_TRANSLATE_TARGET,
 
+        /** 字幕字体大小：small / medium / large */
+        SUBTITLE_LIVE_FONT_SIZE,
+
+        /** 字幕文字颜色：white / yellow / green / cyan */
+        SUBTITLE_LIVE_TEXT_COLOR,
+
+        /** 字幕背景颜色：none / black / semi-transparent */
+        SUBTITLE_LIVE_BG_COLOR,
+
+        /** 字幕显示位置：bottom / center / top */
+        SUBTITLE_LIVE_POSITION,
+
         /** ==================== 节目单 ==================== */
         /** 启用节目单 */
         EPG_ENABLE,
@@ -691,7 +703,27 @@ object Configs {
         get() = SP.getString(KEY.SUBTITLE_LIVE_TRANSLATE_TARGET.name, "zh")
         set(value) = SP.putString(KEY.SUBTITLE_LIVE_TRANSLATE_TARGET.name, value)
 
-    
+    /** 字幕字体大小 */
+    var subtitleLiveFontSize: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_FONT_SIZE.name, "medium")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_FONT_SIZE.name, value)
+
+    /** 字幕文字颜色 */
+    var subtitleLiveTextColor: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_TEXT_COLOR.name, "white")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_TEXT_COLOR.name, value)
+
+    /** 字幕背景颜色 */
+    var subtitleLiveBgColor: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_BG_COLOR.name, "semi-transparent")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_BG_COLOR.name, value)
+
+    /** 字幕显示位置 */
+    var subtitleLivePosition: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_POSITION.name, "bottom")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_POSITION.name, value)
+
+
     /** ==================== 主题 ==================== */
     /** 当前应用主题 */
     var themeAppCurrent: AppThemeDef?
