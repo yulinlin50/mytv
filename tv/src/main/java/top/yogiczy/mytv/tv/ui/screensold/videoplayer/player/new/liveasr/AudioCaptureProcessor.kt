@@ -64,6 +64,8 @@ class AudioCaptureProcessor : AudioProcessor {
         listeners.remove(listener)
     }
 
+    override fun getOutput(): Int = inputAudioFormat
+
     override fun queueEndOfStream() {
         // 不需要特殊处理
     }

@@ -274,7 +274,11 @@ class Media3VideoPlayerNew(
     }
 
     private fun createPlayer(): ExoPlayer {
-        val renderersFactory = DefaultRenderersFactory(context)
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildAudioProcessors(): Array<AudioProcessor> {
+                return arrayOf(audioCaptureProcessor)
+            }
+        }
             .setExtensionRendererMode(
                 if (softDecode.get() ?: Configs.videoPlayerForceAudioSoftDecode)
                     DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
@@ -304,7 +308,6 @@ class Media3VideoPlayerNew(
             .setRenderersFactory(renderersFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
-            .setAudioProcessors(audioCaptureProcessor)
             .setSeekBackIncrementMs(SEEK_INCREMENT_MS)
             .setSeekForwardIncrementMs(SEEK_INCREMENT_MS)
             .build()
