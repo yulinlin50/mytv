@@ -297,7 +297,6 @@ class Media3VideoPlayerNew(
                 else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
             )
             .setEnableDecoderFallback(true)
-            .setEnableAudioOffload(false)  // 禁用音频offload，确保所有音频格式都经过AudioSink，实时字幕才能捕获音频
         
         val trackSelector = DefaultTrackSelector(context).apply {
             parameters = buildUponParameters()
