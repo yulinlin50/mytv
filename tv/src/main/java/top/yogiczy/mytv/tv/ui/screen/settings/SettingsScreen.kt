@@ -45,6 +45,7 @@ import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerC
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerDisplayModeScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerLoadTimeoutScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerRenderModeScreen
+import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsLiveSubtitleScreen
 import top.yogiczy.mytv.tv.ui.utils.navigateSingleTop
 
 object SettingsScreen {
@@ -175,6 +176,16 @@ fun SettingsScreen(
                         toVideoPlayerLoadTimeoutScreen = {
                             navController.navigateSingleTop(SettingsSubCategories.VIDEO_PLAYER_LOAD_TIMEOUT.name)
                         },
+                        toLiveSubtitleScreen = {
+                            navController.navigateSingleTop(SettingsSubCategories.VIDEO_PLAYER_LIVE_SUBTITLE.name)
+                        },
+                        onBackPressed = { navController.navigateUp() },
+                    )
+                }
+
+                composable(SettingsSubCategories.VIDEO_PLAYER_LIVE_SUBTITLE.name) {
+                    SettingsLiveSubtitleScreen(
+                        settingsViewModel = settingsViewModel,
                         onBackPressed = { navController.navigateUp() },
                     )
                 }

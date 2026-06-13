@@ -37,6 +37,8 @@ interface IVideoPlayer {
     fun isPlaybackMode(): Boolean
     fun getPlaybackTimeRange(): Pair<Long, Long>?
 
+    fun toggleLiveSubtitle()
+
     val cues: StateFlow<List<Cue>>
 }
 

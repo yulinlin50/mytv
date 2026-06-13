@@ -90,6 +90,7 @@ class VideoPlayerStateNew(
     fun selectVideoTrack(track: PlayerMetadata.VideoTrack?) { instance.selectVideoTrack(track) }
     fun selectAudioTrack(track: PlayerMetadata.AudioTrack?) { instance.selectAudioTrack(track) }
     fun selectSubtitleTrack(track: PlayerMetadata.SubtitleTrack?) { instance.selectSubtitleTrack(track) }
+    fun toggleLiveSubtitle() { instance.toggleLiveSubtitle() }
     fun setVideoSurfaceView(surfaceView: SurfaceView) { instance.setVideoSurfaceView(surfaceView) }
     fun setVideoTextureView(textureView: TextureView) { instance.setVideoTextureView(textureView) }
     

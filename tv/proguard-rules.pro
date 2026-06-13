@@ -32,3 +32,10 @@
 -dontwarn dalvik.system.VMStack
 -keep class com.tencent.smtt.** { *; }
 -keep class com.tencent.tbs.** { *; }
+
+# ========== 实时字幕：Vosk ==========
+-keep class org.vosk.** { *; }
+-keep class com.alphacephei.** { *; }
+
+# ========== 实时字幕：ML Kit ==========
+-keep class com.google.mlkit.** { *; }

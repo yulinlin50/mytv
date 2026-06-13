@@ -53,6 +53,7 @@ fun QuickOpBtnList(
     onShowMoreSettings: () -> Unit = {},
     onClearCache: () -> Unit = {},
     toDashboardScreen: () -> Unit = {},
+    onToggleLiveSubtitle: () -> Unit = {},
     onUserAction: () -> Unit = {},
     onDismissRequest: () -> Unit = {},
 ) {
@@ -154,6 +155,19 @@ fun QuickOpBtnList(
                     onSelect = onShowSubtitleTracks,
                 )
             }
+        }
+
+        // 实时字幕
+        item {
+            QuickOpBtn(
+                title = if (Configs.subtitleLiveEnable) "实时字幕✓" else "实时字幕",
+                imageVector = Icons.Outlined.Subtitles,
+                onSelect = {
+                    Configs.subtitleLiveEnable = !Configs.subtitleLiveEnable
+                    onToggleLiveSubtitle()
+                    onUserAction()
+                },
+            )
         }
 
         item {

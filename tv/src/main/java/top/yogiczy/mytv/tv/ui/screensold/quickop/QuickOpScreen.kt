@@ -63,6 +63,7 @@ fun QuickOpScreen(
     onClearCache: () -> Unit = {},
     toSettingsScreen: (SettingsSubCategories?) -> Unit = {},
     toDashboardScreen: () -> Unit = {},
+    onToggleLiveSubtitle: () -> Unit = {},
     onClose: () -> Unit = {},
 ) {
     val screenAutoCloseState = rememberScreenAutoCloseState(onTimeout = onClose)
@@ -99,6 +100,7 @@ fun QuickOpScreen(
             onShowMoreSettings = { toSettingsScreen(null) },
             onClearCache = onClearCache,
             toDashboardScreen = toDashboardScreen,
+            onToggleLiveSubtitle = onToggleLiveSubtitle,
             onUserAction = { screenAutoCloseState.active() },
             onDismissRequest = onClose,
         )
@@ -161,6 +163,7 @@ private fun QuickOpScreenBottom(
     onShowMoreSettings: () -> Unit = {},
     onClearCache: () -> Unit = {},
     toDashboardScreen: () -> Unit = {},
+    onToggleLiveSubtitle: () -> Unit = {},
     onUserAction: () -> Unit = {},
     onDismissRequest: () -> Unit = {},
 ) {
@@ -211,6 +214,7 @@ private fun QuickOpScreenBottom(
                 onShowSubtitleTracks = onShowSubtitleTracks,
                 onClearCache = onClearCache,
                 toDashboardScreen = toDashboardScreen,
+                onToggleLiveSubtitle = onToggleLiveSubtitle,
                 onUserAction = onUserAction,
                 onDismissRequest = onDismissRequest,
             )

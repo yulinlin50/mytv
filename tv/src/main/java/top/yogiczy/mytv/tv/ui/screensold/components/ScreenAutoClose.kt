@@ -5,10 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.consumeAsFlow
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.delay
 import top.yogiczy.mytv.core.data.utils.Constants
 
 @Stable
@@ -17,15 +14,20 @@ class ScreenAutoClose internal constructor(
     private val onTimeout: () -> Unit = {},
 ) {
     fun active() {
-        channel.trySend(timeout)
+        lastActiveTime = System.currentTimeMillis()
     }
 
-    private val channel = Channel<Long>(Channel.CONFLATED)
+    @Volatile
+    private var lastActiveTime = System.currentTimeMillis()
 
-    @OptIn(FlowPreview::class)
     suspend fun observe() {
-        channel.consumeAsFlow().debounce { it }.collect {
-            onTimeout()
+        while (true) {
+            val elapsed = System.currentTimeMillis() - lastActiveTime
+            if (elapsed >= timeout) {
+                onTimeout()
+                return
+            }
+            delay((timeout - elapsed).coerceIn(0, 1000))
         }
     }
 }

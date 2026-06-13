@@ -530,6 +530,91 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
+    // ========== 实时字幕：识别 ==========
+
+    private var _subtitleLiveEnable by mutableStateOf(false)
+    var subtitleLiveEnable: Boolean
+        get() = _subtitleLiveEnable
+        set(value) {
+            _subtitleLiveEnable = value
+            Configs.subtitleLiveEnable = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveAsrProvider by mutableStateOf("vosk")
+    var subtitleLiveAsrProvider: String
+        get() = _subtitleLiveAsrProvider
+        set(value) {
+            _subtitleLiveAsrProvider = value
+            Configs.subtitleLiveAsrProvider = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveAsrApiKey by mutableStateOf("")
+    var subtitleLiveAsrApiKey: String
+        get() = _subtitleLiveAsrApiKey
+        set(value) {
+            _subtitleLiveAsrApiKey = value
+            Configs.subtitleLiveAsrApiKey = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveAsrRegion by mutableStateOf("")
+    var subtitleLiveAsrRegion: String
+        get() = _subtitleLiveAsrRegion
+        set(value) {
+            _subtitleLiveAsrRegion = value
+            Configs.subtitleLiveAsrRegion = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveWhisperModel by mutableStateOf("tiny")
+    var subtitleLiveWhisperModel: String
+        get() = _subtitleLiveWhisperModel
+        set(value) {
+            _subtitleLiveWhisperModel = value
+            Configs.subtitleLiveWhisperModel = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    // ========== 实时字幕：翻译 ==========
+
+    private var _subtitleLiveTranslateProvider by mutableStateOf("mlkit")
+    var subtitleLiveTranslateProvider: String
+        get() = _subtitleLiveTranslateProvider
+        set(value) {
+            _subtitleLiveTranslateProvider = value
+            Configs.subtitleLiveTranslateProvider = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveTranslateApiKey by mutableStateOf("")
+    var subtitleLiveTranslateApiKey: String
+        get() = _subtitleLiveTranslateApiKey
+        set(value) {
+            _subtitleLiveTranslateApiKey = value
+            Configs.subtitleLiveTranslateApiKey = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveTranslateRegion by mutableStateOf("")
+    var subtitleLiveTranslateRegion: String
+        get() = _subtitleLiveTranslateRegion
+        set(value) {
+            _subtitleLiveTranslateRegion = value
+            Configs.subtitleLiveTranslateRegion = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveTranslateTarget by mutableStateOf("zh")
+    var subtitleLiveTranslateTarget: String
+        get() = _subtitleLiveTranslateTarget
+        set(value) {
+            _subtitleLiveTranslateTarget = value
+            Configs.subtitleLiveTranslateTarget = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
     private var _themeAppCurrent by mutableStateOf<AppThemeDef?>(null)
     var themeAppCurrent: AppThemeDef?
         get() = _themeAppCurrent
@@ -733,6 +818,15 @@ class SettingsViewModel : ViewModel() {
         _videoPlayerStopPreviousMediaItem = Configs.videoPlayerStopPreviousMediaItem
         _videoPlayerSkipMultipleFramesOnSameVSync = Configs.videoPlayerSkipMultipleFramesOnSameVSync
         _videoPlayerEnableVolumeFade = Configs.videoPlayerEnableVolumeFade
+        _subtitleLiveEnable = Configs.subtitleLiveEnable
+        _subtitleLiveAsrProvider = Configs.subtitleLiveAsrProvider
+        _subtitleLiveAsrApiKey = Configs.subtitleLiveAsrApiKey
+        _subtitleLiveAsrRegion = Configs.subtitleLiveAsrRegion
+        _subtitleLiveWhisperModel = Configs.subtitleLiveWhisperModel
+        _subtitleLiveTranslateProvider = Configs.subtitleLiveTranslateProvider
+        _subtitleLiveTranslateApiKey = Configs.subtitleLiveTranslateApiKey
+        _subtitleLiveTranslateRegion = Configs.subtitleLiveTranslateRegion
+        _subtitleLiveTranslateTarget = Configs.subtitleLiveTranslateTarget
         _themeAppCurrent = Configs.themeAppCurrent
         _themeTextureAlpha = Configs.themeTextureAlpha
         _cloudSyncAutoPull = Configs.cloudSyncAutoPull

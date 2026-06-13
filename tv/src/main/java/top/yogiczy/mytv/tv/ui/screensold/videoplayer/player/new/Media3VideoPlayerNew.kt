@@ -11,6 +11,7 @@ import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -30,6 +31,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import top.yogiczy.mytv.core.data.entities.channel.ChannelLine
+import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr.AudioCaptureProcessor
+import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr.LiveAsrProcessor
 import top.yogiczy.mytv.tv.ui.utils.Configs
 import java.util.LinkedList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -38,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference
 @OptIn(UnstableApi::class)
 class Media3VideoPlayerNew(
     private val context: Context,
-    coroutineScope: CoroutineScope
+    private val coroutineScope: CoroutineScope
 ) : BaseVideoPlayer(coroutineScope) {
     
     override val stateManager = VideoPlayerStateManager(coroutineScope)
@@ -56,6 +59,9 @@ class Media3VideoPlayerNew(
     private var positionUpdateJob: Job? = null
     private var retryPlaybackJob: Job? = null
     private var retryPlaybackCount = 0
+    
+    private val audioCaptureProcessor = AudioCaptureProcessor()
+    private var liveAsrProcessor: LiveAsrProcessor? = null
     
     private val mediaSourceFactory = MediaSourceFactory(
         context = context,
@@ -91,6 +97,8 @@ class Media3VideoPlayerNew(
     
     override fun release() {
         if (isReleased.getAndSet(true)) return
+        
+        stopLiveSubtitle()
         
         synchronized(playerLock) {
             videoPlayer?.stop()
@@ -197,14 +205,40 @@ class Media3VideoPlayerNew(
     }
     
     override fun selectSubtitleTrack(track: PlayerMetadata.SubtitleTrack?) {
-        if (track?.language == null) {
-            updateTrackSelectionParameters(C.TRACK_TYPE_TEXT, disabled = true)
+        selectTrackByIndex(C.TRACK_TYPE_TEXT, track?.index)
+    }
+
+    // ==================== 实时字幕 ====================
+
+    private val audioListener: (ByteArray) -> Unit = { data ->
+        liveAsrProcessor?.feedAudio(data)
+    }
+
+    fun startLiveSubtitle() {
+        if (liveAsrProcessor?.isRunning() == true) return
+        audioCaptureProcessor.addListener(audioListener)
+        audioCaptureProcessor.setActive(true)
+        liveAsrProcessor = LiveAsrProcessor(
+            context = context,
+            scope = coroutineScope,
+            onCues = { cues ->
+                stateManager.updateCues(cues)
+            }
+        ).also { it.start() }
+    }
+
+    fun stopLiveSubtitle() {
+        audioCaptureProcessor.removeListener(audioListener)
+        liveAsrProcessor?.stop()
+        liveAsrProcessor = null
+        audioCaptureProcessor.setActive(false)
+    }
+
+    override fun toggleLiveSubtitle() {
+        if (liveAsrProcessor?.isRunning() == true) {
+            stopLiveSubtitle()
         } else {
-            videoPlayer?.trackSelectionParameters = videoPlayer?.trackSelectionParameters
-                ?.buildUpon()
-                ?.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                ?.setPreferredTextLanguages(track.language)
-                ?.build() ?: return
+            startLiveSubtitle()
         }
     }
     
@@ -240,7 +274,11 @@ class Media3VideoPlayerNew(
     }
 
     private fun createPlayer(): ExoPlayer {
-        val renderersFactory = DefaultRenderersFactory(context)
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildAudioProcessors(): Array<AudioProcessor> {
+                return arrayOf(audioCaptureProcessor)
+            }
+        }
             .setExtensionRendererMode(
                 if (softDecode.get() ?: Configs.videoPlayerForceAudioSoftDecode)
                     DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
@@ -305,7 +343,10 @@ class Media3VideoPlayerNew(
     
     private val playerListener = object : Player.Listener {
         override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
-            stateManager.updateCues(cueGroup.cues)
+            // 实时字幕运行时，跳过内嵌字幕更新，避免覆盖
+            if (liveAsrProcessor?.isRunning() != true) {
+                stateManager.updateCues(cueGroup.cues)
+            }
         }
         
         override fun onVideoSizeChanged(videoSize: VideoSize) {

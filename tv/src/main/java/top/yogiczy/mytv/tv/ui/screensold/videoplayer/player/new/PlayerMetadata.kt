@@ -30,7 +30,8 @@ data class PlayerMetadata(
         val bitrate: Int? = null,
         val mimeType: String? = null,
         val decoder: String? = null,
-        val trackId: String? = null
+        val trackId: String? = null,
+        val isDolbyVision: Boolean = false
     ) : TrackSelectable {
         override val trackIndex: Int? get() = index
         override val trackIsSelected: Boolean? get() = isSelected
@@ -46,6 +47,7 @@ data class PlayerMetadata(
 
         val shortLabel: String
             get() = listOfNotNull(
+                if (isDolbyVision) "杜比视界" else null,
                 "${width}x$height",
                 mimeType?.substringAfter("/")?.takeIf { it.all { c -> c.code <= 0x7F } },
                 frameRate?.takeIf { it > 0 }?.let { "${it.roundToInt()}fps" },
@@ -85,7 +87,8 @@ data class PlayerMetadata(
         val shortLabel: String
             get() = listOfNotNull(
                 title?.takeIf { it != language?.trim()?.lowercase() },
-                language?.humanizeLanguage()
+                language?.humanizeLanguage(),
+                channelsLabel ?: channels?.humanizeAudioChannels()
             ).joinToString(", ")
     }
 
@@ -109,7 +112,7 @@ data class PlayerMetadata(
         override fun hashCode(): Int = trackId?.hashCode() ?: (language?.hashCode() ?: 0)
 
         val shortLabel: String
-            get() = listOfNotNull(language?.humanizeLanguage()).joinToString(", ")
+            get() = listOfNotNull(language?.humanizeLanguage()).joinToString(", ").ifEmpty { "字幕" }
     }
 }
 

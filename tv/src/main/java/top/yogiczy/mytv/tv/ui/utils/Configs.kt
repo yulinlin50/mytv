@@ -101,6 +101,34 @@ object Configs {
         /** 音轨排序方式 */
         AUDIO_TRACK_SORT_MODE,
 
+        /** ==================== 实时字幕 ==================== */
+        /** 启用实时字幕 */
+        SUBTITLE_LIVE_ENABLE,
+
+        /** 语音识别引擎：vosk / whisper / azure / baidu / google */
+        SUBTITLE_LIVE_ASR_PROVIDER,
+
+        /** 语音识别云端 API Key（为空时自动回退离线引擎） */
+        SUBTITLE_LIVE_ASR_API_KEY,
+
+        /** Azure 语音识别服务区域（如 eastasia） */
+        SUBTITLE_LIVE_ASR_REGION,
+
+        /** Whisper 模型大小：tiny / base（默认 tiny） */
+        SUBTITLE_LIVE_WHISPER_MODEL,
+
+        /** 翻译引擎：mlkit / google / azure / baidu / deepl */
+        SUBTITLE_LIVE_TRANSLATE_PROVIDER,
+
+        /** 翻译云端 API Key（为空时自动回退离线 ML Kit） */
+        SUBTITLE_LIVE_TRANSLATE_API_KEY,
+
+        /** 翻译云端区域（Azure Translator 需要，如 global / eastasia） */
+        SUBTITLE_LIVE_TRANSLATE_REGION,
+
+        /** 翻译目标语言：zh / en / ja / ko 等（默认 zh） */
+        SUBTITLE_LIVE_TRANSLATE_TARGET,
+
         /** ==================== 节目单 ==================== */
         /** 启用节目单 */
         EPG_ENABLE,
@@ -616,6 +644,52 @@ object Configs {
              SP.getInt(KEY.AUDIO_TRACK_SORT_MODE.name, AudioTrackSortMode.LANGUAGE.value)
          )
          set(value) = SP.putInt(KEY.AUDIO_TRACK_SORT_MODE.name, value.value)
+
+    /** ==================== 实时字幕 ==================== */
+    /** 启用实时字幕 */
+    var subtitleLiveEnable: Boolean
+        get() = SP.getBoolean(KEY.SUBTITLE_LIVE_ENABLE.name, false)
+        set(value) = SP.putBoolean(KEY.SUBTITLE_LIVE_ENABLE.name, value)
+
+    /** 语音识别引擎 */
+    var subtitleLiveAsrProvider: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_ASR_PROVIDER.name, "vosk")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_ASR_PROVIDER.name, value)
+
+    /** 语音识别云端 API Key */
+    var subtitleLiveAsrApiKey: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_ASR_API_KEY.name, "")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_ASR_API_KEY.name, value)
+
+    /** Azure 语音识别服务区域 */
+    var subtitleLiveAsrRegion: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_ASR_REGION.name, "")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_ASR_REGION.name, value)
+
+    /** Whisper 模型大小 */
+    var subtitleLiveWhisperModel: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_WHISPER_MODEL.name, "tiny")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_WHISPER_MODEL.name, value)
+
+    /** 翻译引擎 */
+    var subtitleLiveTranslateProvider: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_TRANSLATE_PROVIDER.name, "mlkit")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_TRANSLATE_PROVIDER.name, value)
+
+    /** 翻译云端 API Key */
+    var subtitleLiveTranslateApiKey: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_TRANSLATE_API_KEY.name, "")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_TRANSLATE_API_KEY.name, value)
+
+    /** 翻译云端区域 */
+    var subtitleLiveTranslateRegion: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_TRANSLATE_REGION.name, "")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_TRANSLATE_REGION.name, value)
+
+    /** 翻译目标语言 */
+    var subtitleLiveTranslateTarget: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_TRANSLATE_TARGET.name, "zh")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_TRANSLATE_TARGET.name, value)
 
     
     /** ==================== 主题 ==================== */

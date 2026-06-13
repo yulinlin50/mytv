@@ -109,4 +109,8 @@ abstract class BaseVideoPlayer(
     }
 
     protected abstract fun getVolumeFader(): VolumeFader
+
+    override fun toggleLiveSubtitle() {
+        // 默认空实现，子类（Media3VideoPlayerNew）可覆写
+    }
 }

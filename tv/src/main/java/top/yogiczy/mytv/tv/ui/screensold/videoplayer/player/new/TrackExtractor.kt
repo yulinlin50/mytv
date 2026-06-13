@@ -31,20 +31,20 @@ internal object TrackExtractor {
             ?.filter { it.type == C.TRACK_TYPE_TEXT }
             ?.flatMap { group ->
                 (0 until group.mediaTrackGroup.length).mapNotNull { trackIndex ->
-                    group.mediaTrackGroup.getFormat(trackIndex)
-                        .takeIf { it.roleFlags == C.ROLE_FLAG_SUBTITLE }
+                    if (group.isTrackSelected(trackIndex)) {
+                        group.mediaTrackGroup.getFormat(trackIndex)
+                            .takeIf { (it.roleFlags and C.ROLE_FLAG_SUBTITLE) != 0 }
+                    } else null
                 }
             }
-            ?.firstOrNull {
-                player?.trackSelectionParameters?.preferredTextLanguages?.contains(it.language) == true
-            }?.id
+            ?.firstOrNull()?.id
 
         return extractTracks(
             player = player,
             trackType = C.TRACK_TYPE_TEXT,
             currentTrackId = currentTrackId,
             formatToTrack = { it.toSubtitleMetadata() },
-            filterFormat = { it.roleFlags == C.ROLE_FLAG_SUBTITLE },
+            filterFormat = { (it.roleFlags and C.ROLE_FLAG_SUBTITLE) != 0 },
         )
     }
 
@@ -91,13 +91,17 @@ internal object TrackExtractor {
 }
 
 internal fun Format.toVideoMetadata(): PlayerMetadata.VideoTrack {
+    val codecs = this.codecs ?: ""
+    val isDolbyVision = codecs.startsWith("dvh1") || codecs.startsWith("dvhe") ||
+            sampleMimeType == "video/dolby-vision"
     return PlayerMetadata.VideoTrack(
         width = width,
         height = height,
         frameRate = frameRate,
         bitrate = bitrate,
         mimeType = sampleMimeType,
-        trackId = id ?: "$sampleMimeType-$width-$height-$frameRate-$bitrate"
+        trackId = id ?: "$sampleMimeType-$width-$height-$frameRate-$bitrate",
+        isDolbyVision = isDolbyVision
     )
 }
 

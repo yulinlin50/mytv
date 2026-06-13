@@ -156,6 +156,13 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.androidasync)
+
+    // 实时字幕 - 离线语音识别
+    implementation("com.alphacephei:vosk-android:0.3.47")
+
+    // 实时字幕 - 离线翻译 + 语言检测
+    implementation("com.google.mlkit:translate:17.0.3")
+    implementation("com.google.mlkit:language-id:17.0.6")
     
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 

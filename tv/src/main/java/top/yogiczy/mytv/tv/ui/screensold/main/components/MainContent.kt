@@ -434,6 +434,9 @@ fun MainContent(
                 mainContentState.isQuickOpScreenVisible = false
                 toDashboardScreen()
             },
+            onToggleLiveSubtitle = {
+                videoPlayerState.toggleLiveSubtitle()
+            },
             onClose = { mainContentState.isQuickOpScreenVisible = false },
         )
     }

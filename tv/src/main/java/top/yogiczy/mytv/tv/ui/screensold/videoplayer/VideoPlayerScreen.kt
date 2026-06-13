@@ -80,15 +80,13 @@ fun VideoPlayerScreen(
 
         if (state.instance is Media3VideoPlayerNew) {
             val cues by state.instance.cues.collectAsState()
-            if (cues.isNotEmpty()) {
-                AndroidView(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                    factory = { SubtitleView(context) },
-                    update = { it.setCues(cues) },
-                )
-            }
+            AndroidView(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                factory = { SubtitleView(context) },
+                update = { it.setCues(cues) },
+            )
         }
     }
 

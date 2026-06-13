@@ -24,6 +24,7 @@ fun SettingsVideoPlayerScreen(
     toVideoPlayerRenderModeScreen: () -> Unit = {},
     toVideoPlayerDisplayModeScreen: () -> Unit = {},
     toVideoPlayerLoadTimeoutScreen: () -> Unit = {},
+    toLiveSubtitleScreen: () -> Unit = {},
     onBackPressed: () -> Unit = {},
 ) {
     SettingsCategoryScreen(
@@ -103,6 +104,32 @@ fun SettingsVideoPlayerScreen(
             )
         }
 
+        // 实时字幕
+        item {
+            SettingsListItem(
+                headlineContent = "实时字幕",
+                supportingContent = "语音识别外语并实时翻译为字幕",
+                trailingContent = {
+                    Switch(settingsViewModel.subtitleLiveEnable, null)
+                },
+                onSelect = {
+                    settingsViewModel.subtitleLiveEnable =
+                        !settingsViewModel.subtitleLiveEnable
+                },
+            )
+        }
+
+        if (settingsViewModel.subtitleLiveEnable) {
+            item {
+                SettingsListItem(
+                    headlineContent = "实时字幕设置",
+                    supportingContent = "识别: ${asrShortName(settingsViewModel.subtitleLiveAsrProvider)} → 翻译: ${translateShortName(settingsViewModel.subtitleLiveTranslateProvider)} → ${langShortName(settingsViewModel.subtitleLiveTranslateTarget)}",
+                    onSelect = toLiveSubtitleScreen,
+                    link = true,
+                )
+            }
+        }
+
         item {
             SettingsListItem(
                 headlineContent = "全局显示模式",
@@ -141,6 +168,32 @@ fun SettingsVideoPlayerScreen(
             )
         }
     }
+}
+
+private fun asrShortName(provider: String): String = when (provider) {
+    "vosk" -> "Vosk"
+    "whisper" -> "Whisper"
+    "azure" -> "Azure"
+    "baidu" -> "百度"
+    "google" -> "Google"
+    else -> provider
+}
+
+private fun translateShortName(provider: String): String = when (provider) {
+    "mlkit" -> "ML Kit"
+    "google" -> "Google"
+    "azure" -> "Azure"
+    "baidu" -> "百度"
+    "deepl" -> "DeepL"
+    else -> provider
+}
+
+private fun langShortName(code: String): String = when (code) {
+    "zh" -> "中文"
+    "en" -> "EN"
+    "ja" -> "日本語"
+    "ko" -> "한국어"
+    else -> code
 }
 
 @Preview(device = "id:Android TV (720p)")
