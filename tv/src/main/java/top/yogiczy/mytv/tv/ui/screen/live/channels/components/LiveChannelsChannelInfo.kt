@@ -185,7 +185,9 @@ private fun LiveChannelsChannelInfoTags(
         }
 
         playerMetadata.video?.let { nnVideo ->
-            if ((nnVideo.height ?: 0) > 0) {
+            if (nnVideo.isDolbyVision) {
+                Tag("杜比视界", colors = tagColors)
+            } else if ((nnVideo.height ?: 0) > 0) {
                 Tag(
                     when (nnVideo.height) {
                         240 -> "240p"
