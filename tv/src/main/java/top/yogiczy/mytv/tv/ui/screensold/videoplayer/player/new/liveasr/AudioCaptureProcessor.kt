@@ -18,11 +18,10 @@ class AudioCaptureProcessor : AudioProcessor {
     private val listeners = CopyOnWriteArrayList<(ByteArray) -> Unit>()
     private var isActive = false
     private var inputAudioFormat: AudioFormat = AudioFormat.NOT_SET
+    private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
 
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
         this.inputAudioFormat = inputAudioFormat
-        // 如果需要重采样到 16kHz 单声道 16bit，可以在此处理
-        // 当前保持原始格式，由 ASR 引擎自行处理
         return inputAudioFormat
     }
 
@@ -33,27 +32,24 @@ class AudioCaptureProcessor : AudioProcessor {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        if (!isActive || listeners.isEmpty()) return
-
-        // 读取 PCM 数据
-        val position = inputBuffer.position()
-        val limit = inputBuffer.limit()
-        val size = limit - position
-        if (size <= 0) return
-
-        val data = ByteArray(size)
-        // 复制原始字节数据（不依赖 ByteOrder）
-        inputBuffer.get(data, 0, size)
-        inputBuffer.position(position)
-
-        // 通知所有监听器
-        listeners.forEach { listener ->
-            try {
-                listener(data)
-            } catch (_: Exception) {
-                // 忽略单个监听器的异常
+        if (isActive && listeners.isNotEmpty()) {
+            val position = inputBuffer.position()
+            val limit = inputBuffer.limit()
+            val size = limit - position
+            if (size > 0) {
+                val data = ByteArray(size)
+                inputBuffer.duplicate().get(data, 0, size)
+                listeners.forEach { listener ->
+                    try {
+                        listener(data)
+                    } catch (_: Exception) {
+                    }
+                }
             }
         }
+
+        // Pass through: store input for output
+        outputBuffer = inputBuffer
     }
 
     fun addListener(listener: (ByteArray) -> Unit) {
@@ -64,19 +60,26 @@ class AudioCaptureProcessor : AudioProcessor {
         listeners.remove(listener)
     }
 
-    override fun getOutput(): Int = inputAudioFormat
+    override fun getOutput(): ByteBuffer {
+        val output = outputBuffer
+        outputBuffer = AudioProcessor.EMPTY_BUFFER
+        return output
+    }
+
+    override fun isEnded(): Boolean = false
 
     override fun queueEndOfStream() {
-        // 不需要特殊处理
+        // No special handling needed
     }
 
     override fun flush() {
-        // 不需要特殊处理
+        outputBuffer = AudioProcessor.EMPTY_BUFFER
     }
 
     override fun reset() {
         listeners.clear()
         isActive = false
         inputAudioFormat = AudioFormat.NOT_SET
+        outputBuffer = AudioProcessor.EMPTY_BUFFER
     }
 }
