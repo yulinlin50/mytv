@@ -28,7 +28,7 @@ object Downloader {
         filePath: String,
         onProgressCb: ((Int) -> Unit)? = null,
         supportResume: Boolean = true,
-        context: Context? = null
+        context: Context
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val file = validateAndPrepareFile(filePath, context)
@@ -90,7 +90,7 @@ object Downloader {
         }
     }
     
-    private fun validateAndPrepareFile(filePath: String, context: Context?): File {
+    private fun validateAndPrepareFile(filePath: String, context: Context): File {
         val file = File(filePath).canonicalFile
         
         if (!isPathSafe(file, context)) {
@@ -102,27 +102,21 @@ object Downloader {
         return file
     }
     
-    private fun isPathSafe(file: File, context: Context?): Boolean {
+    private fun isPathSafe(file: File, context: Context): Boolean {
         val canonicalPath = try {
             file.canonicalPath
         } catch (e: Exception) {
             return false
         }
         
-        if (canonicalPath.contains("..")) return false
-        
-        if (context != null) {
-            val allowedDirs = listOfNotNull(
-                context.cacheDir,
-                context.filesDir,
-                context.externalCacheDir,
-                context.getExternalFilesDir(null)
-            )
-            return allowedDirs.any { dir ->
-                canonicalPath.startsWith(dir.canonicalPath)
-            }
+        val allowedDirs = listOfNotNull(
+            context.cacheDir,
+            context.filesDir,
+            context.externalCacheDir,
+            context.getExternalFilesDir(null)
+        )
+        return allowedDirs.any { dir ->
+            canonicalPath.startsWith(dir.canonicalPath)
         }
-        
-        return true
     }
 }

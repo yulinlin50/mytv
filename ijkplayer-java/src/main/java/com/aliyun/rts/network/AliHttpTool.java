@@ -8,21 +8,34 @@ import java.net.URL;
 
 public class AliHttpTool {
     public static String android_http_get(String str) {
+        HttpURLConnection httpURLConnection = null;
         try {
-            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
-            if (httpURLConnection == null || 200 != httpURLConnection.getResponseCode()) {
+            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+            if (200 != httpURLConnection.getResponseCode()) {
                 return null;
             }
-            return new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream(), "UTF-8")).readLine();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream(), "UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(line);
+            }
+            return sb.toString();
         } catch (Exception e) {
             e.printStackTrace();
             return null;
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
         }
     }
 
     public static int android_http_post(String str, String[] strArr, byte[] bArr) {
+        HttpURLConnection httpURLConnection = null;
         try {
-            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
             httpURLConnection.setDoOutput(true);
             httpURLConnection.setRequestMethod("POST");
             if (strArr != null) {
@@ -40,6 +53,10 @@ public class AliHttpTool {
         } catch (Exception e) {
             e.printStackTrace();
             return 400;
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
         }
     }
 }

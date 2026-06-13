@@ -45,9 +45,13 @@ object ApkInstaller {
         
         return try {
             val pm = context.packageManager
-            val flags = PackageManager.GET_PERMISSIONS or 
-                        PackageManager.GET_SIGNATURES or
-                        PackageManager.GET_META_DATA
+            val flagsBase = PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                flagsBase or PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                flagsBase or PackageManager.GET_SIGNATURES
+            }
             
             val info = pm.getPackageArchiveInfo(filePath, flags) ?: return null
             
@@ -65,7 +69,12 @@ object ApkInstaller {
                     info.versionCode.toLong()
                 },
                 permissions = info.requestedPermissions?.toList() ?: emptyList(),
-                signature = calculateSignature(info.signatures),
+                signature = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    calculateSignature(info.signingInfo?.signingCertificateHistory)
+                } else {
+                    @Suppress("DEPRECATION")
+                    calculateSignature(info.signatures)
+                },
                 label = appInfo.loadLabel(pm).toString()
             )
         } catch (e: Exception) {

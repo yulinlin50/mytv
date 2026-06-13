@@ -49,7 +49,7 @@ public class AndroidMediaPlayer extends AbstractMediaPlayer {
     private final Object mInitLock = new Object();
     private boolean mIsReleased;
 
-    private static MediaInfo sMediaInfo;
+    private MediaInfo sMediaInfo;
 
     public AndroidMediaPlayer() {
         synchronized (mInitLock) {

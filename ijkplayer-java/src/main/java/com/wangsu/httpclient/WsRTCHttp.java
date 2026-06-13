@@ -11,9 +11,10 @@ public class WsRTCHttp {
     public static final String TAG = "WsRTCHttp";
 
     public static String AndroidHttpGet(String str) {
+        HttpURLConnection httpURLConnection = null;
         try {
-            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
-            if (httpURLConnection != null && 200 == httpURLConnection.getResponseCode()) {
+            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+            if (200 == httpURLConnection.getResponseCode()) {
                 httpURLConnection.setRequestProperty("Connection", "close");
                 return drainStream(httpURLConnection.getInputStream());
             }
@@ -21,15 +22,17 @@ public class WsRTCHttp {
         } catch (Exception e) {
             e.printStackTrace();
             return "";
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
         }
     }
 
     public static String AndroidHttpGet2(String str, int i) {
+        HttpURLConnection httpURLConnection = null;
         try {
-            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
-            if (httpURLConnection == null) {
-                return "";
-            }
+            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
             httpURLConnection.setConnectTimeout(i);
             httpURLConnection.setReadTimeout(i);
             httpURLConnection.setRequestProperty("Connection", "close");
@@ -37,12 +40,17 @@ public class WsRTCHttp {
         } catch (Exception e) {
             e.printStackTrace();
             return "";
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
         }
     }
 
     public static String AndroidHttpPost(String str, String str2, int i) {
+        HttpURLConnection httpURLConnection = null;
         try {
-            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
             httpURLConnection.setDoOutput(true);
             httpURLConnection.setRequestMethod("POST");
             httpURLConnection.setConnectTimeout(i);
@@ -58,12 +66,17 @@ public class WsRTCHttp {
         } catch (Exception e) {
             e.printStackTrace();
             return "";
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
         }
     }
 
     public static long AndroidHttpPost2(String str, byte[] bArr, int i) {
+        HttpURLConnection httpURLConnection = null;
         try {
-            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
             httpURLConnection.setDoOutput(true);
             httpURLConnection.setRequestMethod("POST");
             httpURLConnection.setConnectTimeout(i);
@@ -79,6 +92,10 @@ public class WsRTCHttp {
         } catch (Exception e) {
             e.printStackTrace();
             return -1L;
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
         }
     }
 

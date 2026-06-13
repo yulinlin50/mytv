@@ -58,6 +58,8 @@ public class AudioVividMetaDataHandler {
             return this.mediaPlayer.setAv3aMetadataFloat(metaDataType.type, i, ((Float) t).floatValue());
         }
         if (metaDataType.clazz.equals(Integer.class)) {
+            // Native 层仅暴露了 float setter，内部存储统一使用 float 类型。
+            // int 值隐式转换为 float 后写入，读取时通过 getAv3aMetadataInt() 正确返回整数。
             return this.mediaPlayer.setAv3aMetadataFloat(metaDataType.type, i, ((Integer) t).intValue());
         }
         return -1;

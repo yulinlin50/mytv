@@ -3,8 +3,10 @@ package top.yogiczy.mytv.tv
 import android.annotation.SuppressLint
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
@@ -40,6 +42,8 @@ class UnsafeTrustManager : X509TrustManager {
 
     companion object {
         private var isEnabled = false
+        private var originalSslSocketFactory: SSLSocketFactory? = null
+        private var originalHostnameVerifier: HostnameVerifier? = null
         
         fun isEnabled(): Boolean = isEnabled
         
@@ -50,6 +54,8 @@ class UnsafeTrustManager : X509TrustManager {
                 val trustAllCerts = arrayOf<TrustManager>(UnsafeTrustManager())
                 val sslContext = SSLContext.getInstance("TLS")
                 sslContext.init(null, trustAllCerts, SecureRandom())
+                originalSslSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory()
+                originalHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
                 HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
                 HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
                 isEnabled = true
@@ -62,8 +68,14 @@ class UnsafeTrustManager : X509TrustManager {
             if (!isEnabled) return
             
             try {
-                HttpsURLConnection.setDefaultSSLSocketFactory(null)
-                HttpsURLConnection.setDefaultHostnameVerifier(null)
+                originalSslSocketFactory?.let {
+                    HttpsURLConnection.setDefaultSSLSocketFactory(it)
+                }
+                originalHostnameVerifier?.let {
+                    HttpsURLConnection.setDefaultHostnameVerifier(it)
+                }
+                originalSslSocketFactory = null
+                originalHostnameVerifier = null
                 isEnabled = false
             } catch (e: Exception) {
                 e.printStackTrace()
