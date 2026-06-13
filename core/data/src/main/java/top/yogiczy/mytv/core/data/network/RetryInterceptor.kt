@@ -27,9 +27,6 @@ class RetryInterceptor(
                 
                 Log.w("RetryInterceptor", "请求失败 (${resp.code})，准备重试 (${attempt + 1}/$maxRetry)")
                 
-            } catch (e: IOException) {
-                exception = e
-                Log.w("RetryInterceptor", "请求异常: ${e.message}，准备重试 (${attempt + 1}/$maxRetry)")
             } catch (e: Exception) {
                 exception = e
                 Log.w("RetryInterceptor", "请求异常: ${e.message}，准备重试 (${attempt + 1}/$maxRetry)")

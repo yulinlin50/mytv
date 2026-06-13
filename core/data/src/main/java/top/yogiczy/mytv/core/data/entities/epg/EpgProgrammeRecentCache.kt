@@ -29,13 +29,7 @@ object EpgProgrammeRecentCache {
     
     fun getOrPut(channel: Channel, provider: () -> EpgProgrammeRecent?): EpgProgrammeRecent? {
         val key = buildCacheKey(channel)
-        val cached = cache.getTimestamped(key)
-        if (cached != null) {
-            return cached.value
-        }
-        val result = provider()
-        cache.putTimestamped(key, CacheEntry(result))
-        return result
+        return cache.getOrPut(key) { CacheEntry(provider()) }.value
     }
     
     fun clear() {
