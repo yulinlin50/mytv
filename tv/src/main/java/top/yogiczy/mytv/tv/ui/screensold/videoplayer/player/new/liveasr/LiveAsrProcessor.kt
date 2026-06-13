@@ -145,12 +145,12 @@ class LiveAsrProcessor(
                     "top" -> {
                         setPosition(0.5f)
                         setLine(0.1f, Cue.LINE_TYPE_FRACTION)
-                        setAnchor(Cue.ANCHOR_TYPE_START)
+                        setLineAnchor(Cue.ANCHOR_TYPE_START)
                     }
                     "center" -> {
                         setPosition(0.5f)
                         setLine(0.5f, Cue.LINE_TYPE_FRACTION)
-                        setAnchor(Cue.ANCHOR_TYPE_MIDDLE)
+                        setLineAnchor(Cue.ANCHOR_TYPE_MIDDLE)
                     }
                     // "bottom" 使用默认值，不额外设置
                 }
