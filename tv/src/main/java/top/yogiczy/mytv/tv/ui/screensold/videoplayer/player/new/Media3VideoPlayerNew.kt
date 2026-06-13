@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference
 @OptIn(UnstableApi::class)
 class Media3VideoPlayerNew(
     private val context: Context,
-    private val coroutineScope: CoroutineScope
+    coroutineScope: CoroutineScope
 ) : BaseVideoPlayer(coroutineScope) {
     
     override val stateManager = VideoPlayerStateManager(coroutineScope)
@@ -274,11 +274,7 @@ class Media3VideoPlayerNew(
     }
 
     private fun createPlayer(): ExoPlayer {
-        val renderersFactory = object : DefaultRenderersFactory(context) {
-            override fun buildAudioProcessors(): Array<AudioProcessor> {
-                return arrayOf(audioCaptureProcessor)
-            }
-        }
+        val renderersFactory = DefaultRenderersFactory(context)
             .setExtensionRendererMode(
                 if (softDecode.get() ?: Configs.videoPlayerForceAudioSoftDecode)
                     DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
@@ -308,6 +304,7 @@ class Media3VideoPlayerNew(
             .setRenderersFactory(renderersFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
+            .setAudioProcessors(audioCaptureProcessor)
             .setSeekBackIncrementMs(SEEK_INCREMENT_MS)
             .setSeekForwardIncrementMs(SEEK_INCREMENT_MS)
             .build()

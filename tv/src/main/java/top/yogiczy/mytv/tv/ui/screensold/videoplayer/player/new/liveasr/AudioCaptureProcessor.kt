@@ -18,14 +18,12 @@ class AudioCaptureProcessor : AudioProcessor {
     private val listeners = CopyOnWriteArrayList<(ByteArray) -> Unit>()
     private var isActive = false
     private var inputAudioFormat: AudioFormat = AudioFormat.NOT_SET
-    private var outputAudioFormat: AudioFormat = AudioFormat.NOT_SET
 
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
         this.inputAudioFormat = inputAudioFormat
         // 如果需要重采样到 16kHz 单声道 16bit，可以在此处理
         // 当前保持原始格式，由 ASR 引擎自行处理
-        this.outputAudioFormat = inputAudioFormat
-        return outputAudioFormat
+        return inputAudioFormat
     }
 
     override fun isActive(): Boolean = isActive
@@ -66,7 +64,9 @@ class AudioCaptureProcessor : AudioProcessor {
         listeners.remove(listener)
     }
 
-    override fun getOutputAudioFormat(): AudioFormat = outputAudioFormat
+    override fun queueEndOfStream() {
+        // 不需要特殊处理
+    }
 
     override fun flush() {
         // 不需要特殊处理
@@ -76,6 +76,5 @@ class AudioCaptureProcessor : AudioProcessor {
         listeners.clear()
         isActive = false
         inputAudioFormat = AudioFormat.NOT_SET
-        outputAudioFormat = AudioFormat.NOT_SET
     }
 }

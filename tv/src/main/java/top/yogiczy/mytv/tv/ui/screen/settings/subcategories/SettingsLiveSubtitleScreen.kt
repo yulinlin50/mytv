@@ -172,7 +172,7 @@ fun SettingsLiveSubtitleScreen(
 
     // 主列表
     SettingsCategoryScreen(
-        title = "实时字幕设置",
+        header = { Text("实时字幕设置") },
         onBackPressed = onBackPressed,
     ) {
         // 语音识别部分
@@ -361,7 +361,7 @@ private fun ApiKeyInputDialog(
     val isModified = input != value
 
     SettingsCategoryScreen(
-        title = title,
+        header = { Text(title) },
         onBackPressed = {
             if (isModified) {
                 onConfirm(input)
