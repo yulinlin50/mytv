@@ -70,7 +70,7 @@ class SubtitlePipeline(
     private var partialText: String = ""
 
     // 翻译上下文窗口（最近 N 条翻译结果，用于上下文感知翻译）
-    private val translationContext = ArrayDeque<String>(maxSize = 5)
+    private val translationContext = ArrayDeque<String>()
 
     // 翻译缓存
     private val translationCache = TranslationCache()
@@ -319,8 +319,8 @@ class SubtitlePipeline(
         if (!running.get()) return
 
         // 更新翻译上下文
-        translationContext.addLast(text)
-        if (translationContext.size > 5) translationContext.removeFirst()
+        translationContext.add(text)
+        if (translationContext.count() > 5) translationContext.removeFirst()
 
         // 通过渲染器输出
         subtitleRenderer.addFinal(text, translatedText)
