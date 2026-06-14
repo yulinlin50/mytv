@@ -51,11 +51,13 @@ class AudioCaptureProcessor : AudioProcessor {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        if (enabled && listeners.isNotEmpty()) {
-            val position = inputBuffer.position()
-            val limit = inputBuffer.limit()
-            val size = limit - position
-            if (size > 0) {
+        val position = inputBuffer.position()
+        val limit = inputBuffer.limit()
+        val size = limit - position
+
+        if (size > 0) {
+            // 截取音频数据给 ASR 引擎（使用 duplicate 不影响 position）
+            if (enabled && listeners.isNotEmpty()) {
                 // 计算当前帧的 PTS（基于累计样本数）
                 val inputSamples = size / (2 * inputChannelCount)  // 16-bit = 2 bytes per sample
                 val ptsUs = if (inputSampleRate > 0) {
@@ -84,17 +86,15 @@ class AudioCaptureProcessor : AudioProcessor {
                     }
                 }
             }
-        }
 
-        // Pass through: copy input for output (避免直接引用 inputBuffer 导致数据损坏)
-        val position = inputBuffer.position()
-        val limit = inputBuffer.limit()
-        val size = limit - position
-        if (size > 0) {
+            // Pass through: 复制输入数据到输出缓冲区
             val copy = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
             inputBuffer.duplicate().get(copy.array(), 0, size)
             copy.flip()
             outputBuffer = copy
+
+            // 关键：必须推进 inputBuffer 的 position，否则 ExoPlayer 会认为数据未被处理
+            inputBuffer.position(limit)
         } else {
             outputBuffer = AudioProcessor.EMPTY_BUFFER
         }
