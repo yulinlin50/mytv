@@ -51,23 +51,21 @@ class AudioCaptureProcessor : AudioProcessor {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val position = inputBuffer.position()
-        val limit = inputBuffer.limit()
-        val size = limit - position
+        val remaining = inputBuffer.remaining()
 
-        if (size > 0) {
+        if (remaining > 0) {
             // 截取音频数据给 ASR 引擎（使用 duplicate 不影响 position）
             if (enabled && listeners.isNotEmpty()) {
                 // 计算当前帧的 PTS（基于累计样本数）
-                val inputSamples = size / (2 * inputChannelCount)  // 16-bit = 2 bytes per sample
+                val inputSamples = remaining / (2 * inputChannelCount)  // 16-bit = 2 bytes per sample
                 val ptsUs = if (inputSampleRate > 0) {
                     totalInputSamples * 1_000_000L / inputSampleRate
                 } else 0L
                 totalInputSamples += inputSamples
 
                 // 复制原始 PCM 数据
-                val data = ByteArray(size)
-                inputBuffer.duplicate().get(data, 0, size)
+                val data = ByteArray(remaining)
+                inputBuffer.duplicate().get(data)
                 // 重采样为 16kHz 单声道后输出给 ASR 引擎
                 val resampled = resampleTo16kMono(data)
                 if (resampled.isNotEmpty()) {
@@ -80,21 +78,19 @@ class AudioCaptureProcessor : AudioProcessor {
                     // 日志
                     audioDataCount++
                     if (audioDataCount == 1) {
-                        LiveAsrLogger.i("AudioCapture: 首次转发, 原始${size}字节 → 重采样后${resampled.size}字节 (${inputSampleRate}Hz/${inputChannelCount}ch → 16000Hz/1ch)")
+                        LiveAsrLogger.i("AudioCapture: 首次转发, 原始${remaining}字节 → 重采样后${resampled.size}字节 (${inputSampleRate}Hz/${inputChannelCount}ch → 16000Hz/1ch)")
                     } else if (audioDataCount % 100 == 1) {
                         LiveAsrLogger.d("AudioCapture: 已转发${audioDataCount}次音频数据, 本次${resampled.size}字节")
                     }
                 }
             }
 
-            // Pass through: 复制输入数据到输出缓冲区
-            val copy = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
-            inputBuffer.duplicate().get(copy.array(), 0, size)
+            // Pass through: 用 put() 从 inputBuffer 读取数据，同时推进 inputBuffer.position()
+            // put() 也会推进 copy.position()，之后 flip() 才能正确设置 limit
+            val copy = ByteBuffer.allocate(remaining).order(ByteOrder.LITTLE_ENDIAN)
+            copy.put(inputBuffer)
             copy.flip()
             outputBuffer = copy
-
-            // 关键：必须推进 inputBuffer 的 position，否则 ExoPlayer 会认为数据未被处理
-            inputBuffer.position(limit)
         } else {
             outputBuffer = AudioProcessor.EMPTY_BUFFER
         }
