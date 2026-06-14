@@ -22,6 +22,7 @@ class AudioCaptureProcessor : AudioProcessor {
     private var enabled = false
     private var inputAudioFormat: AudioFormat = AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
+    private var audioDataCount = 0 // 用于周期性日志
 
     // 重采样状态
     private var inputSampleRate = 0
@@ -31,6 +32,7 @@ class AudioCaptureProcessor : AudioProcessor {
         this.inputAudioFormat = inputAudioFormat
         this.inputSampleRate = inputAudioFormat.sampleRate
         this.inputChannelCount = inputAudioFormat.channelCount
+        LiveAsrLogger.init() // 确保 logger 已初始化（configure 可能在 startLiveSubtitle 之前调用）
         LiveAsrLogger.i("AudioCapture: configure sampleRate=${inputAudioFormat.sampleRate}, channels=${inputAudioFormat.channelCount}, encoding=${inputAudioFormat.encoding}")
         // Pass-through：不改变输出格式，不影响播放音质
         return inputAudioFormat
@@ -56,10 +58,17 @@ class AudioCaptureProcessor : AudioProcessor {
                 inputBuffer.duplicate().get(data, 0, size)
                 // 重采样为 16kHz 单声道后输出给 ASR 引擎
                 val resampled = resampleTo16kMono(data)
-                listeners.forEach { listener ->
-                    try {
-                        listener(resampled)
-                    } catch (_: Exception) {
+                if (resampled.isNotEmpty()) {
+                    listeners.forEach { listener ->
+                        try {
+                            listener(resampled)
+                        } catch (_: Exception) {
+                        }
+                    }
+                    // 每100次输出一次日志，避免刷屏
+                    audioDataCount++
+                    if (audioDataCount % 100 == 1) {
+                        LiveAsrLogger.d("AudioCapture: 已转发${audioDataCount}次音频数据, 本次${resampled.size}字节")
                     }
                 }
             }

@@ -56,17 +56,17 @@ class LiveAsrProcessor(
 
                 // 初始化 ASR 引擎
                 val asrConfig = buildAsrConfig()
-                LiveAsrLogger.i("LiveAsrProcessor: ASR引擎=${asrConfig.provider}")
+                LiveAsrLogger.i("LiveAsrProcessor: ASR引擎=${asrConfig.provider}, 开始初始化...")
                 asrEngine = createAsrEngine(asrConfig)
                 asrEngine?.initialize(context, asrConfig)
                 LiveAsrLogger.i("LiveAsrProcessor: ASR引擎初始化完成")
 
                 // 初始化翻译引擎
                 val translateConfig = buildTranslateConfig()
-                LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎=${translateConfig.provider}, 目标语言=${translateConfig.translateTarget}")
+                LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎=${translateConfig.provider}, 目标语言=${translateConfig.translateTarget}, 开始初始化...")
                 translateEngine = createTranslateEngine(translateConfig)
                 translateEngine?.initialize(context, translateConfig)
-                LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎初始化完成")
+                LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎初始化完成，开始处理音频")
 
                 // 处理音频循环
                 while (isActive && running.get()) {

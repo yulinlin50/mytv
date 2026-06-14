@@ -23,11 +23,12 @@ object LiveAsrLogger {
     @Volatile
     private var logDir: File? = null
 
-    /** 初始化日志目录，必须在 Application 或首次使用时调用 */
-    fun init(context: Context) {
-        if (logDir != null) return
-        logDir = File(context.filesDir, LOG_DIR).also { it.mkdirs() }
-        cleanOldLogs()
+    /** 初始化日志目录，带 Context 时设置文件输出目录 */
+    fun init(context: Context? = null) {
+        if (context != null && logDir == null) {
+            logDir = File(context.filesDir, LOG_DIR).also { it.mkdirs() }
+            cleanOldLogs()
+        }
     }
 
     fun d(msg: String) {

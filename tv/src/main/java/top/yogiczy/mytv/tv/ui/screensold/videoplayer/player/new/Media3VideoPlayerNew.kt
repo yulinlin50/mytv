@@ -218,7 +218,7 @@ class Media3VideoPlayerNew(
     }
 
     fun startLiveSubtitle() {
-        if (liveAsrProcessor?.isRunning() == true) return
+        if (liveAsrProcessor != null) return
         LiveAsrLogger.init(context)
         LiveAsrLogger.i("Media3Player: startLiveSubtitle()")
         audioCaptureProcessor.addListener(audioListener)
@@ -233,6 +233,7 @@ class Media3VideoPlayerNew(
     }
 
     fun stopLiveSubtitle() {
+        if (liveAsrProcessor == null) return
         LiveAsrLogger.i("Media3Player: stopLiveSubtitle()")
         audioCaptureProcessor.removeListener(audioListener)
         liveAsrProcessor?.stop()
