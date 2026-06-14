@@ -66,26 +66,26 @@ class SherpaOnnxStreamingAsrEngine : StreamingAsrEngine {
 
             LiveAsrLogger.i("StreamingAsr: 创建 OnlineRecognizer, encoder=${encoderFile.absolutePath}")
 
-            // 创建 sherpa-onnx OnlineRecognizer 配置（Builder 模式）
-            val paraformerConfig = OnlineParaformerModelConfig.builder()
-                .setEncoder(encoderFile.absolutePath)
-                .setDecoder(decoderFile.absolutePath)
-                .build()
+            // 创建 sherpa-onnx OnlineRecognizer 配置（Kotlin data class 命名参数）
+            val paraformerConfig = OnlineParaformerModelConfig(
+                encoder = encoderFile.absolutePath,
+                decoder = decoderFile.absolutePath,
+            )
 
-            val modelConfig = OnlineModelConfig.builder()
-                .setParaformer(paraformerConfig)
-                .setTokens(tokensFile.absolutePath)
-                .setNumThreads(4)
-                .setDebug(false)
-                .setProvider("cpu")
-                .build()
+            val modelConfig = OnlineModelConfig(
+                paraformer = paraformerConfig,
+                tokens = tokensFile.absolutePath,
+                numThreads = 4,
+                debug = false,
+                provider = "cpu",
+            )
 
-            val recognizerConfig = OnlineRecognizerConfig.builder()
-                .setOnlineModelConfig(modelConfig)
-                .setEnableEndpoint(true)  // 启用端点检测，自动检测句子结束
-                .build()
+            val recognizerConfig = OnlineRecognizerConfig(
+                modelConfig = modelConfig,
+                enableEndpoint = true,
+            )
 
-            recognizer = OnlineRecognizer(recognizerConfig)
+            recognizer = OnlineRecognizer(config = recognizerConfig)
             running = true
 
             LiveAsrLogger.i("StreamingAsr: 初始化完成")
@@ -123,7 +123,7 @@ class SherpaOnnxStreamingAsrEngine : StreamingAsrEngine {
 
         // 获取 partial 结果
         val result = rec.getResult(s)
-        val text = result.text?.trim()?.takeIf { it.isNotBlank() }
+        val text = result.text.trim().takeIf { it.isNotBlank() }
 
         if (text != null) {
             val isFinal = rec.isEndpoint(s)

@@ -62,24 +62,24 @@ class SileroVadDetector(
                 throw IllegalStateException("Silero VAD 模型文件不存在")
             }
 
-            // 使用 sherpa-onnx Builder 模式创建 VAD 配置
-            val sileroConfig = SileroVadModelConfig.builder()
-                .setModel(modelFile.absolutePath)
-                .setThreshold(threshold)
-                .setMinSilenceDuration(minSilenceMs / 1000f)
-                .setMinSpeechDuration(minSpeechMs / 1000f)
-                .setWindowSizeInSeconds(512f / sampleRate)  // Silero VAD 标准窗口 512 samples
-                .build()
+            // 使用 sherpa-onnx Kotlin data class 创建 VAD 配置
+            val sileroConfig = SileroVadModelConfig(
+                model = modelFile.absolutePath,
+                threshold = threshold,
+                minSilenceDuration = minSilenceMs / 1000f,
+                minSpeechDuration = minSpeechMs / 1000f,
+                windowSize = 512,
+            )
 
-            val vadConfig = VadModelConfig.builder()
-                .setSileroVadModelConfig(sileroConfig)
-                .setSampleRate(sampleRate)
-                .setNumThreads(1)
-                .setProvider("cpu")
-                .setDebug(false)
-                .build()
+            val vadConfig = VadModelConfig(
+                sileroVadModelConfig = sileroConfig,
+                sampleRate = sampleRate,
+                numThreads = 1,
+                provider = "cpu",
+                debug = false,
+            )
 
-            vad = Vad(vadConfig)
+            vad = Vad(config = vadConfig)
             LiveAsrLogger.i("SileroVAD: 初始化完成, threshold=$threshold")
         } catch (e: Exception) {
             LiveAsrLogger.e("SileroVAD: 初始化失败", e)
@@ -99,7 +99,7 @@ class SileroVadDetector(
 
         // 送入 Silero VAD 推理
         vadInstance.acceptWaveform(samples)
-        val isSpeech = vadInstance.isSpeechDetected
+        val isSpeech = vadInstance.isSpeechDetected()
 
         return when (state) {
             State.SILENCE -> {

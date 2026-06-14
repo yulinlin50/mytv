@@ -56,26 +56,26 @@ class SherpaOnnxAsrEngine : BatchAsrEngine {
 
             LiveAsrLogger.i("SherpaOnnx: 创建识别器, model=${modelFile.absolutePath}, lang=$senseVoiceLang")
 
-            // 创建 sherpa-onnx OfflineRecognizer 配置（使用 Builder 模式）
-            val senseVoiceConfig = OfflineSenseVoiceModelConfig.builder()
-                .setModel(modelFile.absolutePath)
-                .setLanguage(senseVoiceLang)
-                .setInverseTextNormalization(true)  // 启用标点恢复
-                .build()
+            // 创建 sherpa-onnx OfflineRecognizer 配置（Kotlin data class 命名参数）
+            val senseVoiceConfig = OfflineSenseVoiceModelConfig(
+                model = modelFile.absolutePath,
+                language = senseVoiceLang,
+                useInverseTextNormalization = true,
+            )
 
-            val modelConfig = OfflineModelConfig.builder()
-                .setSenseVoice(senseVoiceConfig)
-                .setTokens(tokensFile.absolutePath)
-                .setNumThreads(4)
-                .setDebug(false)
-                .setProvider("cpu")
-                .build()
+            val modelConfig = OfflineModelConfig(
+                senseVoice = senseVoiceConfig,
+                tokens = tokensFile.absolutePath,
+                numThreads = 4,
+                debug = false,
+                provider = "cpu",
+            )
 
-            val recognizerConfig = OfflineRecognizerConfig.builder()
-                .setOfflineModelConfig(modelConfig)
-                .build()
+            val recognizerConfig = OfflineRecognizerConfig(
+                modelConfig = modelConfig,
+            )
 
-            recognizer = OfflineRecognizer(recognizerConfig)
+            recognizer = OfflineRecognizer(config = recognizerConfig)
             running = true
 
             LiveAsrLogger.i("SherpaOnnx: 初始化完成")
@@ -103,8 +103,8 @@ class SherpaOnnxAsrEngine : BatchAsrEngine {
             val result = rec.getResult(stream)
             stream.release()
 
-            val text = result.text?.trim()?.takeIf { it.isNotBlank() }
-            val lang = result.lang?.takeIf { it.isNotBlank() } ?: config?.language ?: ""
+            val text = result.text.trim().takeIf { it.isNotBlank() }
+            val lang = result.lang.takeIf { it.isNotBlank() } ?: config?.language ?: ""
 
             if (text != null) {
                 LiveAsrLogger.d("SherpaOnnx: 识别完成, \"$text\", lang=$lang")
@@ -145,7 +145,7 @@ class SherpaOnnxAsrEngine : BatchAsrEngine {
             val result = rec.getResult(stream)
             stream.release()
 
-            val text = result.text?.trim()?.takeIf { it.isNotBlank() }
+            val text = result.text.trim().takeIf { it.isNotBlank() }
             LiveAsrLogger.d("SherpaOnnx: recognize 完成, 结果=\"${text ?: "null"}\"")
             text
         } catch (e: Exception) {
@@ -173,7 +173,7 @@ class SherpaOnnxAsrEngine : BatchAsrEngine {
             val result = rec.getResult(stream)
             stream.release()
 
-            val text = result.text?.trim()?.takeIf { it.isNotBlank() }
+            val text = result.text.trim().takeIf { it.isNotBlank() }
             LiveAsrLogger.d("SherpaOnnx: recognizeFloats 完成, 结果=\"${text ?: "null"}\"")
             text
         } catch (e: Exception) {
