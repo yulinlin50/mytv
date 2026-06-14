@@ -9,7 +9,7 @@ import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.TranslateRemoteModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -114,10 +114,8 @@ object ModelManager {
      */
     suspend fun isMlKitModelDownloaded(langCode: String): Boolean {
         return try {
-            val models = RemoteModelManager.getInstance()
-                .getDownloadedModels(TranslateRemoteModel::class.java)
-                .await()
-            models.any { it.language == langCode }
+            val models = getDownloadedMlKitModels()
+            langCode in models
         } catch (_: Exception) {
             false
         }
@@ -129,9 +127,12 @@ object ModelManager {
      */
     suspend fun getDownloadedMlKitModels(): Set<String> {
         return try {
-            val models = RemoteModelManager.getInstance()
-                .getDownloadedModels(TranslateRemoteModel::class.java)
-                .await()
+            val models = suspendCancellableCoroutine<Set<TranslateRemoteModel>> { cont ->
+                RemoteModelManager.getInstance()
+                    .getDownloadedModels(TranslateRemoteModel::class.java)
+                    .addOnSuccessListener { models -> cont.resume(models) {} }
+                    .addOnFailureListener { e -> cont.resume(emptySet()) {} }
+            }
             models.map { it.language }.toSet()
         } catch (_: Exception) {
             emptySet()
