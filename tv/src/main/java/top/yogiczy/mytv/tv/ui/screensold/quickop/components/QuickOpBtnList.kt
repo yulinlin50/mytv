@@ -159,11 +159,16 @@ fun QuickOpBtnList(
 
         // 实时字幕
         item {
+            val settingsViewModel = settingsVM
+            val liveSubtitleEnabled by remember {
+                derivedStateOf { settingsViewModel.subtitleLiveEnable }
+            }
+
             QuickOpBtn(
-                title = if (Configs.subtitleLiveEnable) "实时字幕✓" else "实时字幕",
+                title = if (liveSubtitleEnabled) "实时字幕✓" else "实时字幕",
                 imageVector = Icons.Outlined.Subtitles,
                 onSelect = {
-                    Configs.subtitleLiveEnable = !Configs.subtitleLiveEnable
+                    settingsViewModel.subtitleLiveEnable = !settingsViewModel.subtitleLiveEnable
                     onToggleLiveSubtitle()
                     onUserAction()
                 },

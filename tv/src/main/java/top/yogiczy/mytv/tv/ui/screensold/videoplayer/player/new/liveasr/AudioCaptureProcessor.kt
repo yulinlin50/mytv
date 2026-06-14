@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 @OptIn(UnstableApi::class)
 class AudioCaptureProcessor : AudioProcessor {
 
-    private val listeners = CopyOnWriteArrayList<(ByteArray) -> Unit>()
+    private val listeners = CopyOnWriteArrayList<(ByteArray, Long) -> Unit>()
     private var enabled = false
     private var inputAudioFormat: AudioFormat = AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
@@ -27,6 +27,9 @@ class AudioCaptureProcessor : AudioProcessor {
     // 重采样状态
     private var inputSampleRate = 0
     private var inputChannelCount = 0
+
+    // PTS 追踪
+    private var totalInputSamples: Long = 0L  // 累计输入样本数
 
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
         this.inputAudioFormat = inputAudioFormat
@@ -53,6 +56,13 @@ class AudioCaptureProcessor : AudioProcessor {
             val limit = inputBuffer.limit()
             val size = limit - position
             if (size > 0) {
+                // 计算当前帧的 PTS（基于累计样本数）
+                val inputSamples = size / (2 * inputChannelCount)  // 16-bit = 2 bytes per sample
+                val ptsUs = if (inputSampleRate > 0) {
+                    totalInputSamples * 1_000_000L / inputSampleRate
+                } else 0L
+                totalInputSamples += inputSamples
+
                 // 复制原始 PCM 数据
                 val data = ByteArray(size)
                 inputBuffer.duplicate().get(data, 0, size)
@@ -61,7 +71,7 @@ class AudioCaptureProcessor : AudioProcessor {
                 if (resampled.isNotEmpty()) {
                     listeners.forEach { listener ->
                         try {
-                            listener(resampled)
+                            listener(resampled, ptsUs)
                         } catch (_: Exception) {
                         }
                     }
@@ -76,15 +86,25 @@ class AudioCaptureProcessor : AudioProcessor {
             }
         }
 
-        // Pass through: store input for output
-        outputBuffer = inputBuffer
+        // Pass through: copy input for output (避免直接引用 inputBuffer 导致数据损坏)
+        val position = inputBuffer.position()
+        val limit = inputBuffer.limit()
+        val size = limit - position
+        if (size > 0) {
+            val copy = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
+            inputBuffer.duplicate().get(copy.array(), 0, size)
+            copy.flip()
+            outputBuffer = copy
+        } else {
+            outputBuffer = AudioProcessor.EMPTY_BUFFER
+        }
     }
 
-    fun addListener(listener: (ByteArray) -> Unit) {
+    fun addListener(listener: (ByteArray, Long) -> Unit) {
         listeners.add(listener)
     }
 
-    fun removeListener(listener: (ByteArray) -> Unit) {
+    fun removeListener(listener: (ByteArray, Long) -> Unit) {
         listeners.remove(listener)
     }
 
@@ -110,6 +130,7 @@ class AudioCaptureProcessor : AudioProcessor {
         inputAudioFormat = AudioFormat.NOT_SET
         inputSampleRate = 0
         inputChannelCount = 0
+        totalInputSamples = 0L
         outputBuffer = AudioProcessor.EMPTY_BUFFER
     }
 

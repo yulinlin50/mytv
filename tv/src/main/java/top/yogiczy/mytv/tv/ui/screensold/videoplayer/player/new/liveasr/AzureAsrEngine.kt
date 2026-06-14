@@ -19,6 +19,7 @@ class AzureAsrEngine : AsrEngine {
 
     private var apiKey: String = ""
     private var region: String = ""
+    private var language: String = "en-US"
     private var running = false
 
     private val client = OkHttpClient.Builder()
@@ -29,6 +30,7 @@ class AzureAsrEngine : AsrEngine {
     override suspend fun initialize(context: Context, config: AsrConfig) {
         apiKey = config.apiKey
         region = config.apiRegion
+        language = mapLanguageCode(config.language)
         running = apiKey.isNotBlank() && region.isNotBlank()
     }
 
@@ -37,7 +39,7 @@ class AzureAsrEngine : AsrEngine {
 
         return try {
             val wavData = pcmToWav(pcmData, 16000, 16, 1)
-            val url = "https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US"
+            val url = "https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${language}"
 
             val requestBody = wavData.toRequestBody(
                 "audio/wav; codecs=audio/pcm; samplerate=16000".toMediaType()
@@ -69,6 +71,23 @@ class AzureAsrEngine : AsrEngine {
     }
 
     override fun isRunning(): Boolean = running
+
+    /** 将简短语言代码映射为 Azure Speech BCP-47 格式 */
+    private fun mapLanguageCode(code: String): String = when (code.lowercase()) {
+        "zh", "zh-cn", "cmn" -> "zh-CN"
+        "zh-tw" -> "zh-TW"
+        "en" -> "en-US"
+        "ja" -> "ja-JP"
+        "ko" -> "ko-KR"
+        "fr" -> "fr-FR"
+        "de" -> "de-DE"
+        "es" -> "es-ES"
+        "ru" -> "ru-RU"
+        "ar" -> "ar-SA"
+        "th" -> "th-TH"
+        "vi" -> "vi-VN"
+        else -> "${code}-US"
+    }
 
     private fun pcmToWav(pcmData: ByteArray, sampleRate: Int, bitsPerSample: Int, channels: Int): ByteArray {
         val byteRate = sampleRate * channels * bitsPerSample / 8

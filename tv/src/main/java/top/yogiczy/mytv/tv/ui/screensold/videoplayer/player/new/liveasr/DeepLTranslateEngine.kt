@@ -19,6 +19,7 @@ class DeepLTranslateEngine : TranslateEngine {
 
     private var apiKey: String = ""
     private var targetLang: String = "zh"
+    private var useFreeApi: Boolean = true
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -28,13 +29,16 @@ class DeepLTranslateEngine : TranslateEngine {
     override suspend fun initialize(context: Context, config: TranslateConfig) {
         apiKey = config.apiKey
         targetLang = config.translateTarget
+        // DeepL Free API Key 以 ":fx" 结尾
+        useFreeApi = apiKey.endsWith(":fx")
     }
 
     override suspend fun translate(text: String, sourceLanguage: String): String {
         if (text.isBlank() || apiKey.isBlank()) return text
 
         return try {
-            val url = "https://api-free.deepl.com/v2/translate"
+            val baseUrl = if (useFreeApi) "https://api-free.deepl.com" else "https://api.deepl.com"
+            val url = "$baseUrl/v2/translate"
 
             val formBody = okhttp3.FormBody.Builder()
                 .add("text", text)

@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit
 class GoogleAsrEngine : AsrEngine {
 
     private var apiKey: String = ""
+    private var language: String = "en-US"
     private var running = false
 
     private val client = OkHttpClient.Builder()
@@ -27,6 +28,7 @@ class GoogleAsrEngine : AsrEngine {
 
     override suspend fun initialize(context: Context, config: AsrConfig) {
         apiKey = config.apiKey
+        language = mapLanguageCode(config.language)
         running = apiKey.isNotBlank()
     }
 
@@ -40,7 +42,7 @@ class GoogleAsrEngine : AsrEngine {
                 put("config", JSONObject().apply {
                     put("encoding", "LINEAR16")
                     put("sampleRateHertz", 16000)
-                    put("languageCode", "en-US")
+                    put("languageCode", language)
                     put("model", "default")
                 })
                 put("audio", JSONObject().apply {
@@ -83,4 +85,21 @@ class GoogleAsrEngine : AsrEngine {
     }
 
     override fun isRunning(): Boolean = running
+
+    /** 将简短语言代码映射为 Google Speech BCP-47 格式 */
+    private fun mapLanguageCode(code: String): String = when (code.lowercase()) {
+        "zh", "zh-cn", "cmn" -> "zh-CN"
+        "zh-tw" -> "zh-TW"
+        "en" -> "en-US"
+        "ja" -> "ja-JP"
+        "ko" -> "ko-KR"
+        "fr" -> "fr-FR"
+        "de" -> "de-DE"
+        "es" -> "es-ES"
+        "ru" -> "ru-RU"
+        "ar" -> "ar-SA"
+        "th" -> "th-TH"
+        "vi" -> "vi-VN"
+        else -> "${code}-US"
+    }
 }

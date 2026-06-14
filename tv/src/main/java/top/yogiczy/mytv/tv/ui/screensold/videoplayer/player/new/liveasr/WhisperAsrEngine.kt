@@ -4,20 +4,26 @@ import android.content.Context
 import java.io.File
 
 /**
- * Whisper.cpp 离线语音识别引擎
+ * Whisper.cpp 离线语音识别引擎（BatchAsrEngine 改造版）
+ *
+ * 实现 BatchAsrEngine 接口，支持带 PTS 的结构化识别结果。
+ * 同时兼容旧版 AsrEngine.recognize() 接口。
  *
  * 通过 WhisperJni 调用 whisper.cpp 原生库进行推理。
  * 模型通过 ModelManager 运行时下载（tiny ~75MB / base ~142MB），首次使用需联网。
  */
-class WhisperAsrEngine : AsrEngine {
+class WhisperAsrEngine : BatchAsrEngine {
 
     private var running = false
     private var contextPtr: Long = 0L
     @Volatile
     private var isInferencing = false
+    private var config: AsrConfig? = null
 
     override suspend fun initialize(context: Context, config: AsrConfig) {
         try {
+            this.config = config
+
             // 根据配置选择对应模型
             val modelInfo = when (config.whisperModel) {
                 "base" -> ModelManager.WHISPER_BASE
@@ -50,15 +56,44 @@ class WhisperAsrEngine : AsrEngine {
         }
     }
 
+    // ==================== BatchAsrEngine 接口 ====================
+
+    override suspend fun recognizeSegment(segment: AudioSegment): AsrResult? {
+        if (!running || contextPtr == 0L) return null
+
+        isInferencing = true
+        LiveAsrLogger.d("Whisper: recognizeSegment 开始, ${segment.pcmData.size}samples, ${segment.durationMs}ms")
+
+        return try {
+            val result = WhisperJni.transcribe(contextPtr, segment.pcmData)
+            val text = result?.trim()?.takeIf { it.isNotBlank() }
+
+            if (text != null) {
+                LiveAsrLogger.d("Whisper: 识别完成, \"$text\"")
+                AsrResult(
+                    text = text,
+                    isFinal = true,
+                    confidence = 1f,
+                    startTimeUs = segment.startTimeUs,
+                    endTimeUs = segment.endTimeUs,
+                    language = config?.language ?: "",
+                )
+            } else {
+                LiveAsrLogger.d("Whisper: 识别结果为空")
+                null
+            }
+        } catch (e: Exception) {
+            LiveAsrLogger.e("Whisper: recognizeSegment 异常", e)
+            null
+        } finally {
+            isInferencing = false
+        }
+    }
+
+    // ==================== 兼容旧版 AsrEngine 接口 ====================
+
     override suspend fun recognize(pcmData: ByteArray): String? {
-        if (!running) {
-            LiveAsrLogger.d("Whisper: recognize 跳过 (running=false)")
-            return null
-        }
-        if (contextPtr == 0L) {
-            LiveAsrLogger.d("Whisper: recognize 跳过 (contextPtr=0)")
-            return null
-        }
+        if (!running || contextPtr == 0L) return null
 
         isInferencing = true
         LiveAsrLogger.d("Whisper: recognize 开始, pcmData=${pcmData.size}字节, 约${pcmData.size / 32}ms")

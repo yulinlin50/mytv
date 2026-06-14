@@ -12,17 +12,23 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yogiczy.mytv.tv.ui.utils.Configs
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 实时字幕核心调度器
+ * 实时字幕核心调度器（重构版）
  *
- * 负责：
- * 1. 音频数据缓冲
- * 2. 引擎选择（识别 + 翻译）
- * 3. 语言检测
- * 4. 最终字幕输出
+ * 架构升级：
+ * - AudioRingBuffer：固定大小环形缓冲区，零 GC 压力
+ * - VadDetector：静音检测，静音段跳过推理
+ * - SegmentExtractor：从环形缓冲提取有效语音段 + PTS 时间戳
+ * - AtomicReference：线程安全的引擎引用管理
+ *
+ * 数据流：
+ * feedAudio(pcmData, ptsUs) → RingBuffer → VAD → SegmentExtractor → ASR → 翻译 → Cue
  */
 class LiveAsrProcessor(
     private val context: Context,
@@ -30,19 +36,46 @@ class LiveAsrProcessor(
     private val onCues: (List<Cue>) -> Unit,
 ) {
     private val running = AtomicBoolean(false)
-    private val audioBuffer = mutableListOf<ByteArray>()
-    private var asrEngine: AsrEngine? = null
-    private var translateEngine: TranslateEngine? = null
+
+    // 基础设施
+    private val ringBuffer = AudioRingBuffer(capacitySeconds = 30, sampleRate = 16000)
+    private val vadDetector = VadDetector(
+        thresholdDb = -40f,
+        minSpeechMs = 300,
+        minSilenceMs = 600,
+        sampleRate = 16000,
+    )
+    private val segmentExtractor = SegmentExtractor(
+        ringBuffer = ringBuffer,
+        mergeGapMs = 500,
+        minSegmentMs = 500,
+        maxSegmentMs = 30000,
+    )
+
+    // 引擎引用（原子操作确保线程安全释放）
+    private val asrEngineRef = AtomicReference<AsrEngine?>(null)
+    private val translateEngineRef = AtomicReference<TranslateEngine?>(null)
+
+    // 协程 Job
     private var processJob: Job? = null
     private var recognizeJob: Job? = null
+
+    // 语言检测
+    @Volatile
     private var languageId: com.google.mlkit.nl.languageid.LanguageIdentifier? = null
+
+    // 识别状态
     private val isRecognizing = AtomicBoolean(false)
 
-    // 缓冲参数
+    // 定时刷新间隔（VAD 无事件时强制刷新待合并段）
     private companion object {
-        const val BUFFER_DURATION_MS = 2000L         // 每 2 秒收集一次音频
-        const val AUDIO_BUFFER_POOL_SIZE = 200       // 最多保留约 4 秒音频
-        const val MIN_AUDIO_BYTES_FOR_RECOGNIZE = 32000  // 至少 ~1000ms 音频才启动识别
+        const val FLUSH_INTERVAL_MS = 3000L
+    }
+
+    init {
+        segmentExtractor.onSegment = { segment ->
+            onAudioSegment(segment)
+        }
     }
 
     fun start() {
@@ -59,38 +92,34 @@ class LiveAsrProcessor(
 
                 // 初始化 ASR 引擎
                 val asrConfig = buildAsrConfig()
-                LiveAsrLogger.i("LiveAsrProcessor: ASR引擎=${asrConfig.provider}, 开始初始化...")
-                asrEngine = createAsrEngine(asrConfig)
-                asrEngine?.initialize(context, asrConfig)
+                LiveAsrLogger.i("LiveAsrProcessor: ASR引擎=${asrConfig.provider}, 语言=${asrConfig.language}, 开始初始化...")
+                val asrEngine = createAsrEngine(asrConfig)
+                asrEngine.initialize(context, asrConfig)
+                asrEngineRef.set(asrEngine)
                 LiveAsrLogger.i("LiveAsrProcessor: ASR引擎初始化完成")
 
                 // 初始化翻译引擎
                 val translateConfig = buildTranslateConfig()
                 LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎=${translateConfig.provider}, 目标语言=${translateConfig.translateTarget}, 开始初始化...")
-                translateEngine = createTranslateEngine(translateConfig)
-                translateEngine?.initialize(context, translateConfig)
+                val translateEngine = createTranslateEngine(translateConfig)
+                translateEngine.initialize(context, translateConfig)
+                translateEngineRef.set(translateEngine)
                 LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎初始化完成，开始处理音频")
 
-                // 显示加载提示，让用户知道系统正在工作
+                // 显示加载提示
                 withContext(Dispatchers.Main) {
                     onCues(listOf(Cue.Builder().setText("...").build()))
                 }
 
-                // 音频收集循环：定时取缓冲区数据，启动异步识别
+                // 定时刷新循环（VAD 无事件时强制输出待合并段）
                 while (isActive && running.get()) {
-                    collectAndRecognize()
-                    delay(BUFFER_DURATION_MS)
+                    segmentExtractor.flush()
+                    delay(FLUSH_INTERVAL_MS)
                 }
             } catch (e: Throwable) {
                 LiveAsrLogger.e("LiveAsrProcessor: 引擎初始化失败", e)
-                // 初始化失败时立即释放已创建的引擎
                 recognizeJob?.cancel()
-                asrEngine?.let { runCatching { kotlinx.coroutines.runBlocking { it.release() } } }
-                translateEngine?.let { runCatching { kotlinx.coroutines.runBlocking { it.release() } } }
-                languageId?.close()
-                asrEngine = null
-                translateEngine = null
-                languageId = null
+                releaseEngines()
                 withContext(Dispatchers.Main) {
                     onCues(emptyList())
                 }
@@ -104,119 +133,98 @@ class LiveAsrProcessor(
     fun stop() {
         LiveAsrLogger.i("LiveAsrProcessor: stop()")
         running.set(false)
-        // 停止音频收集循环
         processJob?.cancel()
-        // 等待正在进行的识别完成（native 推理不可中断，必须等它结束才能安全释放上下文）
-        // recognizeJob 不依赖 processJob，是 scope 的直接子协程，不会被 processJob.cancel() 连带取消
-        recognizeJob?.let { job ->
-            runCatching {
-                // 用 runBlocking 风格等待，但限制超时
-                val deadline = System.currentTimeMillis() + 30000L
-                while (job.isActive && System.currentTimeMillis() < deadline) {
-                    Thread.sleep(100)
-                }
-                if (job.isActive) {
-                    LiveAsrLogger.w("LiveAsrProcessor: 等待recognizeJob超时，强制取消")
-                    job.cancel()
-                }
-            }
-        }
-        // 手动释放引擎资源（processJob 的 finally 可能已执行，但引擎可能还未释放）
+        recognizeJob?.cancel()
         releaseEngines()
-        audioBuffer.clear()
+        ringBuffer.clear()
+        vadDetector.reset()
+        segmentExtractor.reset()
     }
 
+    /**
+     * 安全释放引擎：使用 getAndSet(null) 原子操作，确保只释放一次
+     */
     private fun releaseEngines() {
-        asrEngine?.let {
+        asrEngineRef.getAndSet(null)?.let {
             runCatching { kotlinx.coroutines.runBlocking { it.release() } }
         }
-        translateEngine?.let {
+        translateEngineRef.getAndSet(null)?.let {
             runCatching { kotlinx.coroutines.runBlocking { it.release() } }
         }
         languageId?.close()
-        asrEngine = null
-        translateEngine = null
         languageId = null
         LiveAsrLogger.i("LiveAsrProcessor: 引擎已释放")
     }
 
     fun isRunning(): Boolean = running.get()
 
-    fun feedAudio(data: ByteArray) {
+    /**
+     * 接收音频数据并写入环形缓冲区 + VAD 检测
+     *
+     * @param data 16kHz 单声道 PCM 字节数据
+     * @param ptsUs 展示时间戳（微秒）
+     */
+    fun feedAudio(data: ByteArray, ptsUs: Long) {
         if (!running.get()) return
 
-        // 限制缓冲区大小
-        if (audioBuffer.size >= AUDIO_BUFFER_POOL_SIZE) {
-            audioBuffer.removeAt(0)
+        // PCM 字节 → 浮点数据（归一化到 [-1, 1]）
+        val samples = pcmBytesToFloats(data)
+
+        // 写入环形缓冲区
+        ringBuffer.write(samples, ptsUs)
+
+        // VAD 检测
+        val vadEvent = vadDetector.process(samples, ptsUs)
+        when (vadEvent) {
+            is VadDetector.Event.SpeechStart -> {
+                LiveAsrLogger.d("VAD: 语音开始 @ ${vadEvent.ptsUs}us")
+            }
+            is VadDetector.Event.SpeechEnd -> {
+                LiveAsrLogger.d("VAD: 语音结束 @ ${vadEvent.ptsUs}us")
+                val speechStartPts = vadDetector.getSpeechStartPtsUs()
+                segmentExtractor.onSpeechEnd(speechStartPts, vadEvent.ptsUs)
+            }
+            null -> { /* 无事件 */ }
         }
-        audioBuffer.add(data)
     }
 
     /**
-     * 收集缓冲区音频数据并启动异步识别
-     * 如果上一次识别还在进行中，则跳过（避免重叠推理）
-     * 音频太短时也跳过（Whisper 至少需要 ~1 秒音频）
+     * 处理提取出的音频段：ASR → 语言检测 → 翻译 → 输出 Cue
      */
-    private fun collectAndRecognize() {
-        if (audioBuffer.isEmpty()) {
-            LiveAsrLogger.d("collectAndRecognize: 缓冲区为空，跳过")
-            return
-        }
-
+    private fun onAudioSegment(segment: AudioSegment) {
         if (isRecognizing.get()) {
-            LiveAsrLogger.d("collectAndRecognize: 上次识别仍在进行，跳过本次")
+            LiveAsrLogger.d("onAudioSegment: 上次识别仍在进行，跳过")
             return
         }
 
-        // 合并缓冲区中的音频数据
-        val totalSize = audioBuffer.sumOf { it.size }
-        val merged = ByteArray(totalSize)
-        var offset = 0
-        for (data in audioBuffer) {
-            System.arraycopy(data, 0, merged, offset, data.size)
-            offset += data.size
-        }
-        val segmentCount = audioBuffer.size
-        audioBuffer.clear()
-
-        val audioDurationMs = totalSize / 32
-        LiveAsrLogger.d("collectAndRecognize: ${segmentCount}段, ${totalSize}字节, ~${audioDurationMs}ms音频")
-
-        // 音频太短则跳过识别（Whisper 至少需要 ~1 秒）
-        if (totalSize < MIN_AUDIO_BYTES_FOR_RECOGNIZE) {
-            LiveAsrLogger.d("collectAndRecognize: 音频太短(${audioDurationMs}ms < 1000ms)，等待更多数据")
-            // 放回缓冲区，等待下次积累更多数据
-            if (audioBuffer.size + 1 < AUDIO_BUFFER_POOL_SIZE) {
-                audioBuffer.add(merged)
-            }
-            return
-        }
-
-        // 使用 scope 直接启动（而非 processJob 的子协程）
-        // 这样 processJob.cancel() 不会连带取消识别，确保识别结果不丢失
         recognizeJob = scope.launch(Dispatchers.IO) {
             isRecognizing.set(true)
             try {
-                val recognizedText = asrEngine?.recognize(merged)?.takeIf { it.isNotBlank() }
+                // 将 FloatArray 转回 ByteArray 供现有引擎使用
+                val pcmBytes = floatsToPcmBytes(segment.pcmData)
+
+                val asrEngine = asrEngineRef.get()
+                val recognizedText = asrEngine?.recognize(pcmBytes)?.takeIf { it.isNotBlank() }
                 if (recognizedText == null) {
-                    LiveAsrLogger.d("recognize: 识别结果为空")
+                    LiveAsrLogger.d("ASR: 识别结果为空 [${segment.durationMs}ms]")
                     return@launch
                 }
 
-                LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${merged.size}字节]")
+                LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${segment.durationMs}ms, PTS=${segment.startTimeUs}]")
 
                 // 语言检测
                 val sourceLang = try {
                     languageId?.let { lid ->
                         Tasks.await(lid.identifyLanguage(recognizedText), 5, TimeUnit.SECONDS)
-                    } ?: "en"
+                    } ?: Configs.subtitleLiveAsrLanguage
                 } catch (e: Exception) {
-                    LiveAsrLogger.w("语言检测失败，默认en", e)
-                    "en"
+                    LiveAsrLogger.w("语言检测失败，使用配置语言", e)
+                    Configs.subtitleLiveAsrLanguage
                 }
                 LiveAsrLogger.d("语言检测: $sourceLang")
 
                 // 翻译
+                val translateEngine = translateEngineRef.get()
                 val translatedText = translateEngine?.let { engine ->
                     try {
                         val result = engine.translate(recognizedText, sourceLang)
@@ -228,9 +236,8 @@ class LiveAsrProcessor(
                     }
                 } ?: recognizedText
 
-                // 只有还在运行时才显示字幕
                 if (!running.get()) {
-                    LiveAsrLogger.d("recognize: 已停止，丢弃识别结果")
+                    LiveAsrLogger.d("已停止，丢弃识别结果")
                     return@launch
                 }
 
@@ -243,12 +250,14 @@ class LiveAsrProcessor(
                     onCues(listOf(cue))
                 }
             } catch (e: Exception) {
-                LiveAsrLogger.e("recognize: 异常", e)
+                LiveAsrLogger.e("onAudioSegment: 异常", e)
             } finally {
                 isRecognizing.set(false)
             }
         }
     }
+
+    // ==================== 配置构建 ====================
 
     private fun buildAsrConfig(): AsrConfig {
         return AsrConfig(
@@ -256,6 +265,7 @@ class LiveAsrProcessor(
             apiKey = Configs.subtitleLiveAsrApiKey,
             apiRegion = Configs.subtitleLiveAsrRegion,
             whisperModel = Configs.subtitleLiveWhisperModel,
+            language = Configs.subtitleLiveAsrLanguage,
         )
     }
 
@@ -268,9 +278,6 @@ class LiveAsrProcessor(
         )
     }
 
-    /**
-     * 解析识别引擎：云端 API Key 为空时回退 Vosk
-     */
     private fun resolveAsrProvider(): String {
         val provider = Configs.subtitleLiveAsrProvider
         return when (provider) {
@@ -282,9 +289,6 @@ class LiveAsrProcessor(
         }
     }
 
-    /**
-     * 解析翻译引擎：云端 API Key 为空时回退 ML Kit
-     */
     private fun resolveTranslateProvider(): String {
         val provider = Configs.subtitleLiveTranslateProvider
         return when (provider) {
@@ -295,7 +299,7 @@ class LiveAsrProcessor(
         }
     }
 
-    private fun createAsrEngine(config: AsrConfig): AsrEngine? {
+    private fun createAsrEngine(config: AsrConfig): AsrEngine {
         return when (config.provider) {
             "vosk" -> VoskAsrEngine()
             "azure" -> AzureAsrEngine()
@@ -306,7 +310,7 @@ class LiveAsrProcessor(
         }
     }
 
-    private fun createTranslateEngine(config: TranslateConfig): TranslateEngine? {
+    private fun createTranslateEngine(config: TranslateConfig): TranslateEngine {
         return when (config.provider) {
             "mlkit" -> MlKitTranslateEngine()
             "google" -> GoogleCloudTranslateEngine()
@@ -315,5 +319,29 @@ class LiveAsrProcessor(
             "deepl" -> DeepLTranslateEngine()
             else -> MlKitTranslateEngine()
         }
+    }
+
+    // ==================== 工具方法 ====================
+
+    /** PCM 16-bit 字节 → 浮点数据（归一化到 [-1, 1]） */
+    private fun pcmBytesToFloats(pcmBytes: ByteArray): FloatArray {
+        val floatCount = pcmBytes.size / 2
+        val floats = FloatArray(floatCount)
+        val buf = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        for (i in 0 until floatCount) {
+            floats[i] = buf.get(i) / 32768f
+        }
+        return floats
+    }
+
+    /** 浮点数据 → PCM 16-bit 字节 */
+    private fun floatsToPcmBytes(floats: FloatArray): ByteArray {
+        val result = ByteArray(floats.size * 2)
+        val buf = ByteBuffer.wrap(result).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        for (i in floats.indices) {
+            val sample = (floats[i] * 32768f).toInt().coerceIn(-32768, 32767).toShort()
+            buf.put(i, sample)
+        }
+        return result
     }
 }

@@ -117,6 +117,9 @@ object Configs {
         /** Whisper 模型大小：tiny / base（默认 tiny） */
         SUBTITLE_LIVE_WHISPER_MODEL,
 
+        /** 语音识别语言：en / zh / ja / ko 等（默认 en） */
+        SUBTITLE_LIVE_ASR_LANGUAGE,
+
         /** 翻译引擎：mlkit / google / azure / baidu / deepl */
         SUBTITLE_LIVE_TRANSLATE_PROVIDER,
 
@@ -682,6 +685,11 @@ object Configs {
     var subtitleLiveWhisperModel: String
         get() = SP.getString(KEY.SUBTITLE_LIVE_WHISPER_MODEL.name, "tiny")
         set(value) = SP.putString(KEY.SUBTITLE_LIVE_WHISPER_MODEL.name, value)
+
+    /** 语音识别语言 */
+    var subtitleLiveAsrLanguage: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_ASR_LANGUAGE.name, "en")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_ASR_LANGUAGE.name, value)
 
     /** 翻译引擎 */
     var subtitleLiveTranslateProvider: String

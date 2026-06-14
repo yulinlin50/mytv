@@ -577,6 +577,15 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
+    private var _subtitleLiveAsrLanguage by mutableStateOf("en")
+    var subtitleLiveAsrLanguage: String
+        get() = _subtitleLiveAsrLanguage
+        set(value) {
+            _subtitleLiveAsrLanguage = value
+            Configs.subtitleLiveAsrLanguage = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
     // ========== 实时字幕：翻译 ==========
 
     private var _subtitleLiveTranslateProvider by mutableStateOf("mlkit")
@@ -859,6 +868,7 @@ class SettingsViewModel : ViewModel() {
         _subtitleLiveAsrApiKey = Configs.subtitleLiveAsrApiKey
         _subtitleLiveAsrRegion = Configs.subtitleLiveAsrRegion
         _subtitleLiveWhisperModel = Configs.subtitleLiveWhisperModel
+        _subtitleLiveAsrLanguage = Configs.subtitleLiveAsrLanguage
         _subtitleLiveTranslateProvider = Configs.subtitleLiveTranslateProvider
         _subtitleLiveTranslateApiKey = Configs.subtitleLiveTranslateApiKey
         _subtitleLiveTranslateRegion = Configs.subtitleLiveTranslateRegion

@@ -55,6 +55,7 @@ fun SettingsLiveSubtitleScreen(
     var showTranslateProviderSelector by remember { mutableStateOf(false) }
     var showTargetLangSelector by remember { mutableStateOf(false) }
     var showWhisperModelSelector by remember { mutableStateOf(false) }
+    var showAsrLanguageSelector by remember { mutableStateOf(false) }
     var showAsrApiKeyDialog by remember { mutableStateOf(false) }
     var showAsrRegionDialog by remember { mutableStateOf(false) }
     var showTranslateApiKeyDialog by remember { mutableStateOf(false) }
@@ -131,6 +132,18 @@ fun SettingsLiveSubtitleScreen(
                         headlineContent = "Whisper 模型",
                         supportingContent = settingsViewModel.subtitleLiveWhisperModel,
                         onSelect = { showWhisperModelSelector = true },
+                        link = true,
+                    )
+                }
+            }
+
+            // 识别语言（云端引擎需要）
+            if (asrProvider in listOf("azure", "baidu", "google")) {
+                item {
+                    SettingsListItem(
+                        headlineContent = "识别语言",
+                        supportingContent = asrLanguageLabel(settingsViewModel.subtitleLiveAsrLanguage),
+                        onSelect = { showAsrLanguageSelector = true },
                         link = true,
                     )
                 }
@@ -395,6 +408,32 @@ fun SettingsLiveSubtitleScreen(
             )
         }
 
+        // 覆盖层：识别语言选择器
+        if (showAsrLanguageSelector) {
+            SettingsSelectionScreen(
+                title = "识别语言",
+                options = listOf(
+                    SelectionOption("zh", "中文"),
+                    SelectionOption("en", "English"),
+                    SelectionOption("ja", "日本語"),
+                    SelectionOption("ko", "한국어"),
+                    SelectionOption("fr", "Français"),
+                    SelectionOption("de", "Deutsch"),
+                    SelectionOption("es", "Español"),
+                    SelectionOption("ru", "Русский"),
+                    SelectionOption("ar", "العربية"),
+                    SelectionOption("th", "ไทย"),
+                    SelectionOption("vi", "Tiếng Việt"),
+                ),
+                selectedProvider = { settingsViewModel.subtitleLiveAsrLanguage },
+                onSelected = { value ->
+                    settingsViewModel.subtitleLiveAsrLanguage = value
+                    showAsrLanguageSelector = false
+                },
+                onBackPressed = { showAsrLanguageSelector = false },
+            )
+        }
+
         // 覆盖层：API Key 输入对话框
         if (showAsrApiKeyDialog) {
             ApiKeyInputDialog(
@@ -526,6 +565,21 @@ private fun asrProviderLabel(provider: String): String = when (provider) {
     "baidu" -> "百度语音（云端）"
     "google" -> "Google Speech（云端）"
     else -> provider
+}
+
+private fun asrLanguageLabel(code: String): String = when (code) {
+    "zh" -> "中文"
+    "en" -> "English"
+    "ja" -> "日本語"
+    "ko" -> "한국어"
+    "fr" -> "Français"
+    "de" -> "Deutsch"
+    "es" -> "Español"
+    "ru" -> "Русский"
+    "ar" -> "العربية"
+    "th" -> "ไทย"
+    "vi" -> "Tiếng Việt"
+    else -> code
 }
 
 private fun translateProviderLabel(provider: String): String = when (provider) {

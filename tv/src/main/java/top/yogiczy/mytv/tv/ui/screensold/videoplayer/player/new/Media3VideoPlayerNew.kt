@@ -213,8 +213,8 @@ class Media3VideoPlayerNew(
 
     // ==================== 实时字幕 ====================
 
-    private val audioListener: (ByteArray) -> Unit = { data ->
-        liveAsrProcessor?.feedAudio(data)
+    private val audioListener: (ByteArray, Long) -> Unit = { data, ptsUs ->
+        liveAsrProcessor?.feedAudio(data, ptsUs)
     }
 
     fun startLiveSubtitle() {

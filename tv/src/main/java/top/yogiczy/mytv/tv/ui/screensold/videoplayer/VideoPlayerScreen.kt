@@ -136,6 +136,8 @@ fun VideoPlayerScreen(
                     view.setStyle(captionStyle)
                     view.setFractionalTextSize(fontSizeFraction)
                     view.setBottomPaddingFraction(bottomPaddingFraction)
+                    // 无字幕时隐藏，避免空 SubtitleView 遮挡画面
+                    view.visibility = if (cues.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
                 },
             )
         }
