@@ -45,20 +45,28 @@ class LiveAsrProcessor(
     fun start() {
         if (running.getAndSet(true)) return
 
+        LiveAsrLogger.init(context)
+        LiveAsrLogger.i("LiveAsrProcessor: start()")
+
         processJob = scope.launch(Dispatchers.IO) {
             try {
                 // 初始化语言检测
                 languageId = LanguageIdentification.getClient()
+                LiveAsrLogger.i("LiveAsrProcessor: 语言检测初始化完成")
 
                 // 初始化 ASR 引擎
                 val asrConfig = buildAsrConfig()
+                LiveAsrLogger.i("LiveAsrProcessor: ASR引擎=${asrConfig.provider}")
                 asrEngine = createAsrEngine(asrConfig)
                 asrEngine?.initialize(context, asrConfig)
+                LiveAsrLogger.i("LiveAsrProcessor: ASR引擎初始化完成")
 
                 // 初始化翻译引擎
                 val translateConfig = buildTranslateConfig()
+                LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎=${translateConfig.provider}, 目标语言=${translateConfig.translateTarget}")
                 translateEngine = createTranslateEngine(translateConfig)
                 translateEngine?.initialize(context, translateConfig)
+                LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎初始化完成")
 
                 // 处理音频循环
                 while (isActive && running.get()) {
@@ -66,18 +74,20 @@ class LiveAsrProcessor(
                     delay(BUFFER_DURATION_MS)
                 }
             } catch (e: Throwable) {
-                // 引擎初始化失败（包括 UnsatisfiedLinkError 等 Error），静默处理
+                LiveAsrLogger.e("LiveAsrProcessor: 引擎初始化失败", e)
                 withContext(Dispatchers.Main) {
                     onCues(emptyList())
                 }
             } finally {
                 running.set(false)
                 releaseEngines()
+                LiveAsrLogger.i("LiveAsrProcessor: 已停止")
             }
         }
     }
 
     fun stop() {
+        LiveAsrLogger.i("LiveAsrProcessor: stop()")
         running.set(false)
         processJob?.cancel()
         audioBuffer.clear()
@@ -110,7 +120,10 @@ class LiveAsrProcessor(
         audioBuffer.clear()
 
         // 语音识别
-        val recognizedText = asrEngine?.recognize(merged)?.takeIf { it.isNotBlank() } ?: return
+        val recognizedText = asrEngine?.recognize(merged)?.takeIf { it.isNotBlank() }
+        if (recognizedText == null) return
+
+        LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${merged.size}字节]")
 
         // 语言检测
         val sourceLang = try {
@@ -118,14 +131,19 @@ class LiveAsrProcessor(
                 Tasks.await(lid.identifyLanguage(recognizedText), 5, TimeUnit.SECONDS)
             } ?: "en"
         } catch (e: Exception) {
+            LiveAsrLogger.w("语言检测失败，默认en", e)
             "en"
         }
+        LiveAsrLogger.d("语言检测: $sourceLang")
 
         // 翻译
         val translatedText = translateEngine?.let { engine ->
             try {
-                engine.translate(recognizedText, sourceLang)
+                val result = engine.translate(recognizedText, sourceLang)
+                LiveAsrLogger.d("翻译结果: \"$result\"")
+                result
             } catch (e: Exception) {
+                LiveAsrLogger.w("翻译失败", e)
                 "$recognizedText\n[$sourceLang]"
             }
         } ?: recognizedText

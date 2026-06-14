@@ -22,22 +22,28 @@ class WhisperAsrEngine : AsrEngine {
                 else -> ModelManager.WHISPER_TINY
             }
 
+            LiveAsrLogger.i("Whisper: 初始化, 模型=${modelInfo.destDir}")
+
             // 下载模型（若未下载）
             val modelDir = ModelManager.ensureModel(context, modelInfo)
             val modelFile = File(modelDir, modelInfo.destFileName)
             if (!modelFile.exists()) {
+                LiveAsrLogger.e("Whisper: 模型文件不存在: ${modelFile.absolutePath}")
                 throw IllegalStateException("Whisper 模型文件不存在: ${modelFile.absolutePath}")
             }
 
             // 初始化 Whisper JNI 上下文（延迟加载原生库）
             contextPtr = WhisperJni.init(modelFile.absolutePath)
             if (contextPtr == 0L) {
+                LiveAsrLogger.e("Whisper: 上下文初始化失败")
                 throw IllegalStateException("Whisper 上下文初始化失败")
             }
 
             this.running = true
+            LiveAsrLogger.i("Whisper: 初始化完成, contextPtr=$contextPtr")
         } catch (e: Exception) {
             running = false
+            LiveAsrLogger.e("Whisper: 初始化失败", e)
             throw e
         }
     }

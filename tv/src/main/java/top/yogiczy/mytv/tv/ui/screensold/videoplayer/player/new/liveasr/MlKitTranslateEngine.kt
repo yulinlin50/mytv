@@ -30,6 +30,7 @@ class MlKitTranslateEngine : TranslateEngine {
     override suspend fun initialize(context: Context, config: TranslateConfig) {
         targetLang = config.translateTarget
         appContext = context.applicationContext
+        LiveAsrLogger.i("MLKit翻译: 初始化, 目标语言=$targetLang")
     }
 
     override suspend fun translate(text: String, sourceLanguage: String): String {
@@ -41,6 +42,7 @@ class MlKitTranslateEngine : TranslateEngine {
 
         var translator = translators[key]
         if (translator == null) {
+            LiveAsrLogger.i("MLKit翻译: 创建翻译器 $sourceLang -> $target")
             val options = TranslatorOptions.Builder()
                 .setSourceLanguage(sourceLang)
                 .setTargetLanguage(target)
@@ -53,8 +55,11 @@ class MlKitTranslateEngine : TranslateEngine {
         }
 
         return try {
-            Tasks.await(translator.translate(text), 10, TimeUnit.SECONDS)
+            val result = Tasks.await(translator.translate(text), 10, TimeUnit.SECONDS)
+            LiveAsrLogger.d("MLKit翻译: \"$text\" -> \"$result\"")
+            result
         } catch (e: Exception) {
+            LiveAsrLogger.w("MLKit翻译失败，返回原文", e)
             text // 翻译失败时返回原文
         }
     }

@@ -31,6 +31,7 @@ class AudioCaptureProcessor : AudioProcessor {
         this.inputAudioFormat = inputAudioFormat
         this.inputSampleRate = inputAudioFormat.sampleRate
         this.inputChannelCount = inputAudioFormat.channelCount
+        LiveAsrLogger.i("AudioCapture: configure sampleRate=${inputAudioFormat.sampleRate}, channels=${inputAudioFormat.channelCount}, encoding=${inputAudioFormat.encoding}")
         // Pass-through：不改变输出格式，不影响播放音质
         return inputAudioFormat
     }
@@ -41,6 +42,7 @@ class AudioCaptureProcessor : AudioProcessor {
 
     fun setActive(active: Boolean) {
         enabled = active
+        LiveAsrLogger.i("AudioCapture: setActive($active)")
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {

@@ -24,14 +24,17 @@ class VoskAsrEngine : AsrEngine {
             val modelDir: File = try {
                 ModelManager.ensureModel(context, ModelManager.VOSK_EN)
             } catch (e: Throwable) {
+                LiveAsrLogger.e("Vosk: 模型不可用", e)
                 throw IllegalStateException("Vosk 模型不可用: ${e.message}")
             }
 
             this.model = Model(modelDir.absolutePath)
             this.recognizer = Recognizer(this.model, 16000f)
             this.running = true
+            LiveAsrLogger.i("Vosk: 初始化完成, 模型路径=${modelDir.absolutePath}")
         } catch (e: Throwable) {
             running = false
+            LiveAsrLogger.e("Vosk: 初始化失败", e)
             throw e
         }
     }
