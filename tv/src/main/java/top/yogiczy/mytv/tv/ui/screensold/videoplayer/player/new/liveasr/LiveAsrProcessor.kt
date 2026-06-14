@@ -7,6 +7,7 @@ import com.google.mlkit.nl.languageid.LanguageIdentification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -19,16 +20,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 实时字幕核心调度器（重构版）
+ * 实时字幕核心调度器（低延迟版）
  *
- * 架构升级：
- * - AudioRingBuffer：固定大小环形缓冲区，零 GC 压力
- * - VadDetector：静音检测，静音段跳过推理
- * - SegmentExtractor：从环形缓冲提取有效语音段 + PTS 时间戳
- * - AtomicReference：线程安全的引擎引用管理
+ * 核心优化策略（参考主流实时字幕方案）：
+ * 1. 滑动窗口推理：语音进行中每 STEP_MS 触发一次推理，输出部分结果
+ *    - 不等语音段完全结束再推理，边说边出字幕
+ *    - 参考 WhisperPipe / WhisperLiveKit / WhisperFlow
+ * 2. 流水线并行：ASR 和翻译重叠执行
+ *    - 当前段翻译时，下一段 ASR 可同时进行
+ *    - 参考 ASR+VLLM Pipeline 方案
+ * 3. Channel 队列：段排队顺序处理，不丢失语音
+ * 4. VAD 超时截断 + 立即 flush：防止段合并导致延迟
  *
  * 数据流：
- * feedAudio(pcmData, ptsUs) → RingBuffer → VAD → SegmentExtractor → ASR → 翻译 → Cue
+ * feedAudio → RingBuffer → VAD → [滑动窗口/段提取] → Channel → ASR → 翻译 → Cue
  */
 class LiveAsrProcessor(
     private val context: Context,
@@ -44,15 +49,16 @@ class LiveAsrProcessor(
     private val ringBuffer = AudioRingBuffer(capacitySeconds = 30, sampleRate = 16000)
     private val vadDetector = VadDetector(
         thresholdDb = -40f,
-        minSpeechMs = 200,
-        minSilenceMs = 300,
+        minSpeechMs = 150,
+        minSilenceMs = 250,
+        maxSpeechMs = 3000,
         sampleRate = 16000,
     )
     private val segmentExtractor = SegmentExtractor(
         ringBuffer = ringBuffer,
-        mergeGapMs = 300,
-        minSegmentMs = 300,
-        maxSegmentMs = 15000,
+        mergeGapMs = 150,
+        minSegmentMs = 200,
+        maxSegmentMs = 6000,
     )
 
     // 引擎引用（原子操作确保线程安全释放）
@@ -70,17 +76,35 @@ class LiveAsrProcessor(
     @Volatile
     private var languageId: com.google.mlkit.nl.languageid.LanguageIdentifier? = null
 
-    // 识别状态
-    private val isRecognizing = AtomicBoolean(false)
+    // 音频段队列：段排队顺序处理，不丢失
+    private val segmentChannel = Channel<AudioSegment>(capacity = Channel.UNLIMITED)
 
-    // 定时刷新间隔（VAD 无事件时强制刷新待合并段）
+    // ==================== 滑动窗口推理 ====================
+
+    // 滑动窗口步长：每 STEP_MS 对当前语音段做一次推理，输出部分结果
     private companion object {
-        const val FLUSH_INTERVAL_MS = 3000L
+        const val STEP_MS = 3000L          // 每3秒推理一次（主流方案 2-5秒）
+        const val FLUSH_INTERVAL_MS = 1500L // 定时刷新间隔
+        const val MIN_PARTIAL_MS = 1000L    // 最短部分结果时长
     }
+
+    // 语音进行中的推理控制
+    @Volatile
+    private var speechStartPtsUs: Long = 0L
+    @Volatile
+    private var isInSpeech: Boolean = false
+    @Volatile
+    private var lastPartialPtsUs: Long = 0L  // 上次部分推理的结束 PTS
+    @Volatile
+    private var lastPartialText: String = ""  // 上次部分推理结果（去重用）
 
     init {
         segmentExtractor.onSegment = { segment ->
-            onAudioSegment(segment)
+            // 将段发送到 Channel，不丢弃
+            val result = segmentChannel.trySend(segment)
+            if (result.isFailure) {
+                LiveAsrLogger.w("onAudioSegment: 段队列已满，丢弃")
+            }
         }
     }
 
@@ -127,10 +151,33 @@ class LiveAsrProcessor(
                     onCues(listOf(Cue.Builder().setText("...").build()))
                 }
 
-                // 定时刷新循环（VAD 无事件时强制输出待合并段）
+                // 启动段消费协程：流水线并行处理 ASR + 翻译
+                recognizeJob = scope.launch(Dispatchers.IO) {
+                    pipelineProcessSegments()
+                }
+
+                // 滑动窗口推理循环 + 定时刷新
                 while (isActive && running.get() && generation.get() == gen) {
+                    // 滑动窗口：语音进行中，每 STEP_MS 推理一次
+                    if (isInSpeech && speechStartPtsUs > 0) {
+                        val currentPts = ringBuffer.getCurrentPtsUs()
+                        val speechDurationMs = (currentPts - speechStartPtsUs) / 1000L
+                        val sinceLastPartialMs = (currentPts - lastPartialPtsUs) / 1000L
+
+                        if (speechDurationMs >= MIN_PARTIAL_MS && sinceLastPartialMs >= STEP_MS) {
+                            // 读取从语音开始到当前的音频，做部分推理
+                            val partialSegment = ringBuffer.readRange(speechStartPtsUs, currentPts)
+                            if (partialSegment != null && partialSegment.durationMs >= MIN_PARTIAL_MS) {
+                                LiveAsrLogger.d("滑动窗口: 部分推理 ${partialSegment.durationMs}ms")
+                                segmentChannel.trySend(partialSegment)
+                                lastPartialPtsUs = currentPts
+                            }
+                        }
+                    }
+
+                    // 定时刷新 SegmentExtractor 的待合并段
                     segmentExtractor.flush()
-                    delay(FLUSH_INTERVAL_MS)
+                    delay(minOf(STEP_MS, FLUSH_INTERVAL_MS) / 2)
                 }
             } catch (e: Throwable) {
                 LiveAsrLogger.e("LiveAsrProcessor: 引擎初始化失败", e)
@@ -140,7 +187,6 @@ class LiveAsrProcessor(
                     onCues(emptyList())
                 }
             } finally {
-                // 只有当前代次匹配时才重置 running，防止覆盖新会话
                 if (generation.get() == gen) {
                     running.set(false)
                 }
@@ -154,7 +200,12 @@ class LiveAsrProcessor(
         running.set(false)
         processJob?.cancel()
         recognizeJob?.cancel()
-        // 在 IO 线程释放引擎（Whisper release 需要等待 native 推理完成，不能在主线程阻塞）
+        segmentChannel.close()
+        isInSpeech = false
+        speechStartPtsUs = 0L
+        lastPartialPtsUs = 0L
+        lastPartialText = ""
+        // 在 IO 线程释放引擎
         cleanupJob = scope.launch(Dispatchers.IO) {
             releaseEngines()
         }
@@ -163,10 +214,6 @@ class LiveAsrProcessor(
         segmentExtractor.reset()
     }
 
-    /**
-     * 安全释放引擎：使用 getAndSet(null) 原子操作，确保只释放一次
-     * 必须在 IO 线程调用（Whisper release 可能需要等待 native 推理完成）
-     */
     private suspend fun releaseEngines() {
         asrEngineRef.getAndSet(null)?.let {
             runCatching { it.release() }
@@ -183,28 +230,31 @@ class LiveAsrProcessor(
 
     /**
      * 接收音频数据并写入环形缓冲区 + VAD 检测
-     *
-     * @param data 16kHz 单声道 PCM 字节数据
-     * @param ptsUs 展示时间戳（微秒）
      */
     fun feedAudio(data: ByteArray, ptsUs: Long) {
         if (!running.get()) return
 
-        // PCM 字节 → 浮点数据（归一化到 [-1, 1]）
         val samples = pcmBytesToFloats(data)
-
-        // 写入环形缓冲区
         ringBuffer.write(samples, ptsUs)
 
-        // VAD 检测
         val vadEvent = vadDetector.process(samples, ptsUs)
         when (vadEvent) {
             is VadDetector.Event.SpeechStart -> {
                 LiveAsrLogger.d("VAD: 语音开始 @ ${vadEvent.ptsUs}us")
+                isInSpeech = true
+                speechStartPtsUs = vadEvent.ptsUs
+                lastPartialPtsUs = vadEvent.ptsUs
             }
             is VadDetector.Event.SpeechEnd -> {
-                LiveAsrLogger.d("VAD: 语音结束 @ ${vadEvent.ptsUs}us")
+                val isTimeout = vadDetector.wasTimeout()
+                LiveAsrLogger.d("VAD: 语音结束 @ ${vadEvent.ptsUs}us${if (isTimeout) " (超时截断)" else ""}")
+                isInSpeech = false
                 val speechStartPts = vadDetector.getSpeechStartPtsUs()
+
+                // 超时截断时立即 flush，防止与下一段合并
+                if (isTimeout) {
+                    segmentExtractor.flush()
+                }
                 segmentExtractor.onSpeechEnd(speechStartPts, vadEvent.ptsUs)
             }
             null -> { /* 无事件 */ }
@@ -212,76 +262,117 @@ class LiveAsrProcessor(
     }
 
     /**
-     * 处理提取出的音频段：ASR → 语言检测 → 翻译 → 输出 Cue
+     * 流水线并行处理段：ASR 和翻译重叠执行
+     *
+     * 核心思路：当段 N 在翻译时，段 N+1 可以同时进行 ASR
+     * 参考 ASR+VLLM Pipeline 方案
      */
-    private fun onAudioSegment(segment: AudioSegment) {
-        if (isRecognizing.get()) {
-            LiveAsrLogger.d("onAudioSegment: 上次识别仍在进行，跳过")
-            return
+    private suspend fun pipelineProcessSegments() {
+        var pendingTranslation: Job? = null  // 上一个段的翻译 Job
+
+        for (segment in segmentChannel) {
+            if (!running.get()) break
+
+            // 等上一个段的翻译完成（流水线：翻译和下一个ASR并行）
+            pendingTranslation?.join()
+
+            // ASR 识别
+            val asrResult = recognizeSegment(segment) ?: continue
+
+            // 启动翻译（异步），不阻塞下一个段的 ASR
+            pendingTranslation = scope.launch(Dispatchers.IO) {
+                translateAndShow(asrResult, segment)
+            }
         }
 
-        recognizeJob = scope.launch(Dispatchers.IO) {
-            isRecognizing.set(true)
-            try {
-                // 将 FloatArray 转回 ByteArray 供现有引擎使用
-                val pcmBytes = floatsToPcmBytes(segment.pcmData)
+        // 等最后一个翻译完成
+        pendingTranslation?.join()
+    }
 
-                val asrEngine = asrEngineRef.get()
-                val recognizedText = asrEngine?.recognize(pcmBytes)?.takeIf { it.isNotBlank() }
-                if (recognizedText == null) {
-                    LiveAsrLogger.d("ASR: 识别结果为空 [${segment.durationMs}ms]")
-                    return@launch
-                }
+    /**
+     * ASR 识别一个音频段
+     * 优化：对 Whisper 引擎直接传 FloatArray，避免 Float→Byte→Float 重复转换
+     */
+    private suspend fun recognizeSegment(segment: AudioSegment): String? {
+        val asrEngine = asrEngineRef.get() ?: return null
 
-                LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${segment.durationMs}ms, PTS=${segment.startTimeUs}]")
+        val recognizedText = if (asrEngine is WhisperAsrEngine) {
+            // Whisper 引擎：直接传 FloatArray，省去 Float→Byte→Float 转换
+            asrEngine.recognizeFloats(segment.pcmData)?.trim()?.takeIf { it.isNotBlank() }
+        } else {
+            // 其他引擎：转 PCM 字节
+            val pcmBytes = floatsToPcmBytes(segment.pcmData)
+            asrEngine.recognize(pcmBytes)?.trim()?.takeIf { it.isNotBlank() }
+        }
 
-                // 语言检测：如果用户已配置语言，直接使用，跳过 ML Kit 检测以减少延迟
-                val configuredLang = Configs.subtitleLiveAsrLanguage
-                val sourceLang = if (configuredLang.isNotBlank() && configuredLang != "auto") {
-                    configuredLang
-                } else {
-                    try {
-                        languageId?.let { lid ->
-                            Tasks.await(lid.identifyLanguage(recognizedText), 3, TimeUnit.SECONDS)
-                        } ?: configuredLang.ifBlank { "en" }
-                    } catch (e: Exception) {
-                        LiveAsrLogger.w("语言检测失败，使用配置语言", e)
-                        configuredLang.ifBlank { "en" }
-                    }
-                }
-                LiveAsrLogger.d("语言检测: $sourceLang")
+        if (recognizedText == null) {
+            LiveAsrLogger.d("ASR: 识别结果为空 [${segment.durationMs}ms]")
+            return null
+        }
 
-                // 翻译
-                val translateEngine = translateEngineRef.get()
-                val translatedText = translateEngine?.let { engine ->
-                    try {
-                        val result = engine.translate(recognizedText, sourceLang)
-                        LiveAsrLogger.d("翻译结果: \"$result\"")
-                        result
-                    } catch (e: Exception) {
-                        LiveAsrLogger.w("翻译失败", e)
-                        "$recognizedText\n[$sourceLang]"
-                    }
-                } ?: recognizedText
+        LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${segment.durationMs}ms]")
+        return recognizedText
+    }
 
-                if (!running.get()) {
-                    LiveAsrLogger.d("已停止，丢弃识别结果")
-                    return@launch
-                }
-
-                // 生成字幕 Cue
-                val cue = Cue.Builder()
-                    .setText(translatedText)
-                    .build()
-
-                withContext(Dispatchers.Main) {
-                    onCues(listOf(cue))
-                }
-            } catch (e: Exception) {
-                LiveAsrLogger.e("onAudioSegment: 异常", e)
-            } finally {
-                isRecognizing.set(false)
+    /**
+     * 翻译并显示字幕
+     */
+    private suspend fun translateAndShow(recognizedText: String, segment: AudioSegment) {
+        try {
+            // 语言检测：如果用户已配置语言，直接使用
+            val configuredLang = Configs.subtitleLiveAsrLanguage
+            val sourceLang = if (configuredLang.isNotBlank() && configuredLang != "auto") {
+                configuredLang
+            } else {
+                detectLanguage(recognizedText)
             }
+
+            // 翻译
+            val translateEngine = translateEngineRef.get()
+            val translatedText = translateEngine?.let { engine ->
+                try {
+                    val result = engine.translate(recognizedText, sourceLang)
+                    LiveAsrLogger.d("翻译结果: \"$result\"")
+                    result
+                } catch (e: Exception) {
+                    LiveAsrLogger.w("翻译失败", e)
+                    "$recognizedText\n[$sourceLang]"
+                }
+            } ?: recognizedText
+
+            if (!running.get()) return
+
+            // 去重：滑动窗口推理可能产生重复结果
+            if (translatedText == lastPartialText) {
+                LiveAsrLogger.d("去重: 与上次结果相同，跳过")
+                return
+            }
+            lastPartialText = translatedText
+
+            val cue = Cue.Builder()
+                .setText(translatedText)
+                .build()
+
+            withContext(Dispatchers.Main) {
+                onCues(listOf(cue))
+            }
+        } catch (e: Exception) {
+            LiveAsrLogger.e("translateAndShow: 异常", e)
+        }
+    }
+
+    /**
+     * 语言检测（带缓存和超时）
+     */
+    private suspend fun detectLanguage(text: String): String {
+        val configuredLang = Configs.subtitleLiveAsrLanguage
+        return try {
+            languageId?.let { lid ->
+                Tasks.await(lid.identifyLanguage(text), 2, TimeUnit.SECONDS)
+            } ?: configuredLang.ifBlank { "en" }
+        } catch (e: Exception) {
+            LiveAsrLogger.w("语言检测失败，使用配置语言", e)
+            configuredLang.ifBlank { "en" }
         }
     }
 
@@ -310,7 +401,7 @@ class LiveAsrProcessor(
         val provider = Configs.subtitleLiveAsrProvider
         return when (provider) {
             "azure", "baidu", "google" -> {
-                if (Configs.subtitleLiveAsrApiKey.isBlank()) "vosk" else provider
+                if (Configs.subtitleLiveAsrApiKey.isBlank()) "whisper" else provider
             }
             "whisper" -> "whisper"
             else -> provider
@@ -334,7 +425,7 @@ class LiveAsrProcessor(
             "baidu" -> BaiduAsrEngine()
             "google" -> GoogleAsrEngine()
             "whisper" -> WhisperAsrEngine()
-            else -> VoskAsrEngine()
+            else -> WhisperAsrEngine()  // 默认回退到 Whisper（JNA 兼容性更好）
         }
     }
 

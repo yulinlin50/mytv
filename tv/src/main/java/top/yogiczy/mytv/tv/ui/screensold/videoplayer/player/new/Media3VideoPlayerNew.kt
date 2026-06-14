@@ -218,7 +218,11 @@ class Media3VideoPlayerNew(
     }
 
     fun startLiveSubtitle() {
-        if (liveAsrProcessor != null) return
+        // 如果已有实例在运行，先停止
+        if (liveAsrProcessor != null) {
+            LiveAsrLogger.w("Media3Player: startLiveSubtitle() 已有实例，先停止")
+            stopLiveSubtitle()
+        }
         LiveAsrLogger.init(context)
         LiveAsrLogger.i("Media3Player: startLiveSubtitle()")
         audioCaptureProcessor.addListener(audioListener)

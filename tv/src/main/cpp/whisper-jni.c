@@ -63,14 +63,18 @@ Java_top_yogiczy_mytv_tv_ui_screensold_videoplayer_player_new_liveasr_WhisperJni
         return NULL;
     }
 
-    /* 配置 whisper 全量推理参数 */
+    /* 配置 whisper 全量推理参数 - 针对实时场景优化 */
     struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     params.print_progress   = false;
     params.print_timestamps = false;
     params.print_special    = false;
-    params.single_segment   = true;
-    params.no_timestamps    = true;
+    params.single_segment   = true;    /* 只输出一个 segment，减少解码时间 */
+    params.no_timestamps    = true;     /* 不计算时间戳，加速推理 */
     params.language         = "auto";
+    params.n_threads        = 4;        /* 限制线程数，避免与音频线程争抢 */
+    params.max_len          = 0;        /* 不限制输出长度 */
+    params.suppress_blank   = true;     /* 抑制空白输出 */
+    params.suppress_non_speech_tokens = true; /* 抑制非语音 token（[BLANK]等） */
 
     int ret = whisper_full((struct whisper_context *) context, params, data, len);
     (*env)->ReleaseFloatArrayElements(env, pcmData, data, JNI_ABORT);

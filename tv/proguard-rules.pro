@@ -37,5 +37,9 @@
 -keep class org.vosk.** { *; }
 -keep class com.alphacephei.** { *; }
 
+# ========== 实时字幕：JNA（Vosk 依赖） ==========
+-keep class com.sun.jna.** { *; }
+-keep class net.java.dev.jna.** { *; }
+
 # ========== 实时字幕：ML Kit ==========
 -keep class com.google.mlkit.** { *; }

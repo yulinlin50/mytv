@@ -15,14 +15,17 @@ import kotlin.math.sqrt
  * 2. 超过阈值 → 标记为语音开始
  * 3. 低于阈值持续 minSilenceMs → 标记为语音结束
  * 4. 最短语音段 minSpeechMs 过滤噪声误触发
+ * 5. 最大语音段 maxSpeechMs → 强制截断（防止直播音频持续播放导致永远不触发结束）
  */
 class VadDetector(
     /** 能量阈值（dB），低于此值视为静音。典型值 -40 ~ -30 */
     private val thresholdDb: Float = -40f,
     /** 最短语音段时长（毫秒），短于此的语音段视为噪声 */
-    private val minSpeechMs: Long = 300,
+    private val minSpeechMs: Long = 200,
     /** 最短静音间隔（毫秒），静音持续此时间才判定语音结束 */
-    private val minSilenceMs: Long = 600,
+    private val minSilenceMs: Long = 300,
+    /** 最大语音段时长（毫秒），超过此值强制截断输出 */
+    private val maxSpeechMs: Long = 5000,
     /** 采样率 */
     private val sampleRate: Int = 16000,
 ) {
@@ -46,8 +49,12 @@ class VadDetector(
     // 当前语音段的总样本数
     private var speechSampleCount: Int = 0
 
+    // 上一次 SpeechEnd 是否由超时截断触发
+    private var lastEndWasTimeout: Boolean = false
+
     private val minSilenceSamples = (minSilenceMs * sampleRate / 1000L).toInt()
     private val minSpeechSamples = (minSpeechMs * sampleRate / 1000L).toInt()
+    private val maxSpeechSamples = (maxSpeechMs * sampleRate / 1000L).toInt()
 
     /**
      * 处理一帧音频数据
@@ -77,7 +84,13 @@ class VadDetector(
             State.SPEECH -> {
                 speechSampleCount += samples.size
 
-                if (isSpeech) {
+                // 最大语音时长截断：直播音频持续播放时，防止永远不触发 SpeechEnd
+                if (speechSampleCount >= maxSpeechSamples) {
+                    state = State.SILENCE
+                    lastEndWasTimeout = true
+                    LiveAsrLogger.d("VAD: 语音段超时(${speechSampleCount * 1000 / sampleRate}ms >= ${maxSpeechMs}ms)，强制截断")
+                    Event.SpeechEnd(ptsUs)
+                } else if (isSpeech) {
                     // 仍在说话，重置静音计数
                     silenceSampleCount = 0
                     null
@@ -88,6 +101,7 @@ class VadDetector(
                     if (silenceSampleCount >= minSilenceSamples) {
                         // 确认语音结束
                         state = State.SILENCE
+                        lastEndWasTimeout = false
 
                         // 过滤过短的语音段
                         if (speechSampleCount >= minSpeechSamples) {
@@ -111,6 +125,11 @@ class VadDetector(
     fun getSpeechStartPtsUs(): Long = speechStartPtsUs
 
     /**
+     * 上一次 SpeechEnd 是否由超时截断触发
+     */
+    fun wasTimeout(): Boolean = lastEndWasTimeout
+
+    /**
      * 重置检测器状态
      */
     fun reset() {
@@ -118,6 +137,7 @@ class VadDetector(
         speechStartPtsUs = 0L
         silenceSampleCount = 0
         speechSampleCount = 0
+        lastEndWasTimeout = false
     }
 
     companion object {

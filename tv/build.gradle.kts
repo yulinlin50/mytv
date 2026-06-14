@@ -175,6 +175,7 @@ dependencies {
 
     // 实时字幕 - 离线语音识别
     implementation("com.alphacephei:vosk-android:0.3.47")
+    implementation("net.java.dev.jna:jna@aar")  // Vosk 依赖 JNA，显式引入 AAR 避免混淆问题
 
     // 实时字幕 - 离线翻译 + 语言检测
     implementation("com.google.mlkit:translate:17.0.3")

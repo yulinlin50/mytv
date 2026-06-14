@@ -112,6 +112,27 @@ class WhisperAsrEngine : BatchAsrEngine {
         }
     }
 
+    /**
+     * 直接接受 FloatArray 的识别接口，避免 PCM→Float 重复转换
+     * 滑动窗口推理时，LiveAsrProcessor 已经有 FloatArray 数据
+     */
+    suspend fun recognizeFloats(floats: FloatArray): String? {
+        if (!running || contextPtr == 0L) return null
+
+        isInferencing = true
+        LiveAsrLogger.d("Whisper: recognizeFloats 开始, ${floats.size} samples, 约${floats.size * 1000 / 16000}ms")
+        return try {
+            val result = WhisperJni.transcribe(contextPtr, floats)
+            LiveAsrLogger.d("Whisper: transcribe 完成, 结果=\"${result ?: "null"}\"")
+            result?.trim()?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            LiveAsrLogger.e("Whisper: recognizeFloats 异常", e)
+            null
+        } finally {
+            isInferencing = false
+        }
+    }
+
     override suspend fun release() {
         synchronized(releaseLock) {
             LiveAsrLogger.i("Whisper: release(), contextPtr=$contextPtr, running=$running, isInferencing=$isInferencing")
