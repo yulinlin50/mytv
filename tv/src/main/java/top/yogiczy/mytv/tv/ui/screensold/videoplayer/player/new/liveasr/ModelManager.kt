@@ -139,8 +139,40 @@ object ModelManager {
     fun isDownloaded(context: Context, info: ModelInfo): Boolean {
         val dir = getModelDir(context, info)
         if (!dir.exists()) return false
+        // 递归查找是否有大于 100KB 的文件（tar 解压可能有子目录）
+        return findLargeFiles(dir, minSizeBytes = 100 * 1024)
+    }
+
+    /** 递归查找目录中是否有大于指定大小的文件 */
+    private fun findLargeFiles(dir: File, minSizeBytes: Long): Boolean {
         val files = dir.listFiles() ?: return false
-        return files.isNotEmpty() && files.any { it.length() > 100 * 1024 }
+        for (f in files) {
+            if (f.isFile && f.length() > minSizeBytes) return true
+            if (f.isDirectory && findLargeFiles(f, minSizeBytes)) return true
+        }
+        return false
+    }
+
+    /**
+     * 在模型目录中递归查找指定文件名的文件
+     * tar 解压可能创建子目录，需要递归查找
+     */
+    fun findModelFile(context: Context, info: ModelInfo, fileName: String): File? {
+        val dir = getModelDir(context, info)
+        if (!dir.exists()) return null
+        return findFileRecursive(dir, fileName)
+    }
+
+    private fun findFileRecursive(dir: File, fileName: String): File? {
+        val files = dir.listFiles() ?: return null
+        for (f in files) {
+            if (f.isFile && f.name == fileName) return f
+            if (f.isDirectory) {
+                val found = findFileRecursive(f, fileName)
+                if (found != null) return found
+            }
+        }
+        return null
     }
 
     /**

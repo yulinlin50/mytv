@@ -55,7 +55,8 @@ class SileroVadDetector(
         try {
             // 确保 Silero VAD 模型已下载
             val modelDir = ModelManager.ensureModel(context, ModelManager.SILERO_VAD)
-            val modelFile = File(modelDir, ModelManager.SILERO_VAD.destFileName)
+            val modelFile = ModelManager.findModelFile(context, ModelManager.SILERO_VAD, ModelManager.SILERO_VAD.destFileName)
+                ?: File(modelDir, ModelManager.SILERO_VAD.destFileName)
 
             if (!modelFile.exists()) {
                 LiveAsrLogger.e("SileroVAD: 模型文件不存在: ${modelFile.absolutePath}")

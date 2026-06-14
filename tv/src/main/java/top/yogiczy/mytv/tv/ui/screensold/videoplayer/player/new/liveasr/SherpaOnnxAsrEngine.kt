@@ -38,9 +38,11 @@ class SherpaOnnxAsrEngine : BatchAsrEngine {
             // 下载模型（若未下载）
             val modelDir = ModelManager.ensureModel(context, modelInfo)
 
-            // 模型文件路径
-            val modelFile = File(modelDir, modelInfo.destFileName)
-            val tokensFile = File(modelDir, "tokens.txt")
+            // 模型文件路径（tar 解压可能有子目录，递归查找）
+            val modelFile = ModelManager.findModelFile(context, modelInfo, modelInfo.destFileName)
+                ?: File(modelDir, modelInfo.destFileName)
+            val tokensFile = ModelManager.findModelFile(context, modelInfo, "tokens.txt")
+                ?: File(modelDir, "tokens.txt")
 
             if (!modelFile.exists()) {
                 LiveAsrLogger.e("SherpaOnnx: 模型文件不存在: ${modelFile.absolutePath}")

@@ -47,6 +47,8 @@ fun SettingsLiveSubtitleScreen(
     var whisperTinyDownloaded by remember { mutableStateOf(false) }
     var whisperBaseDownloaded by remember { mutableStateOf(false) }
     var senseVoiceDownloaded by remember { mutableStateOf(false) }
+    var sileroVadDownloaded by remember { mutableStateOf(false) }
+    var streamingParaformerDownloaded by remember { mutableStateOf(false) }
     var mlKitDownloadedLangs by remember { mutableStateOf(emptySet<String>()) }
 
     // 模型下载中状态
@@ -59,6 +61,8 @@ fun SettingsLiveSubtitleScreen(
         whisperTinyDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_TINY)
         whisperBaseDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_BASE)
         senseVoiceDownloaded = ModelManager.isDownloaded(context, ModelManager.SENSE_VOICE_INT8)
+        sileroVadDownloaded = ModelManager.isDownloaded(context, ModelManager.SILERO_VAD)
+        streamingParaformerDownloaded = ModelManager.isDownloaded(context, ModelManager.STREAMING_PARAFORMER)
     }
 
     LaunchedEffect(Unit) {
@@ -67,6 +71,8 @@ fun SettingsLiveSubtitleScreen(
         whisperTinyDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_TINY)
         whisperBaseDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_BASE)
         senseVoiceDownloaded = ModelManager.isDownloaded(context, ModelManager.SENSE_VOICE_INT8)
+        sileroVadDownloaded = ModelManager.isDownloaded(context, ModelManager.SILERO_VAD)
+        streamingParaformerDownloaded = ModelManager.isDownloaded(context, ModelManager.STREAMING_PARAFORMER)
         mlKitDownloadedLangs = ModelManager.getDownloadedMlKitModels()
     }
 
@@ -187,9 +193,16 @@ fun SettingsLiveSubtitleScreen(
 
             // VAD 检测模式
             item {
+                val vadProvider = settingsViewModel.subtitleLiveVadProvider
+                val vadStatus = when {
+                    downloadingModel != null && downloadingModel == ModelManager.SILERO_VAD.name -> "下载中..."
+                    vadProvider == "silero" && sileroVadDownloaded -> "Silero VAD（已下载）"
+                    vadProvider == "silero" && !sileroVadDownloaded -> "Silero VAD（未下载）"
+                    else -> vadProviderLabel(vadProvider)
+                }
                 SettingsListItem(
                     headlineContent = "语音检测模式",
-                    supportingContent = vadProviderLabel(settingsViewModel.subtitleLiveVadProvider),
+                    supportingContent = vadStatus,
                     onSelect = { showVadProviderSelector = true },
                     link = true,
                 )
@@ -197,9 +210,16 @@ fun SettingsLiveSubtitleScreen(
 
             // ASR 推理模式
             item {
+                val asrMode = settingsViewModel.subtitleLiveAsrMode
+                val asrModeStatus = when {
+                    downloadingModel != null && downloadingModel == ModelManager.STREAMING_PARAFORMER.name -> "下载中..."
+                    asrMode == "streaming" && streamingParaformerDownloaded -> "流式（已下载）"
+                    asrMode == "streaming" && !streamingParaformerDownloaded -> "流式（未下载）"
+                    else -> asrModeLabel(asrMode)
+                }
                 SettingsListItem(
                     headlineContent = "推理模式",
-                    supportingContent = asrModeLabel(settingsViewModel.subtitleLiveAsrMode),
+                    supportingContent = asrModeStatus,
                     onSelect = { showAsrModeSelector = true },
                     link = true,
                 )
@@ -710,6 +730,7 @@ fun SettingsLiveSubtitleScreen(
                             } catch (_: Exception) {
                             } finally {
                                 downloadingModel = null
+                                refreshDownloadStates()
                             }
                         }
                     }

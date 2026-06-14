@@ -46,10 +46,13 @@ class SherpaOnnxStreamingAsrEngine : StreamingAsrEngine {
             // 下载模型（若未下载）
             val modelDir = ModelManager.ensureModel(context, modelInfo)
 
-            // 模型文件路径
-            val encoderFile = File(modelDir, "encoder.int8.onnx")
-            val decoderFile = File(modelDir, "decoder.int8.onnx")
-            val tokensFile = File(modelDir, "tokens.txt")
+            // 模型文件路径（tar 解压可能有子目录，递归查找）
+            val encoderFile = ModelManager.findModelFile(context, modelInfo, "encoder.int8.onnx")
+                ?: File(modelDir, "encoder.int8.onnx")
+            val decoderFile = ModelManager.findModelFile(context, modelInfo, "decoder.int8.onnx")
+                ?: File(modelDir, "decoder.int8.onnx")
+            val tokensFile = ModelManager.findModelFile(context, modelInfo, "tokens.txt")
+                ?: File(modelDir, "tokens.txt")
 
             if (!encoderFile.exists()) {
                 LiveAsrLogger.e("StreamingAsr: encoder.int8.onnx 不存在: ${encoderFile.absolutePath}")

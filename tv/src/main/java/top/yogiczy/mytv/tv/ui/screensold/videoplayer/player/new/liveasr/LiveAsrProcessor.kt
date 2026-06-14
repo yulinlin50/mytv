@@ -86,7 +86,7 @@ class LiveAsrProcessor(
     private var languageId: com.google.mlkit.nl.languageid.LanguageIdentifier? = null
 
     // 音频段队列：段排队顺序处理，不丢失
-    private val segmentChannel = Channel<AudioSegment>(capacity = Channel.UNLIMITED)
+    private var segmentChannel = Channel<AudioSegment>(capacity = Channel.UNLIMITED)
 
     // ==================== 滑动窗口推理 ====================
 
@@ -117,7 +117,7 @@ class LiveAsrProcessor(
         segmentExtractor.onSegment = { segment ->
             val result = segmentChannel.trySend(segment)
             if (result.isFailure) {
-                LiveAsrLogger.w("onAudioSegment: 段队列已满，丢弃")
+                // Channel 已关闭（stop 被调用），静默忽略
             }
         }
     }
@@ -129,16 +129,11 @@ class LiveAsrProcessor(
         LiveAsrLogger.init(context)
         LiveAsrLogger.i("LiveAsrProcessor: start(), generation=$gen")
 
-        // 等待上一次 stop() 的异步清理完成
-        cleanupJob?.let { job ->
-            if (!job.isCompleted) {
-                LiveAsrLogger.i("LiveAsrProcessor: 等待上一次清理完成...")
-                runCatching { kotlinx.coroutines.runBlocking { job.join() } }
-            }
-            cleanupJob = null
-        }
-
         processJob = scope.launch(Dispatchers.IO) {
+            // 等待上一次 stop() 的异步清理完成
+            cleanupJob?.join()
+            cleanupJob = null
+
             try {
                 // 读取推理模式配置
                 asrMode = Configs.subtitleLiveAsrMode
@@ -263,6 +258,8 @@ class LiveAsrProcessor(
         processJob?.cancel()
         recognizeJob?.cancel()
         segmentChannel.close()
+        // 重建 Channel，下次 start() 可用
+        segmentChannel = Channel(capacity = Channel.UNLIMITED)
         isInSpeech = false
         speechStartPtsUs = 0L
         lastPartialPtsUs = 0L
@@ -430,16 +427,20 @@ class LiveAsrProcessor(
     private suspend fun pipelineProcessSegments() {
         var pendingTranslation: Job? = null
 
-        for (segment in segmentChannel) {
-            if (!running.get()) break
+        try {
+            for (segment in segmentChannel) {
+                if (!running.get()) break
 
-            pendingTranslation?.join()
+                pendingTranslation?.join()
 
-            val asrResult = recognizeSegment(segment) ?: continue
+                val asrResult = recognizeSegment(segment) ?: continue
 
-            pendingTranslation = scope.launch(Dispatchers.IO) {
-                translateAndShow(asrResult, segment)
+                pendingTranslation = scope.launch(Dispatchers.IO) {
+                    translateAndShow(asrResult, segment)
+                }
             }
+        } catch (_: kotlinx.coroutines.channels.ClosedReceiveChannelException) {
+            // Channel 被 stop() 关闭，正常退出
         }
 
         pendingTranslation?.join()
