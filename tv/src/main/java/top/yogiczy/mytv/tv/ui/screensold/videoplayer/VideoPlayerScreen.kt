@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.tv.ui.screensold.videoplayer
 
+import android.graphics.Typeface
 import android.view.SurfaceView
 import android.view.TextureView
 import androidx.annotation.OptIn
@@ -20,6 +21,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import top.yogiczy.mytv.tv.ui.material.Visibility
 import top.yogiczy.mytv.tv.ui.rememberChildPadding
@@ -82,11 +84,13 @@ fun VideoPlayerScreen(
             val cues by state.instance.cues.collectAsState()
             val position = Configs.subtitleLivePosition
             val fontSize = Configs.subtitleLiveFontSize
+            val textColor = Configs.subtitleLiveTextColor
+            val bgColor = Configs.subtitleLiveBgColor
 
-            val alignment = when (position) {
-                "top" -> Alignment.TopCenter
-                "center" -> Alignment.Center
-                else -> Alignment.BottomCenter
+            val bottomPaddingFraction = when (position) {
+                "top" -> 0.85f
+                "center" -> 0.5f
+                else -> 0f
             }
 
             val fontSizeFraction = when (fontSize) {
@@ -95,14 +99,35 @@ fun VideoPlayerScreen(
                 else -> 0.06f
             }
 
+            val captionStyle = CaptionStyleCompat(
+                when (textColor) {
+                    "yellow" -> android.graphics.Color.YELLOW
+                    "green" -> android.graphics.Color.GREEN
+                    "cyan" -> android.graphics.Color.CYAN
+                    else -> android.graphics.Color.WHITE
+                },
+                when (bgColor) {
+                    "black" -> android.graphics.Color.BLACK
+                    "none" -> android.graphics.Color.TRANSPARENT
+                    else -> android.graphics.Color.argb(180, 0, 0, 0) // semi-transparent
+                },
+                android.graphics.Color.TRANSPARENT, // windowColor
+                CaptionStyleCompat.EDGE_TYPE_NONE,
+                android.graphics.Color.TRANSPARENT, // edgeColor
+                Typeface.DEFAULT,
+            )
+
             AndroidView(
                 modifier = Modifier
-                    .align(alignment)
-                    .fillMaxWidth(),
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxSize(),
                 factory = { SubtitleView(context) },
                 update = { view ->
                     view.setCues(cues)
                     view.setFractionalTextSize(fontSizeFraction)
+                    view.setBottomPaddingFraction(bottomPaddingFraction)
+                    view.setStyle(captionStyle)
                 },
             )
         }

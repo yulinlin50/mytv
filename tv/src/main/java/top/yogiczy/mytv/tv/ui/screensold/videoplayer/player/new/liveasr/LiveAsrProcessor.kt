@@ -1,11 +1,6 @@
 package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr
 
 import android.content.Context
-import android.graphics.Color
-import android.text.SpannableString
-import android.text.SpannableStringBuilder
-import android.text.style.BackgroundColorSpan
-import android.text.style.ForegroundColorSpan
 import androidx.media3.common.text.Cue
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.nl.languageid.LanguageIdentification
@@ -135,11 +130,9 @@ class LiveAsrProcessor(
             }
         } ?: recognizedText
 
-        // 生成字幕 Cue（应用样式配置，位置由 Compose 层 SubtitleView 控制）
-        val styledText = applySubtitleStyle(translatedText)
-
+        // 生成字幕 Cue（样式由 SubtitleView.setStyle() 控制，位置由 setBottomPaddingFraction 控制）
         val cue = Cue.Builder()
-            .setText(styledText)
+            .setText(translatedText)
             .build()
 
         withContext(Dispatchers.Main) {
@@ -223,42 +216,5 @@ class LiveAsrProcessor(
             translateEngine = null
             languageId = null
         }
-    }
-
-    /**
-     * 应用字幕样式：文字颜色 + 背景颜色
-     */
-    private fun applySubtitleStyle(text: String): SpannableString {
-        val spannable = SpannableString(text)
-
-        // 文字颜色
-        val textColor = when (Configs.subtitleLiveTextColor) {
-            "yellow" -> Color.YELLOW
-            "green" -> Color.GREEN
-            "cyan" -> Color.CYAN
-            else -> Color.WHITE
-        }
-        spannable.setSpan(
-            ForegroundColorSpan(textColor),
-            0, text.length,
-            SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-
-        // 背景颜色
-        val bgColor = when (Configs.subtitleLiveBgColor) {
-            "black" -> Color.BLACK
-            "semi-transparent" -> Color.argb(180, 0, 0, 0)
-            "none" -> null
-            else -> Color.argb(180, 0, 0, 0)
-        }
-        if (bgColor != null) {
-            spannable.setSpan(
-                BackgroundColorSpan(bgColor),
-                0, text.length,
-                SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
-
-        return spannable
     }
 }

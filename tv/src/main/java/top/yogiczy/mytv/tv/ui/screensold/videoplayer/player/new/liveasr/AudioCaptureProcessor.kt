@@ -19,7 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 class AudioCaptureProcessor : AudioProcessor {
 
     private val listeners = CopyOnWriteArrayList<(ByteArray) -> Unit>()
-    private var isActive = false
+    private var enabled = false
     private var inputAudioFormat: AudioFormat = AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
 
@@ -35,14 +35,16 @@ class AudioCaptureProcessor : AudioProcessor {
         return inputAudioFormat
     }
 
-    override fun isActive(): Boolean = isActive
+    // 始终返回 true，确保 DefaultAudioSink 在配置时将本处理器纳入处理链
+    // 即使实时字幕未启用，处理器也会接收音频数据（但不会转发给监听器）
+    override fun isActive(): Boolean = true
 
     fun setActive(active: Boolean) {
-        isActive = active
+        enabled = active
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        if (isActive && listeners.isNotEmpty()) {
+        if (enabled && listeners.isNotEmpty()) {
             val position = inputBuffer.position()
             val limit = inputBuffer.limit()
             val size = limit - position
@@ -91,7 +93,7 @@ class AudioCaptureProcessor : AudioProcessor {
 
     override fun reset() {
         listeners.clear()
-        isActive = false
+        enabled = false
         inputAudioFormat = AudioFormat.NOT_SET
         inputSampleRate = 0
         inputChannelCount = 0

@@ -5,7 +5,11 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.google.mlkit.common.model.RemoteModelManager
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.TranslateRemoteModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -101,6 +105,37 @@ object ModelManager {
         if (!dir.exists()) return false
         val files = dir.listFiles() ?: return false
         return files.isNotEmpty() && files.any { it.length() > 100 * 1024 }
+    }
+
+    /**
+     * 检查 ML Kit 翻译模型是否已下载
+     * @param langCode ML Kit TranslateLanguage 常量（如 "zh", "en"）
+     * @return 是否已下载
+     */
+    suspend fun isMlKitModelDownloaded(langCode: String): Boolean {
+        return try {
+            val models = RemoteModelManager.getInstance()
+                .getDownloadedModels(TranslateRemoteModel::class.java)
+                .await()
+            models.any { it.language == langCode }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 获取所有已下载的 ML Kit 翻译模型语言代码
+     * @return 已下载的语言代码集合
+     */
+    suspend fun getDownloadedMlKitModels(): Set<String> {
+        return try {
+            val models = RemoteModelManager.getInstance()
+                .getDownloadedModels(TranslateRemoteModel::class.java)
+                .await()
+            models.map { it.language }.toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
     }
 
     /**

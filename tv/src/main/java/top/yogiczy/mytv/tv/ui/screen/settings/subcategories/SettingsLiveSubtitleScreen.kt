@@ -3,7 +3,11 @@ package top.yogiczy.mytv.tv.ui.screen.settings.subcategories
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,8 +15,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsViewModel
@@ -21,12 +27,30 @@ import top.yogiczy.mytv.tv.ui.screen.settings.components.SettingsListItem
 import top.yogiczy.mytv.tv.ui.screen.settings.components.SettingsSelectionScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.components.SelectionOption
 import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
+import top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr.ModelManager
 
 @Composable
 fun SettingsLiveSubtitleScreen(
     settingsViewModel: SettingsViewModel = settingsVM,
     onBackPressed: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+
+    // 模型下载状态
+    var voskEnDownloaded by remember { mutableStateOf(false) }
+    var voskZhDownloaded by remember { mutableStateOf(false) }
+    var whisperTinyDownloaded by remember { mutableStateOf(false) }
+    var whisperBaseDownloaded by remember { mutableStateOf(false) }
+    var mlKitDownloadedLangs by remember { mutableStateOf(emptySet<String>()) }
+
+    LaunchedEffect(Unit) {
+        voskEnDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_EN)
+        voskZhDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_ZH)
+        whisperTinyDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_TINY)
+        whisperBaseDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_BASE)
+        mlKitDownloadedLangs = ModelManager.getDownloadedMlKitModels()
+    }
+
     var showAsrProviderSelector by remember { mutableStateOf(false) }
     var showTranslateProviderSelector by remember { mutableStateOf(false) }
     var showTargetLangSelector by remember { mutableStateOf(false) }
@@ -256,6 +280,20 @@ fun SettingsLiveSubtitleScreen(
                     showAsrProviderSelector = false
                 },
                 onBackPressed = { showAsrProviderSelector = false },
+                extraTrailingContent = { value ->
+                    val downloaded = when (value) {
+                        "vosk" -> voskEnDownloaded || voskZhDownloaded
+                        "whisper" -> whisperTinyDownloaded || whisperBaseDownloaded
+                        else -> false
+                    }
+                    if (downloaded) {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "已下载",
+                        )
+                    }
+                },
             )
         }
 
@@ -276,6 +314,15 @@ fun SettingsLiveSubtitleScreen(
                     showTranslateProviderSelector = false
                 },
                 onBackPressed = { showTranslateProviderSelector = false },
+                extraTrailingContent = { value ->
+                    if (value == "mlkit" && mlKitDownloadedLangs.isNotEmpty()) {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "已下载",
+                        )
+                    }
+                },
             )
         }
 
@@ -305,6 +352,15 @@ fun SettingsLiveSubtitleScreen(
                     showTargetLangSelector = false
                 },
                 onBackPressed = { showTargetLangSelector = false },
+                extraTrailingContent = { value ->
+                    if (value in mlKitDownloadedLangs) {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "已下载",
+                        )
+                    }
+                },
             )
         }
 
@@ -322,6 +378,20 @@ fun SettingsLiveSubtitleScreen(
                     showWhisperModelSelector = false
                 },
                 onBackPressed = { showWhisperModelSelector = false },
+                extraTrailingContent = { value ->
+                    val downloaded = when (value) {
+                        "tiny" -> whisperTinyDownloaded
+                        "base" -> whisperBaseDownloaded
+                        else -> false
+                    }
+                    if (downloaded) {
+                        Icon(
+                            modifier = Modifier.size(20.dp),
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "已下载",
+                        )
+                    }
+                },
             )
         }
 
