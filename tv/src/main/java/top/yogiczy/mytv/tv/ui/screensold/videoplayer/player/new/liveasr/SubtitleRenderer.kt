@@ -20,7 +20,7 @@ class SubtitleRenderer(
         val translatedText: String? = null,
         val isFinal: Boolean = true,
         val startTimeMs: Long = System.currentTimeMillis(),
-        val endTimeMs: Long = System.currentTimeMillis() + displayDurationMs,
+        val endTimeMs: Long = 0L,
     )
 
     /** 当前显示的字幕列表 */
