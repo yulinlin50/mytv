@@ -308,6 +308,14 @@ class Media3VideoPlayerNew(
                 .setPreferredAudioLanguages("zh", "cmn")
                 .setPreferredTextLanguages("zh")
                 .setSelectUndeterminedTextLanguage(true)
+                .setAudioOffloadPreferences(
+                    androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                        .setAudioOffloadMode(
+                            androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
+                                .AUDIO_OFFLOAD_MODE_DISABLED
+                        )
+                        .build()
+                )
                 .build()
         }
         

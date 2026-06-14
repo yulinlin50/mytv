@@ -135,26 +135,11 @@ class LiveAsrProcessor(
             }
         } ?: recognizedText
 
-        // 生成字幕 Cue（应用样式和位置配置）
+        // 生成字幕 Cue（应用样式配置，位置由 Compose 层 SubtitleView 控制）
         val styledText = applySubtitleStyle(translatedText)
 
         val cue = Cue.Builder()
             .setText(styledText)
-            .apply {
-                when (Configs.subtitleLivePosition) {
-                    "top" -> {
-                        setPosition(0.5f)
-                        setLine(0.1f, Cue.LINE_TYPE_FRACTION)
-                        setLineAnchor(Cue.ANCHOR_TYPE_START)
-                    }
-                    "center" -> {
-                        setPosition(0.5f)
-                        setLine(0.5f, Cue.LINE_TYPE_FRACTION)
-                        setLineAnchor(Cue.ANCHOR_TYPE_MIDDLE)
-                    }
-                    // "bottom" 使用默认值，不额外设置
-                }
-            }
             .build()
 
         withContext(Dispatchers.Main) {

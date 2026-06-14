@@ -11,6 +11,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * ExoPlayer 音频截取处理器
  * 从播放器中截取 PCM 音频数据，输出给 ASR 引擎
+ *
+ * 注意：configure() 返回 inputAudioFormat（pass-through），不影响播放音质。
+ * 内部将截取的音频重采样为 16kHz 单声道后输出给 ASR 引擎。
  */
 @OptIn(UnstableApi::class)
 class AudioCaptureProcessor : AudioProcessor {
@@ -20,8 +23,15 @@ class AudioCaptureProcessor : AudioProcessor {
     private var inputAudioFormat: AudioFormat = AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
 
+    // 重采样状态
+    private var inputSampleRate = 0
+    private var inputChannelCount = 0
+
     override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
         this.inputAudioFormat = inputAudioFormat
+        this.inputSampleRate = inputAudioFormat.sampleRate
+        this.inputChannelCount = inputAudioFormat.channelCount
+        // Pass-through：不改变输出格式，不影响播放音质
         return inputAudioFormat
     }
 
@@ -37,11 +47,14 @@ class AudioCaptureProcessor : AudioProcessor {
             val limit = inputBuffer.limit()
             val size = limit - position
             if (size > 0) {
+                // 复制原始 PCM 数据
                 val data = ByteArray(size)
                 inputBuffer.duplicate().get(data, 0, size)
+                // 重采样为 16kHz 单声道后输出给 ASR 引擎
+                val resampled = resampleTo16kMono(data)
                 listeners.forEach { listener ->
                     try {
-                        listener(data)
+                        listener(resampled)
                     } catch (_: Exception) {
                     }
                 }
@@ -80,6 +93,69 @@ class AudioCaptureProcessor : AudioProcessor {
         listeners.clear()
         isActive = false
         inputAudioFormat = AudioFormat.NOT_SET
+        inputSampleRate = 0
+        inputChannelCount = 0
         outputBuffer = AudioProcessor.EMPTY_BUFFER
+    }
+
+    /**
+     * 将 PCM 16-bit 数据重采样为 16kHz 单声道
+     *
+     * 处理步骤：
+     * 1. 多声道 → 单声道（取声道平均值）
+     * 2. 采样率转换（线性插值）
+     */
+    private fun resampleTo16kMono(data: ByteArray): ByteArray {
+        if (data.size < 2) return ByteArray(0)
+
+        // PCM 16-bit sample 数量
+        val sampleCount = data.size / 2
+        val shortBuffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val samples = ShortArray(sampleCount)
+        shortBuffer.get(samples)
+
+        // 1. 多声道 → 单声道
+        val monoSamples = if (inputChannelCount > 1) {
+            val monoCount = sampleCount / inputChannelCount
+            val mono = ShortArray(monoCount)
+            for (i in 0 until monoCount) {
+                var sum = 0L
+                for (ch in 0 until inputChannelCount) {
+                    sum += samples[i * inputChannelCount + ch]
+                }
+                mono[i] = (sum / inputChannelCount).toShort()
+            }
+            mono
+        } else {
+            samples
+        }
+
+        // 2. 采样率转换（线性插值）
+        val targetSampleRate = 16000
+        val resampled = if (inputSampleRate != targetSampleRate && inputSampleRate > 0) {
+            val ratio = monoSamples.size.toDouble() * targetSampleRate / inputSampleRate
+            val outputLength = ratio.toInt()
+            if (outputLength <= 0) return ByteArray(0)
+            val out = ShortArray(outputLength)
+            for (i in 0 until outputLength) {
+                val srcIndex = i.toDouble() * inputSampleRate / targetSampleRate
+                val srcFloor = srcIndex.toInt()
+                val srcCeil = srcFloor + 1
+                val fraction = srcIndex - srcFloor
+                if (srcCeil < monoSamples.size) {
+                    out[i] = (monoSamples[srcFloor] * (1.0 - fraction) + monoSamples[srcCeil] * fraction).toInt().toShort()
+                } else if (srcFloor < monoSamples.size) {
+                    out[i] = monoSamples[srcFloor]
+                }
+            }
+            out
+        } else {
+            monoSamples
+        }
+
+        // ShortArray → ByteArray (little-endian)
+        val result = ByteArray(resampled.size * 2)
+        ByteBuffer.wrap(result).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(resampled)
+        return result
     }
 }
