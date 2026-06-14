@@ -11,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import top.yogiczy.mytv.tv.ui.utils.Configs
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -43,6 +42,7 @@ class LiveAsrProcessor(
     private companion object {
         const val BUFFER_DURATION_MS = 2000L         // 每 2 秒收集一次音频
         const val AUDIO_BUFFER_POOL_SIZE = 200       // 最多保留约 4 秒音频
+        const val MIN_AUDIO_BYTES_FOR_RECOGNIZE = 32000  // 至少 ~1000ms 音频才启动识别
     }
 
     fun start() {
@@ -83,19 +83,20 @@ class LiveAsrProcessor(
                 }
             } catch (e: Throwable) {
                 LiveAsrLogger.e("LiveAsrProcessor: 引擎初始化失败", e)
+                // 初始化失败时立即释放已创建的引擎
+                recognizeJob?.cancel()
+                asrEngine?.let { runCatching { kotlinx.coroutines.runBlocking { it.release() } } }
+                translateEngine?.let { runCatching { kotlinx.coroutines.runBlocking { it.release() } } }
+                languageId?.close()
+                asrEngine = null
+                translateEngine = null
+                languageId = null
                 withContext(Dispatchers.Main) {
                     onCues(emptyList())
                 }
             } finally {
                 running.set(false)
-                recognizeJob?.cancel()
-                asrEngine?.release()
-                translateEngine?.release()
-                languageId?.close()
-                asrEngine = null
-                translateEngine = null
-                languageId = null
-                LiveAsrLogger.i("LiveAsrProcessor: 已停止")
+                LiveAsrLogger.i("LiveAsrProcessor: processJob 结束")
             }
         }
     }
@@ -103,14 +104,40 @@ class LiveAsrProcessor(
     fun stop() {
         LiveAsrLogger.i("LiveAsrProcessor: stop()")
         running.set(false)
-        // 先等 recognizeJob 完成（native 推理不可中断，必须等它结束才能安全释放上下文）
-        scope.launch {
-            withTimeoutOrNull(30000L) {
-                recognizeJob?.join()
-            } ?: LiveAsrLogger.w("LiveAsrProcessor: 等待recognizeJob超时")
-            processJob?.cancel()
+        // 停止音频收集循环
+        processJob?.cancel()
+        // 等待正在进行的识别完成（native 推理不可中断，必须等它结束才能安全释放上下文）
+        // recognizeJob 不依赖 processJob，是 scope 的直接子协程，不会被 processJob.cancel() 连带取消
+        recognizeJob?.let { job ->
+            runCatching {
+                // 用 runBlocking 风格等待，但限制超时
+                val deadline = System.currentTimeMillis() + 30000L
+                while (job.isActive && System.currentTimeMillis() < deadline) {
+                    Thread.sleep(100)
+                }
+                if (job.isActive) {
+                    LiveAsrLogger.w("LiveAsrProcessor: 等待recognizeJob超时，强制取消")
+                    job.cancel()
+                }
+            }
         }
+        // 手动释放引擎资源（processJob 的 finally 可能已执行，但引擎可能还未释放）
+        releaseEngines()
         audioBuffer.clear()
+    }
+
+    private fun releaseEngines() {
+        asrEngine?.let {
+            runCatching { kotlinx.coroutines.runBlocking { it.release() } }
+        }
+        translateEngine?.let {
+            runCatching { kotlinx.coroutines.runBlocking { it.release() } }
+        }
+        languageId?.close()
+        asrEngine = null
+        translateEngine = null
+        languageId = null
+        LiveAsrLogger.i("LiveAsrProcessor: 引擎已释放")
     }
 
     fun isRunning(): Boolean = running.get()
@@ -128,6 +155,7 @@ class LiveAsrProcessor(
     /**
      * 收集缓冲区音频数据并启动异步识别
      * 如果上一次识别还在进行中，则跳过（避免重叠推理）
+     * 音频太短时也跳过（Whisper 至少需要 ~1 秒音频）
      */
     private fun collectAndRecognize() {
         if (audioBuffer.isEmpty()) {
@@ -151,9 +179,21 @@ class LiveAsrProcessor(
         val segmentCount = audioBuffer.size
         audioBuffer.clear()
 
-        LiveAsrLogger.d("collectAndRecognize: ${segmentCount}段, ${totalSize}字节, ~${totalSize / 32}ms音频")
+        val audioDurationMs = totalSize / 32
+        LiveAsrLogger.d("collectAndRecognize: ${segmentCount}段, ${totalSize}字节, ~${audioDurationMs}ms音频")
 
-        // 异步启动识别（不阻塞音频收集循环）
+        // 音频太短则跳过识别（Whisper 至少需要 ~1 秒）
+        if (totalSize < MIN_AUDIO_BYTES_FOR_RECOGNIZE) {
+            LiveAsrLogger.d("collectAndRecognize: 音频太短(${audioDurationMs}ms < 1000ms)，等待更多数据")
+            // 放回缓冲区，等待下次积累更多数据
+            if (audioBuffer.size + 1 < AUDIO_BUFFER_POOL_SIZE) {
+                audioBuffer.add(merged)
+            }
+            return
+        }
+
+        // 使用 scope 直接启动（而非 processJob 的子协程）
+        // 这样 processJob.cancel() 不会连带取消识别，确保识别结果不丢失
         recognizeJob = scope.launch(Dispatchers.IO) {
             isRecognizing.set(true)
             try {
@@ -187,6 +227,12 @@ class LiveAsrProcessor(
                         "$recognizedText\n[$sourceLang]"
                     }
                 } ?: recognizedText
+
+                // 只有还在运行时才显示字幕
+                if (!running.get()) {
+                    LiveAsrLogger.d("recognize: 已停止，丢弃识别结果")
+                    return@launch
+                }
 
                 // 生成字幕 Cue
                 val cue = Cue.Builder()
