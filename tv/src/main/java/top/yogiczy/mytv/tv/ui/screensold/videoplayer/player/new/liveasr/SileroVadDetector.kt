@@ -51,7 +51,7 @@ class SileroVadDetector(
      * 初始化 Silero VAD 模型
      * 必须在调用 process() 之前调用
      */
-    fun initialize(context: Context) {
+    suspend fun initialize(context: Context) {
         try {
             // 确保 Silero VAD 模型已下载
             val modelDir = ModelManager.ensureModel(context, ModelManager.SILERO_VAD)
