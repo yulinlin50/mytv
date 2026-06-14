@@ -38,8 +38,8 @@ class LiveAsrProcessor(
 
     // 缓冲参数
     private companion object {
-        const val BUFFER_DURATION_MS = 500L          // 每 500ms 处理一次
-        const val AUDIO_BUFFER_POOL_SIZE = 10         // 最多保留 10 段音频
+        const val BUFFER_DURATION_MS = 2000L         // 每 2 秒处理一次（Whisper 需要足够长的音频）
+        const val AUDIO_BUFFER_POOL_SIZE = 120       // 最多保留约 2.5 秒音频（21ms/段 × 120）
     }
 
     fun start() {
@@ -80,7 +80,12 @@ class LiveAsrProcessor(
                 }
             } finally {
                 running.set(false)
-                releaseEngines()
+                asrEngine?.release()
+                translateEngine?.release()
+                languageId?.close()
+                asrEngine = null
+                translateEngine = null
+                languageId = null
                 LiveAsrLogger.i("LiveAsrProcessor: 已停止")
             }
         }
@@ -91,7 +96,8 @@ class LiveAsrProcessor(
         running.set(false)
         processJob?.cancel()
         audioBuffer.clear()
-        releaseEngines()
+        // 不在此处释放引擎 — 由协程 finally 块在 native 调用安全退出后释放
+        // 避免 native recognize() 还在运行时释放上下文导致 SIGSEGV
     }
 
     fun isRunning(): Boolean = running.get()
@@ -107,7 +113,10 @@ class LiveAsrProcessor(
     }
 
     private suspend fun processAudioBuffer() {
-        if (audioBuffer.isEmpty()) return
+        if (audioBuffer.isEmpty()) {
+            LiveAsrLogger.d("processAudioBuffer: 缓冲区为空，跳过")
+            return
+        }
 
         // 合并缓冲区中的音频数据
         val totalSize = audioBuffer.sumOf { it.size }
@@ -117,11 +126,17 @@ class LiveAsrProcessor(
             System.arraycopy(data, 0, merged, offset, data.size)
             offset += data.size
         }
+        val segmentCount = audioBuffer.size
         audioBuffer.clear()
+
+        LiveAsrLogger.d("processAudioBuffer: ${segmentCount}段, ${totalSize}字节, ~${totalSize / 32}ms音频")
 
         // 语音识别
         val recognizedText = asrEngine?.recognize(merged)?.takeIf { it.isNotBlank() }
-        if (recognizedText == null) return
+        if (recognizedText == null) {
+            LiveAsrLogger.d("processAudioBuffer: 识别结果为空")
+            return
+        }
 
         LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${merged.size}字节]")
 
@@ -222,17 +237,6 @@ class LiveAsrProcessor(
             "baidu" -> BaiduTranslateEngine()
             "deepl" -> DeepLTranslateEngine()
             else -> MlKitTranslateEngine()
-        }
-    }
-
-    private fun releaseEngines() {
-        scope.launch(Dispatchers.IO) {
-            asrEngine?.release()
-            translateEngine?.release()
-            languageId?.close()
-            asrEngine = null
-            translateEngine = null
-            languageId = null
         }
     }
 }

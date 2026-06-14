@@ -65,9 +65,11 @@ class AudioCaptureProcessor : AudioProcessor {
                         } catch (_: Exception) {
                         }
                     }
-                    // 每100次输出一次日志，避免刷屏
+                    // 日志
                     audioDataCount++
-                    if (audioDataCount % 100 == 1) {
+                    if (audioDataCount == 1) {
+                        LiveAsrLogger.i("AudioCapture: 首次转发, 原始${size}字节 → 重采样后${resampled.size}字节 (${inputSampleRate}Hz/${inputChannelCount}ch → 16000Hz/1ch)")
+                    } else if (audioDataCount % 100 == 1) {
                         LiveAsrLogger.d("AudioCapture: 已转发${audioDataCount}次音频数据, 本次${resampled.size}字节")
                     }
                 }

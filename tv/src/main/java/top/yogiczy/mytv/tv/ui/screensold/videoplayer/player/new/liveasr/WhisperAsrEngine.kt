@@ -49,23 +49,35 @@ class WhisperAsrEngine : AsrEngine {
     }
 
     override suspend fun recognize(pcmData: ByteArray): String? {
-        if (!running || contextPtr == 0L) return null
+        if (!running) {
+            LiveAsrLogger.d("Whisper: recognize 跳过 (running=false)")
+            return null
+        }
+        if (contextPtr == 0L) {
+            LiveAsrLogger.d("Whisper: recognize 跳过 (contextPtr=0)")
+            return null
+        }
 
+        LiveAsrLogger.d("Whisper: recognize 开始, pcmData=${pcmData.size}字节, 约${pcmData.size / 32}ms")
         return try {
-            // 将 16bit PCM 转换为 float 数组
             val floats = WhisperJni.pcmBytesToFloats(pcmData)
-            // 调用 whisper_full 推理
-            WhisperJni.transcribe(contextPtr, floats)?.trim()?.takeIf { it.isNotBlank() }
+            LiveAsrLogger.d("Whisper: pcm->floats 完成, ${floats.size} samples")
+            val result = WhisperJni.transcribe(contextPtr, floats)
+            LiveAsrLogger.d("Whisper: transcribe 完成, 结果=\"${result ?: "null"}\"")
+            result?.trim()?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
+            LiveAsrLogger.e("Whisper: recognize 异常", e)
             null
         }
     }
 
     override suspend fun release() {
+        LiveAsrLogger.i("Whisper: release(), contextPtr=$contextPtr, running=$running")
         running = false
         if (contextPtr != 0L) {
             WhisperJni.free(contextPtr)
             contextPtr = 0L
+            LiveAsrLogger.i("Whisper: 上下文已释放")
         }
     }
 
