@@ -37,19 +37,22 @@ class LiveAsrProcessor(
 ) {
     private val running = AtomicBoolean(false)
 
+    // 会话代次：每次 start() 递增，用于防止旧 processJob 的 finally 覆盖新会话状态
+    private val generation = java.util.concurrent.atomic.AtomicInteger(0)
+
     // 基础设施
     private val ringBuffer = AudioRingBuffer(capacitySeconds = 30, sampleRate = 16000)
     private val vadDetector = VadDetector(
         thresholdDb = -40f,
-        minSpeechMs = 300,
-        minSilenceMs = 600,
+        minSpeechMs = 200,
+        minSilenceMs = 300,
         sampleRate = 16000,
     )
     private val segmentExtractor = SegmentExtractor(
         ringBuffer = ringBuffer,
-        mergeGapMs = 500,
-        minSegmentMs = 500,
-        maxSegmentMs = 30000,
+        mergeGapMs = 300,
+        minSegmentMs = 300,
+        maxSegmentMs = 15000,
     )
 
     // 引擎引用（原子操作确保线程安全释放）
@@ -59,6 +62,9 @@ class LiveAsrProcessor(
     // 协程 Job
     private var processJob: Job? = null
     private var recognizeJob: Job? = null
+
+    // 清理 Job（跟踪 stop() 的异步释放）
+    private var cleanupJob: Job? = null
 
     // 语言检测
     @Volatile
@@ -81,8 +87,18 @@ class LiveAsrProcessor(
     fun start() {
         if (running.getAndSet(true)) return
 
+        val gen = generation.incrementAndGet()
         LiveAsrLogger.init(context)
-        LiveAsrLogger.i("LiveAsrProcessor: start()")
+        LiveAsrLogger.i("LiveAsrProcessor: start(), generation=$gen")
+
+        // 等待上一次 stop() 的异步清理完成
+        cleanupJob?.let { job ->
+            if (!job.isCompleted) {
+                LiveAsrLogger.i("LiveAsrProcessor: 等待上一次清理完成...")
+                runCatching { kotlinx.coroutines.runBlocking { job.join() } }
+            }
+            cleanupJob = null
+        }
 
         processJob = scope.launch(Dispatchers.IO) {
             try {
@@ -112,7 +128,7 @@ class LiveAsrProcessor(
                 }
 
                 // 定时刷新循环（VAD 无事件时强制输出待合并段）
-                while (isActive && running.get()) {
+                while (isActive && running.get() && generation.get() == gen) {
                     segmentExtractor.flush()
                     delay(FLUSH_INTERVAL_MS)
                 }
@@ -124,8 +140,11 @@ class LiveAsrProcessor(
                     onCues(emptyList())
                 }
             } finally {
-                running.set(false)
-                LiveAsrLogger.i("LiveAsrProcessor: processJob 结束")
+                // 只有当前代次匹配时才重置 running，防止覆盖新会话
+                if (generation.get() == gen) {
+                    running.set(false)
+                }
+                LiveAsrLogger.i("LiveAsrProcessor: processJob 结束, generation=$gen")
             }
         }
     }
@@ -135,7 +154,10 @@ class LiveAsrProcessor(
         running.set(false)
         processJob?.cancel()
         recognizeJob?.cancel()
-        releaseEngines()
+        // 在 IO 线程释放引擎（Whisper release 需要等待 native 推理完成，不能在主线程阻塞）
+        cleanupJob = scope.launch(Dispatchers.IO) {
+            releaseEngines()
+        }
         ringBuffer.clear()
         vadDetector.reset()
         segmentExtractor.reset()
@@ -143,13 +165,14 @@ class LiveAsrProcessor(
 
     /**
      * 安全释放引擎：使用 getAndSet(null) 原子操作，确保只释放一次
+     * 必须在 IO 线程调用（Whisper release 可能需要等待 native 推理完成）
      */
-    private fun releaseEngines() {
+    private suspend fun releaseEngines() {
         asrEngineRef.getAndSet(null)?.let {
-            runCatching { kotlinx.coroutines.runBlocking { it.release() } }
+            runCatching { it.release() }
         }
         translateEngineRef.getAndSet(null)?.let {
-            runCatching { kotlinx.coroutines.runBlocking { it.release() } }
+            runCatching { it.release() }
         }
         languageId?.close()
         languageId = null
@@ -212,14 +235,19 @@ class LiveAsrProcessor(
 
                 LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${segment.durationMs}ms, PTS=${segment.startTimeUs}]")
 
-                // 语言检测
-                val sourceLang = try {
-                    languageId?.let { lid ->
-                        Tasks.await(lid.identifyLanguage(recognizedText), 5, TimeUnit.SECONDS)
-                    } ?: Configs.subtitleLiveAsrLanguage
-                } catch (e: Exception) {
-                    LiveAsrLogger.w("语言检测失败，使用配置语言", e)
-                    Configs.subtitleLiveAsrLanguage
+                // 语言检测：如果用户已配置语言，直接使用，跳过 ML Kit 检测以减少延迟
+                val configuredLang = Configs.subtitleLiveAsrLanguage
+                val sourceLang = if (configuredLang.isNotBlank() && configuredLang != "auto") {
+                    configuredLang
+                } else {
+                    try {
+                        languageId?.let { lid ->
+                            Tasks.await(lid.identifyLanguage(recognizedText), 3, TimeUnit.SECONDS)
+                        } ?: configuredLang.ifBlank { "en" }
+                    } catch (e: Exception) {
+                        LiveAsrLogger.w("语言检测失败，使用配置语言", e)
+                        configuredLang.ifBlank { "en" }
+                    }
                 }
                 LiveAsrLogger.d("语言检测: $sourceLang")
 

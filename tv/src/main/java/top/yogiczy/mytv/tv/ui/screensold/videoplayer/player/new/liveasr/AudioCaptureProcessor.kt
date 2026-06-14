@@ -55,7 +55,7 @@ class AudioCaptureProcessor : AudioProcessor {
 
         if (remaining > 0) {
             // 截取音频数据给 ASR 引擎（使用 duplicate 不影响 position）
-            if (enabled && listeners.isNotEmpty()) {
+            if (enabled && listeners.isNotEmpty() && inputSampleRate > 0 && inputChannelCount > 0) {
                 // 计算当前帧的 PTS（基于累计样本数）
                 val inputSamples = remaining / (2 * inputChannelCount)  // 16-bit = 2 bytes per sample
                 val ptsUs = if (inputSampleRate > 0) {
@@ -118,16 +118,18 @@ class AudioCaptureProcessor : AudioProcessor {
 
     override fun flush() {
         outputBuffer = AudioProcessor.EMPTY_BUFFER
+        // flush 不清除 listeners 和配置，只重置输出缓冲区
     }
 
     override fun reset() {
-        listeners.clear()
-        enabled = false
+        outputBuffer = AudioProcessor.EMPTY_BUFFER
+        // reset 不清除 listeners 和 enabled 状态
+        // 这些由 setActive()/addListener()/removeListener() 管理
+        // 只重置音频格式相关状态（下次 configure 会重新设置）
         inputAudioFormat = AudioFormat.NOT_SET
         inputSampleRate = 0
         inputChannelCount = 0
         totalInputSamples = 0L
-        outputBuffer = AudioProcessor.EMPTY_BUFFER
     }
 
     /**

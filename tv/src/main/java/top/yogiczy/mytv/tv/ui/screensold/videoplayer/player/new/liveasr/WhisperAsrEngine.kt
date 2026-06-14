@@ -19,6 +19,7 @@ class WhisperAsrEngine : BatchAsrEngine {
     @Volatile
     private var isInferencing = false
     private var config: AsrConfig? = null
+    private val releaseLock = Any()  // 防止 release() 被并发调用导致 double free
 
     override suspend fun initialize(context: Context, config: AsrConfig) {
         try {
@@ -112,21 +113,29 @@ class WhisperAsrEngine : BatchAsrEngine {
     }
 
     override suspend fun release() {
-        LiveAsrLogger.i("Whisper: release(), contextPtr=$contextPtr, running=$running, isInferencing=$isInferencing")
-        running = false
-        // 等待 native 推理完成后再释放上下文，避免 use-after-free 导致 SIGSEGV
-        var waitCount = 0
-        while (isInferencing && waitCount < 300) { // 最多等 30 秒
-            Thread.sleep(100)
-            waitCount++
-        }
-        if (isInferencing) {
-            LiveAsrLogger.w("Whisper: 等待推理超时，强制释放（可能崩溃）")
-        }
-        if (contextPtr != 0L) {
-            WhisperJni.free(contextPtr)
-            contextPtr = 0L
-            LiveAsrLogger.i("Whisper: 上下文已释放")
+        synchronized(releaseLock) {
+            LiveAsrLogger.i("Whisper: release(), contextPtr=$contextPtr, running=$running, isInferencing=$isInferencing")
+            running = false
+
+            if (contextPtr == 0L) {
+                LiveAsrLogger.i("Whisper: 已释放，跳过")
+                return
+            }
+
+            // 等待 native 推理完成后再释放上下文，避免 use-after-free 导致 SIGSEGV
+            var waitCount = 0
+            while (isInferencing && waitCount < 300) { // 最多等 30 秒
+                Thread.sleep(100)
+                waitCount++
+            }
+            if (isInferencing) {
+                LiveAsrLogger.w("Whisper: 等待推理超时，强制释放（可能崩溃）")
+            }
+            if (contextPtr != 0L) {
+                WhisperJni.free(contextPtr)
+                contextPtr = 0L
+                LiveAsrLogger.i("Whisper: 上下文已释放")
+            }
         }
     }
 

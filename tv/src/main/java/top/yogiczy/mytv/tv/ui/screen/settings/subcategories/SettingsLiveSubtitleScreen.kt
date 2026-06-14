@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -21,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsViewModel
 import top.yogiczy.mytv.tv.ui.screen.settings.components.SettingsCategoryScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.components.SettingsListItem
@@ -35,6 +38,7 @@ fun SettingsLiveSubtitleScreen(
     onBackPressed: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     // 模型下载状态
     var voskEnDownloaded by remember { mutableStateOf(false) }
@@ -42,6 +46,17 @@ fun SettingsLiveSubtitleScreen(
     var whisperTinyDownloaded by remember { mutableStateOf(false) }
     var whisperBaseDownloaded by remember { mutableStateOf(false) }
     var mlKitDownloadedLangs by remember { mutableStateOf(emptySet<String>()) }
+
+    // 模型下载中状态
+    var downloadingModel by remember { mutableStateOf<String?>(null) }
+
+    /** 刷新所有模型下载状态 */
+    fun refreshDownloadStates() {
+        voskEnDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_EN)
+        voskZhDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_ZH)
+        whisperTinyDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_TINY)
+        whisperBaseDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_BASE)
+    }
 
     LaunchedEffect(Unit) {
         voskEnDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_EN)
@@ -88,7 +103,11 @@ fun SettingsLiveSubtitleScreen(
                 SettingsListItem(
                     modifier = Modifier.focusRequester(firstItemFocusRequester),
                     headlineContent = "语音识别引擎",
-                    supportingContent = asrProviderLabel(asrProvider),
+                    supportingContent = asrProviderLabel(asrProvider) + when (asrProvider) {
+                        "vosk" -> if (voskEnDownloaded || voskZhDownloaded) " (已下载)" else " (未下载)"
+                        "whisper" -> if (whisperTinyDownloaded || whisperBaseDownloaded) " (已下载)" else " (未下载)"
+                        else -> ""
+                    },
                     onSelect = { showAsrProviderSelector = true },
                     link = true,
                 )
@@ -128,9 +147,19 @@ fun SettingsLiveSubtitleScreen(
 
             if (asrProvider == "whisper") {
                 item {
+                    val modelName = settingsViewModel.subtitleLiveWhisperModel
+                    val isDownloaded = when (modelName) {
+                        "base" -> whisperBaseDownloaded
+                        else -> whisperTinyDownloaded
+                    }
+                    val statusText = when {
+                        downloadingModel != null && downloadingModel!!.contains(modelName, ignoreCase = true) -> "下载中..."
+                        isDownloaded -> "$modelName (已下载)"
+                        else -> "$modelName (未下载)"
+                    }
                     SettingsListItem(
                         headlineContent = "Whisper 模型",
-                        supportingContent = settingsViewModel.subtitleLiveWhisperModel,
+                        supportingContent = statusText,
                         onSelect = { showWhisperModelSelector = true },
                         link = true,
                     )
@@ -291,6 +320,38 @@ fun SettingsLiveSubtitleScreen(
                 onSelected = { value ->
                     settingsViewModel.subtitleLiveAsrProvider = value
                     showAsrProviderSelector = false
+                    // 选择离线引擎时自动下载模型
+                    if (value == "vosk" || value == "whisper") {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                when (value) {
+                                    "vosk" -> {
+                                        val lang = settingsViewModel.subtitleLiveAsrLanguage
+                                        val model = if (lang == "zh") ModelManager.VOSK_ZH else ModelManager.VOSK_EN
+                                        if (!ModelManager.isDownloaded(context, model)) {
+                                            downloadingModel = model.name
+                                            ModelManager.ensureModel(context, model)
+                                        }
+                                    }
+                                    "whisper" -> {
+                                        val model = when (settingsViewModel.subtitleLiveWhisperModel) {
+                                            "base" -> ModelManager.WHISPER_BASE
+                                            else -> ModelManager.WHISPER_TINY
+                                        }
+                                        if (!ModelManager.isDownloaded(context, model)) {
+                                            downloadingModel = model.name
+                                            ModelManager.ensureModel(context, model)
+                                        }
+                                    }
+                                }
+                            } catch (_: Exception) {
+                                // 下载失败不阻塞，用户开启实时字幕时会重试
+                            } finally {
+                                downloadingModel = null
+                                refreshDownloadStates()
+                            }
+                        }
+                    }
                 },
                 onBackPressed = { showAsrProviderSelector = false },
                 extraTrailingContent = { value ->
@@ -304,6 +365,7 @@ fun SettingsLiveSubtitleScreen(
                             modifier = Modifier.size(20.dp),
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "已下载",
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 },
@@ -333,6 +395,7 @@ fun SettingsLiveSubtitleScreen(
                             modifier = Modifier.size(20.dp),
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "已下载",
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 },
@@ -371,6 +434,7 @@ fun SettingsLiveSubtitleScreen(
                             modifier = Modifier.size(20.dp),
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "已下载",
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 },
@@ -389,6 +453,24 @@ fun SettingsLiveSubtitleScreen(
                 onSelected = { value ->
                     settingsViewModel.subtitleLiveWhisperModel = value
                     showWhisperModelSelector = false
+                    // 选择模型时自动下载
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            val model = when (value) {
+                                "base" -> ModelManager.WHISPER_BASE
+                                else -> ModelManager.WHISPER_TINY
+                            }
+                            if (!ModelManager.isDownloaded(context, model)) {
+                                downloadingModel = model.name
+                                ModelManager.ensureModel(context, model)
+                            }
+                        } catch (_: Exception) {
+                            // 下载失败不阻塞
+                        } finally {
+                            downloadingModel = null
+                            refreshDownloadStates()
+                        }
+                    }
                 },
                 onBackPressed = { showWhisperModelSelector = false },
                 extraTrailingContent = { value ->
@@ -402,6 +484,7 @@ fun SettingsLiveSubtitleScreen(
                             modifier = Modifier.size(20.dp),
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "已下载",
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 },
