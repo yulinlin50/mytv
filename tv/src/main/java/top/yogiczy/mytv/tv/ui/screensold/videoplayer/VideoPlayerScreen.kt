@@ -87,9 +87,11 @@ fun VideoPlayerScreen(
             val textColor = Configs.subtitleLiveTextColor
             val bgColor = Configs.subtitleLiveBgColor
 
+            // setBottomPaddingFraction: 从底部留出的空间比例
+            // bottom → 0f (字幕在底部), center → 0.4f (中间偏下), top → 0.75f (上方)
             val bottomPaddingFraction = when (position) {
-                "top" -> 0.85f
-                "center" -> 0.5f
+                "top" -> 0.75f
+                "center" -> 0.4f
                 else -> 0f
             }
 
@@ -119,15 +121,21 @@ fun VideoPlayerScreen(
 
             AndroidView(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxSize(),
-                factory = { SubtitleView(context) },
+                    .fillMaxSize()
+                    .align(Alignment.BottomCenter),
+                factory = { ctx ->
+                    SubtitleView(ctx).apply {
+                        setApplyEmbeddedStyles(false)
+                        setStyle(captionStyle)
+                        setFractionalTextSize(fontSizeFraction)
+                        setBottomPaddingFraction(bottomPaddingFraction)
+                    }
+                },
                 update = { view ->
                     view.setCues(cues)
+                    view.setStyle(captionStyle)
                     view.setFractionalTextSize(fontSizeFraction)
                     view.setBottomPaddingFraction(bottomPaddingFraction)
-                    view.setStyle(captionStyle)
                 },
             )
         }

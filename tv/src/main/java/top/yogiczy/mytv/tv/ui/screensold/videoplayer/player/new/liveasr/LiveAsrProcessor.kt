@@ -34,12 +34,14 @@ class LiveAsrProcessor(
     private var asrEngine: AsrEngine? = null
     private var translateEngine: TranslateEngine? = null
     private var processJob: Job? = null
+    private var recognizeJob: Job? = null
     private var languageId: com.google.mlkit.nl.languageid.LanguageIdentifier? = null
+    private val isRecognizing = AtomicBoolean(false)
 
     // 缓冲参数
     private companion object {
-        const val BUFFER_DURATION_MS = 2000L         // 每 2 秒处理一次（Whisper 需要足够长的音频）
-        const val AUDIO_BUFFER_POOL_SIZE = 120       // 最多保留约 2.5 秒音频（21ms/段 × 120）
+        const val BUFFER_DURATION_MS = 2000L         // 每 2 秒收集一次音频
+        const val AUDIO_BUFFER_POOL_SIZE = 200       // 最多保留约 4 秒音频
     }
 
     fun start() {
@@ -68,9 +70,9 @@ class LiveAsrProcessor(
                 translateEngine?.initialize(context, translateConfig)
                 LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎初始化完成，开始处理音频")
 
-                // 处理音频循环
+                // 音频收集循环：定时取缓冲区数据，启动异步识别
                 while (isActive && running.get()) {
-                    processAudioBuffer()
+                    collectAndRecognize()
                     delay(BUFFER_DURATION_MS)
                 }
             } catch (e: Throwable) {
@@ -80,6 +82,7 @@ class LiveAsrProcessor(
                 }
             } finally {
                 running.set(false)
+                recognizeJob?.cancel()
                 asrEngine?.release()
                 translateEngine?.release()
                 languageId?.close()
@@ -96,8 +99,6 @@ class LiveAsrProcessor(
         running.set(false)
         processJob?.cancel()
         audioBuffer.clear()
-        // 不在此处释放引擎 — 由协程 finally 块在 native 调用安全退出后释放
-        // 避免 native recognize() 还在运行时释放上下文导致 SIGSEGV
     }
 
     fun isRunning(): Boolean = running.get()
@@ -112,9 +113,18 @@ class LiveAsrProcessor(
         audioBuffer.add(data)
     }
 
-    private suspend fun processAudioBuffer() {
+    /**
+     * 收集缓冲区音频数据并启动异步识别
+     * 如果上一次识别还在进行中，则跳过（避免重叠推理）
+     */
+    private fun collectAndRecognize() {
         if (audioBuffer.isEmpty()) {
-            LiveAsrLogger.d("processAudioBuffer: 缓冲区为空，跳过")
+            LiveAsrLogger.d("collectAndRecognize: 缓冲区为空，跳过")
+            return
+        }
+
+        if (isRecognizing.get()) {
+            LiveAsrLogger.d("collectAndRecognize: 上次识别仍在进行，跳过本次")
             return
         }
 
@@ -129,47 +139,56 @@ class LiveAsrProcessor(
         val segmentCount = audioBuffer.size
         audioBuffer.clear()
 
-        LiveAsrLogger.d("processAudioBuffer: ${segmentCount}段, ${totalSize}字节, ~${totalSize / 32}ms音频")
+        LiveAsrLogger.d("collectAndRecognize: ${segmentCount}段, ${totalSize}字节, ~${totalSize / 32}ms音频")
 
-        // 语音识别
-        val recognizedText = asrEngine?.recognize(merged)?.takeIf { it.isNotBlank() }
-        if (recognizedText == null) {
-            LiveAsrLogger.d("processAudioBuffer: 识别结果为空")
-            return
-        }
-
-        LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${merged.size}字节]")
-
-        // 语言检测
-        val sourceLang = try {
-            languageId?.let { lid ->
-                Tasks.await(lid.identifyLanguage(recognizedText), 5, TimeUnit.SECONDS)
-            } ?: "en"
-        } catch (e: Exception) {
-            LiveAsrLogger.w("语言检测失败，默认en", e)
-            "en"
-        }
-        LiveAsrLogger.d("语言检测: $sourceLang")
-
-        // 翻译
-        val translatedText = translateEngine?.let { engine ->
+        // 异步启动识别（不阻塞音频收集循环）
+        recognizeJob = scope.launch(Dispatchers.IO) {
+            isRecognizing.set(true)
             try {
-                val result = engine.translate(recognizedText, sourceLang)
-                LiveAsrLogger.d("翻译结果: \"$result\"")
-                result
+                val recognizedText = asrEngine?.recognize(merged)?.takeIf { it.isNotBlank() }
+                if (recognizedText == null) {
+                    LiveAsrLogger.d("recognize: 识别结果为空")
+                    return@launch
+                }
+
+                LiveAsrLogger.d("ASR识别: \"$recognizedText\" [${merged.size}字节]")
+
+                // 语言检测
+                val sourceLang = try {
+                    languageId?.let { lid ->
+                        Tasks.await(lid.identifyLanguage(recognizedText), 5, TimeUnit.SECONDS)
+                    } ?: "en"
+                } catch (e: Exception) {
+                    LiveAsrLogger.w("语言检测失败，默认en", e)
+                    "en"
+                }
+                LiveAsrLogger.d("语言检测: $sourceLang")
+
+                // 翻译
+                val translatedText = translateEngine?.let { engine ->
+                    try {
+                        val result = engine.translate(recognizedText, sourceLang)
+                        LiveAsrLogger.d("翻译结果: \"$result\"")
+                        result
+                    } catch (e: Exception) {
+                        LiveAsrLogger.w("翻译失败", e)
+                        "$recognizedText\n[$sourceLang]"
+                    }
+                } ?: recognizedText
+
+                // 生成字幕 Cue
+                val cue = Cue.Builder()
+                    .setText(translatedText)
+                    .build()
+
+                withContext(Dispatchers.Main) {
+                    onCues(listOf(cue))
+                }
             } catch (e: Exception) {
-                LiveAsrLogger.w("翻译失败", e)
-                "$recognizedText\n[$sourceLang]"
+                LiveAsrLogger.e("recognize: 异常", e)
+            } finally {
+                isRecognizing.set(false)
             }
-        } ?: recognizedText
-
-        // 生成字幕 Cue（样式由 SubtitleView.setStyle() 控制，位置由 setBottomPaddingFraction 控制）
-        val cue = Cue.Builder()
-            .setText(translatedText)
-            .build()
-
-        withContext(Dispatchers.Main) {
-            onCues(listOf(cue))
         }
     }
 
