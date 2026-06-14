@@ -74,7 +74,6 @@ Java_top_yogiczy_mytv_tv_ui_screensold_videoplayer_player_new_liveasr_WhisperJni
     params.n_threads        = 4;        /* 限制线程数，避免与音频线程争抢 */
     params.max_len          = 0;        /* 不限制输出长度 */
     params.suppress_blank   = true;     /* 抑制空白输出 */
-    params.suppress_non_speech_tokens = true; /* 抑制非语音 token（[BLANK]等） */
 
     int ret = whisper_full((struct whisper_context *) context, params, data, len);
     (*env)->ReleaseFloatArrayElements(env, pcmData, data, JNI_ABORT);
