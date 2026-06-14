@@ -2,6 +2,7 @@ package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr
 
 import android.content.Context
 import android.util.Log
+import top.yogiczy.mytv.tv.ui.utils.Configs
 import java.io.File
 import java.io.FileWriter
 import java.io.PrintWriter
@@ -13,6 +14,7 @@ import java.util.Locale
  * 实时字幕翻译功能专用日志工具
  * 日志同时输出到 Logcat 和文件（app私有目录/liveasr_log/）
  * 文件按日期滚动，保留最近3天的日志
+ * 文件日志受 SUBTITLE_LIVE_DEBUG_LOG 开关控制
  */
 object LiveAsrLogger {
 
@@ -52,6 +54,9 @@ object LiveAsrLogger {
     }
 
     private fun writeToFile(level: String, msg: String, e: Throwable? = null) {
+        // 检查日志开关，未开启则不写文件
+        if (!Configs.subtitleLiveDebugLog) return
+
         val dir = logDir ?: return
         try {
             val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())

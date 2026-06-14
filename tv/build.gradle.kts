@@ -95,6 +95,14 @@ android {
                 "lib/armeabi-v7a/libwhisper.so",
                 "lib/arm64-v8a/libggml.so",
                 "lib/armeabi-v7a/libggml.so",
+                "lib/arm64-v8a/libonnxruntime.so",
+                "lib/armeabi-v7a/libonnxruntime.so",
+                "lib/arm64-v8a/libsherpa-onnx-c-api.so",
+                "lib/armeabi-v7a/libsherpa-onnx-c-api.so",
+                "lib/arm64-v8a/libsherpa-onnx-cxx-api.so",
+                "lib/armeabi-v7a/libsherpa-onnx-cxx-api.so",
+                "lib/arm64-v8a/libsherpa-onnx-jni.so",
+                "lib/armeabi-v7a/libsherpa-onnx-jni.so",
             )
         }
     }
@@ -178,7 +186,8 @@ dependencies {
     implementation("net.java.dev.jna:jna@aar")  // Vosk 依赖 JNA，显式引入 AAR 避免混淆问题
 
     // 实时字幕 - sherpa-onnx + SenseVoice（非自回归，推理极快）
-    implementation("com.k2fsa.sherpa:onnx:1.10.45")
+    // AAR 从 GitHub Releases 下载，放在 tv/libs/ 目录
+    // https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.10.45/sherpa-onnx-1.10.45.aar
 
     // 实时字幕 - tar.bz2 模型解压
     implementation("org.apache.commons:commons-compress:1.26.2")

@@ -150,6 +150,9 @@ object Configs {
         /** ASR 推理模式：batch / streaming */
         SUBTITLE_LIVE_ASR_MODE,
 
+        /** 实时字幕调试日志开关 */
+        SUBTITLE_LIVE_DEBUG_LOG,
+
         /** ==================== 节目单 ==================== */
         /** 启用节目单 */
         EPG_ENABLE,
@@ -746,6 +749,11 @@ object Configs {
     var subtitleLiveAsrMode: String
         get() = SP.getString(KEY.SUBTITLE_LIVE_ASR_MODE.name, "batch")
         set(value) = SP.putString(KEY.SUBTITLE_LIVE_ASR_MODE.name, value)
+
+    /** 实时字幕调试日志开关（写入文件到 liveasr_log/） */
+    var subtitleLiveDebugLog: Boolean
+        get() = SP.getBoolean(KEY.SUBTITLE_LIVE_DEBUG_LOG.name, false)
+        set(value) = SP.putBoolean(KEY.SUBTITLE_LIVE_DEBUG_LOG.name, value)
 
 
     /** ==================== 主题 ==================== */

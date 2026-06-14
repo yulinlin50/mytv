@@ -678,6 +678,15 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
+    private var _subtitleLiveDebugLog by mutableStateOf(false)
+    var subtitleLiveDebugLog: Boolean
+        get() = _subtitleLiveDebugLog
+        set(value) {
+            _subtitleLiveDebugLog = value
+            Configs.subtitleLiveDebugLog = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
     private var _themeAppCurrent by mutableStateOf<AppThemeDef?>(null)
     var themeAppCurrent: AppThemeDef?
         get() = _themeAppCurrent
@@ -897,6 +906,7 @@ class SettingsViewModel : ViewModel() {
         _subtitleLivePosition = Configs.subtitleLivePosition
         _subtitleLiveVadProvider = Configs.subtitleLiveVadProvider
         _subtitleLiveAsrMode = Configs.subtitleLiveAsrMode
+        _subtitleLiveDebugLog = Configs.subtitleLiveDebugLog
         _themeAppCurrent = Configs.themeAppCurrent
         _themeTextureAlpha = Configs.themeTextureAlpha
         _cloudSyncAutoPull = Configs.cloudSyncAutoPull

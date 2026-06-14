@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -201,6 +202,20 @@ fun SettingsLiveSubtitleScreen(
                     supportingContent = asrModeLabel(settingsViewModel.subtitleLiveAsrMode),
                     onSelect = { showAsrModeSelector = true },
                     link = true,
+                )
+            }
+
+            // 调试日志开关
+            item {
+                SettingsListItem(
+                    headlineContent = "调试日志",
+                    supportingContent = "将日志写入 liveasr_log/ 文件，便于排查问题",
+                    trailingContent = {
+                        Switch(settingsViewModel.subtitleLiveDebugLog, null)
+                    },
+                    onSelect = {
+                        settingsViewModel.subtitleLiveDebugLog = !settingsViewModel.subtitleLiveDebugLog
+                    },
                 )
             }
 
