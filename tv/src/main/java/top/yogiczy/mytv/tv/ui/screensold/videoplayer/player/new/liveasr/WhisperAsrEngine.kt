@@ -1,21 +1,18 @@
 package top.yogiczy.mytv.tv.ui.screensold.videoplayer.player.new.liveasr
 
 import android.content.Context
+import java.io.File
 
 /**
- * Whisper.cpp 离线语音识别引擎（骨架）
+ * Whisper.cpp 离线语音识别引擎
  *
- * 当前状态：模型下载已就绪（通过 ModelManager），JNI 调用待实现
- * 暂时由 LiveAsrProcessor 自动回退到 Vosk
- *
- * 后续实现路径：
- * 1. 集成 whisper.cpp JNI 封装（如 whisper-android 社区库）
- * 2. 调用 whisper_full() 进行推理
- * 3. 支持 tiny/base/small 等模型
+ * 通过 WhisperJni 调用 whisper.cpp 原生库进行推理。
+ * 模型通过 ModelManager 运行时下载（tiny ~75MB / base ~142MB），首次使用需联网。
  */
 class WhisperAsrEngine : AsrEngine {
 
     private var running = false
+    private var contextPtr: Long = 0L
 
     override suspend fun initialize(context: Context, config: AsrConfig) {
         try {
@@ -26,11 +23,17 @@ class WhisperAsrEngine : AsrEngine {
             }
 
             // 下载模型（若未下载）
-            ModelManager.ensureModel(context, modelInfo)
+            val modelDir = ModelManager.ensureModel(context, modelInfo)
+            val modelFile = File(modelDir, modelInfo.destFileName)
+            if (!modelFile.exists()) {
+                throw IllegalStateException("Whisper 模型文件不存在: ${modelFile.absolutePath}")
+            }
 
-            // TODO: 初始化 Whisper JNI 上下文
-            // val modelPath = File(ModelManager.getModelDir(context, modelInfo), modelInfo.destFileName).absolutePath
-            // whisperContext = WhisperLib.init(modelPath)
+            // 初始化 Whisper JNI 上下文（延迟加载原生库）
+            contextPtr = WhisperJni.init(modelFile.absolutePath)
+            if (contextPtr == 0L) {
+                throw IllegalStateException("Whisper 上下文初始化失败")
+            }
 
             this.running = true
         } catch (e: Exception) {
@@ -40,17 +43,24 @@ class WhisperAsrEngine : AsrEngine {
     }
 
     override suspend fun recognize(pcmData: ByteArray): String? {
-        if (!running) return null
-        // TODO: 调用 whisper_full() 进行推理
-        // val result = WhisperLib.transcribe(whisperContext, pcmData)
-        // return result.text
-        return null
+        if (!running || contextPtr == 0L) return null
+
+        return try {
+            // 将 16bit PCM 转换为 float 数组
+            val floats = WhisperJni.pcmBytesToFloats(pcmData)
+            // 调用 whisper_full 推理
+            WhisperJni.transcribe(contextPtr, floats)?.trim()?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override suspend fun release() {
         running = false
-        // TODO: 释放 Whisper 上下文
-        // WhisperLib.free(whisperContext)
+        if (contextPtr != 0L) {
+            WhisperJni.free(contextPtr)
+            contextPtr = 0L
+        }
     }
 
     override fun isRunning(): Boolean = running

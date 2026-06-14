@@ -174,7 +174,7 @@ class LiveAsrProcessor(
             "azure", "baidu", "google" -> {
                 if (Configs.subtitleLiveAsrApiKey.isBlank()) "vosk" else provider
             }
-            "whisper" -> "vosk" // Whisper 暂未实现，回退 Vosk
+            "whisper" -> "whisper"
             else -> provider
         }
     }
@@ -198,6 +198,7 @@ class LiveAsrProcessor(
             "azure" -> AzureAsrEngine()
             "baidu" -> BaiduAsrEngine()
             "google" -> GoogleAsrEngine()
+            "whisper" -> WhisperAsrEngine()
             else -> VoskAsrEngine()
         }
     }

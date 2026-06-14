@@ -28,6 +28,10 @@ android {
         }
 
         buildConfigField("String", "SENTRY_DSN", "\"${getProperty("sentry.dsn") ?: ""}\"")
+
+        ndk {
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+        }
     }
 
     buildTypes {
@@ -49,6 +53,13 @@ android {
     sourceSets {
         getByName("main") {
             jniLibs.srcDirs("jniLibs")
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.18.1"
         }
     }
 
@@ -79,6 +90,12 @@ android {
                 "lib/armeabi-v7a/libijkplayer.so",
                 "lib/arm64-v8a/libijksdl.so",
                 "lib/armeabi-v7a/libijksdl.so",
+                "lib/arm64-v8a/libwhisper-jni.so",
+                "lib/armeabi-v7a/libwhisper-jni.so",
+                "lib/arm64-v8a/libwhisper.so",
+                "lib/armeabi-v7a/libwhisper.so",
+                "lib/arm64-v8a/libggml.so",
+                "lib/armeabi-v7a/libggml.so",
             )
         }
     }
