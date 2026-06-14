@@ -9,6 +9,7 @@ import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.TranslateRemoteModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -149,70 +150,73 @@ object ModelManager {
         val dest = getModelDir(context, info)
         if (isDownloaded(context, info)) return@withContext dest
 
-        dest.mkdirs()
+        // 下载过程不可取消：确保模型完整下载，避免因用户停止导致重复下载
+        withContext(NonCancellable) {
+            dest.mkdirs()
 
-        val tempFile = File(getModelsDir(context), "${info.id}.tmp")
-        val url = URL(info.downloadUrl)
+            val tempFile = File(getModelsDir(context), "${info.id}.tmp")
+            val url = URL(info.downloadUrl)
 
-        createNotificationChannel(context)
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            createNotificationChannel(context)
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // 初始通知
-        showProgressNotification(context, nm, info, 0)
+            // 初始通知
+            showProgressNotification(context, nm, info, 0)
 
-        try {
-            // 下载
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 30000
-                readTimeout = 120000
-                setRequestProperty("User-Agent", "Mozilla/5.0")
-                connect()
-            }
+            try {
+                // 下载
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 30000
+                    readTimeout = 120000
+                    setRequestProperty("User-Agent", "Mozilla/5.0")
+                    connect()
+                }
 
-            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
-                conn.disconnect()
-                throw RuntimeException("HTTP ${conn.responseCode}")
-            }
+                if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                    conn.disconnect()
+                    throw RuntimeException("HTTP ${conn.responseCode}")
+                }
 
-            val total = conn.contentLength.toLong()
-            var downloaded = 0L
-            var lastNotifyTime = 0L
+                val total = conn.contentLength.toLong()
+                var downloaded = 0L
+                var lastNotifyTime = 0L
 
-            conn.inputStream.use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    val buf = ByteArray(8192)
-                    var n: Int
-                    while (input.read(buf).also { n = it } != -1) {
-                        output.write(buf, 0, n)
-                        downloaded += n
+                conn.inputStream.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        val buf = ByteArray(8192)
+                        var n: Int
+                        while (input.read(buf).also { n = it } != -1) {
+                            output.write(buf, 0, n)
+                            downloaded += n
 
-                        val now = System.currentTimeMillis()
-                        if (now - lastNotifyTime >= 500) {
-                            lastNotifyTime = now
-                            val pct = if (total > 0) (downloaded * 100 / total).toInt() else 0
-                            showProgressNotification(context, nm, info, pct)
+                            val now = System.currentTimeMillis()
+                            if (now - lastNotifyTime >= 500) {
+                                lastNotifyTime = now
+                                val pct = if (total > 0) (downloaded * 100 / total).toInt() else 0
+                                showProgressNotification(context, nm, info, pct)
+                            }
                         }
                     }
                 }
-            }
-            conn.disconnect()
+                conn.disconnect()
 
-            // 解压或移动
-            if (info.isZip) {
-                unzip(tempFile, dest)
-            } else {
-                val target = File(dest, info.destFileName.ifBlank { info.destDir })
-                tempFile.renameTo(target)
-            }
-            tempFile.delete()
+                // 解压或移动
+                if (info.isZip) {
+                    unzip(tempFile, dest)
+                } else {
+                    val target = File(dest, info.destFileName.ifBlank { info.destDir })
+                    tempFile.renameTo(target)
+                }
+                tempFile.delete()
 
-            // 完成通知
-            showDoneNotification(context, nm, info)
-        } catch (e: Exception) {
-            tempFile.delete()
-            dest.deleteRecursively()
-            showErrorNotification(context, nm, info, e.message)
-            throw RuntimeException("${info.name} 下载失败: ${e.message}", e)
+                // 完成通知
+                showDoneNotification(context, nm, info)
+            } catch (e: Exception) {
+                tempFile.delete()
+                dest.deleteRecursively()
+                showErrorNotification(context, nm, info, e.message)
+                throw RuntimeException("${info.name} 下载失败: ${e.message}", e)
+            }
         }
 
         dest

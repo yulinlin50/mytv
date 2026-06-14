@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import top.yogiczy.mytv.tv.ui.utils.Configs
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -70,6 +71,11 @@ class LiveAsrProcessor(
                 translateEngine?.initialize(context, translateConfig)
                 LiveAsrLogger.i("LiveAsrProcessor: 翻译引擎初始化完成，开始处理音频")
 
+                // 显示加载提示，让用户知道系统正在工作
+                withContext(Dispatchers.Main) {
+                    onCues(listOf(Cue.Builder().setText("...").build()))
+                }
+
                 // 音频收集循环：定时取缓冲区数据，启动异步识别
                 while (isActive && running.get()) {
                     collectAndRecognize()
@@ -97,7 +103,13 @@ class LiveAsrProcessor(
     fun stop() {
         LiveAsrLogger.i("LiveAsrProcessor: stop()")
         running.set(false)
-        processJob?.cancel()
+        // 先等 recognizeJob 完成（native 推理不可中断，必须等它结束才能安全释放上下文）
+        scope.launch {
+            withTimeoutOrNull(30000L) {
+                recognizeJob?.join()
+            } ?: LiveAsrLogger.w("LiveAsrProcessor: 等待recognizeJob超时")
+            processJob?.cancel()
+        }
         audioBuffer.clear()
     }
 

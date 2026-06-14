@@ -13,6 +13,8 @@ class WhisperAsrEngine : AsrEngine {
 
     private var running = false
     private var contextPtr: Long = 0L
+    @Volatile
+    private var isInferencing = false
 
     override suspend fun initialize(context: Context, config: AsrConfig) {
         try {
@@ -58,6 +60,7 @@ class WhisperAsrEngine : AsrEngine {
             return null
         }
 
+        isInferencing = true
         LiveAsrLogger.d("Whisper: recognize 开始, pcmData=${pcmData.size}字节, 约${pcmData.size / 32}ms")
         return try {
             val floats = WhisperJni.pcmBytesToFloats(pcmData)
@@ -68,12 +71,23 @@ class WhisperAsrEngine : AsrEngine {
         } catch (e: Exception) {
             LiveAsrLogger.e("Whisper: recognize 异常", e)
             null
+        } finally {
+            isInferencing = false
         }
     }
 
     override suspend fun release() {
-        LiveAsrLogger.i("Whisper: release(), contextPtr=$contextPtr, running=$running")
+        LiveAsrLogger.i("Whisper: release(), contextPtr=$contextPtr, running=$running, isInferencing=$isInferencing")
         running = false
+        // 等待 native 推理完成后再释放上下文，避免 use-after-free 导致 SIGSEGV
+        var waitCount = 0
+        while (isInferencing && waitCount < 300) { // 最多等 30 秒
+            Thread.sleep(100)
+            waitCount++
+        }
+        if (isInferencing) {
+            LiveAsrLogger.w("Whisper: 等待推理超时，强制释放（可能崩溃）")
+        }
         if (contextPtr != 0L) {
             WhisperJni.free(contextPtr)
             contextPtr = 0L
