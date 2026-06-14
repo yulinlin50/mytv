@@ -177,6 +177,12 @@ dependencies {
     implementation("com.alphacephei:vosk-android:0.3.47")
     implementation("net.java.dev.jna:jna@aar")  // Vosk 依赖 JNA，显式引入 AAR 避免混淆问题
 
+    // 实时字幕 - sherpa-onnx + SenseVoice（非自回归，推理极快）
+    implementation("com.k2fsa.sherpa:onnx:1.10.45")
+
+    // 实时字幕 - tar.bz2 模型解压
+    implementation("org.apache.commons:commons-compress:1.26.2")
+
     // 实时字幕 - 离线翻译 + 语言检测
     implementation("com.google.mlkit:translate:17.0.3")
     implementation("com.google.mlkit:language-id:17.0.6")

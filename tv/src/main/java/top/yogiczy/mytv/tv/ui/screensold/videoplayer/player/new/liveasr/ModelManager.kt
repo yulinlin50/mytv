@@ -73,6 +73,40 @@ object ModelManager {
         sizeMB = 142,
     )
 
+    /** SenseVoice-Small INT8 模型（中/英/日/韩/粤 5语，非自回归推理极快） */
+    val SENSE_VOICE_INT8 = ModelInfo(
+        id = "sense-voice-int8",
+        name = "SenseVoice 多语种模型",
+        downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+        destDir = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+        destFileName = "model.int8.onnx",
+        sizeMB = 228,
+        isZip = false,  // tar.bz2 格式，需要特殊处理
+        isTarBz2 = true,
+    )
+
+    /** Silero VAD 模型（sherpa-onnx 内置） */
+    val SILERO_VAD = ModelInfo(
+        id = "silero-vad",
+        name = "Silero VAD 模型",
+        downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+        destDir = "silero-vad",
+        destFileName = "silero_vad.onnx",
+        sizeMB = 2,
+    )
+
+    /** 流式 Paraformer 中英双语模型（OnlineRecognizer，实时推理延迟极低） */
+    val STREAMING_PARAFORMER = ModelInfo(
+        id = "streaming-paraformer",
+        name = "流式 Paraformer 中英模型",
+        downloadUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
+        destDir = "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+        destFileName = "encoder.int8.onnx",  // 用于 isDownloaded 检测
+        sizeMB = 230,
+        isZip = false,
+        isTarBz2 = true,
+    )
+
     // ==================== 数据类 ====================
 
     data class ModelInfo(
@@ -82,7 +116,8 @@ object ModelManager {
         val destDir: String,         // 解压/存放目录名
         val destFileName: String = "", // 单文件模型的文件名（非 ZIP 时使用）
         val sizeMB: Int,             // 预估大小（用于 UI 展示）
-        val isZip: Boolean = false,  // 是否需解压
+        val isZip: Boolean = false,  // 是否需解压 ZIP
+        val isTarBz2: Boolean = false, // 是否需解压 tar.bz2
     )
 
     // ==================== 内部常量 ====================
@@ -203,6 +238,8 @@ object ModelManager {
                 // 解压或移动
                 if (info.isZip) {
                     unzip(tempFile, dest)
+                } else if (info.isTarBz2) {
+                    untarBz2(tempFile, dest)
                 } else {
                     val target = File(dest, info.destFileName.ifBlank { info.destDir })
                     tempFile.renameTo(target)
@@ -302,6 +339,74 @@ object ModelManager {
                 zis.closeEntry()
                 entry = zis.nextEntry
             }
+        }
+    }
+
+    /** 解压 tar.bz2 文件，自动剥离顶层目录 */
+    private fun untarBz2(tarBz2File: File, destDir: File) {
+        // 使用 Apache Commons Compress 解压 tar.bz2
+        // 由于 Android 不自带，使用 Process 调用 tar 命令
+        // 或者使用 Java 内置的 Bzip2 压缩流 + 手动解析 tar
+        val pb = ProcessBuilder("tar", "xjf", tarBz2File.absolutePath, "-C", destDir.absolutePath)
+        val proc = pb.start()
+        val exitCode = proc.waitFor()
+        if (exitCode != 0) {
+            // 回退方案：使用 Java Bzip2 + tar 手动解析
+            untarBz2Java(tarBz2File, destDir)
+        }
+    }
+
+    /** Java 实现的 tar.bz2 解压（回退方案） */
+    private fun untarBz2Java(tarBz2File: File, destDir: File) {
+        // 使用 org.apache.commons.compress 或手动实现
+        // Android 没有 tar/bz2 内置支持，使用第三方库或简单方案
+        // 这里使用 bzip2 解压 + tar 格式手动解析
+        try {
+            val bis = java.io.BufferedInputStream(tarBz2File.inputStream())
+            // Bzip2 解压
+            val bzip2Stream = org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream(bis)
+            // Tar 解压
+            val tarStream = org.apache.commons.compress.archivers.tar.TarArchiveInputStream(bzip2Stream)
+
+            var entry = tarStream.nextTarEntry
+            var topDir: String? = null
+
+            while (entry != null) {
+                val name = entry.name
+
+                if (entry.isDirectory) {
+                    if (topDir == null && name.count { it == '/' } == 1) {
+                        topDir = name.substringBefore("/") + "/"
+                    }
+                    entry = tarStream.nextTarEntry
+                    continue
+                }
+
+                // 剥离顶层目录前缀
+                val stripped = if (topDir != null && name.startsWith(topDir)) {
+                    name.removePrefix(topDir)
+                } else {
+                    name.substringAfter("/", name)
+                }
+
+                val outFile = File(destDir, stripped)
+                outFile.parentFile?.mkdirs()
+
+                FileOutputStream(outFile).use { fos ->
+                    val buf = ByteArray(8192)
+                    var len: Int
+                    while (tarStream.read(buf).also { len = it } != -1) {
+                        fos.write(buf, 0, len)
+                    }
+                }
+
+                entry = tarStream.nextTarEntry
+            }
+            tarStream.close()
+        } catch (e: Exception) {
+            // 如果 Apache Commons Compress 不可用，尝试直接下载已解压的单文件
+            LiveAsrLogger.e("ModelManager: tar.bz2 解压失败，尝试替代方案", e)
+            throw RuntimeException("模型解压失败: ${e.message}", e)
         }
     }
 }

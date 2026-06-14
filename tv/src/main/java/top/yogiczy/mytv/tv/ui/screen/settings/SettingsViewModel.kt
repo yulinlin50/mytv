@@ -660,6 +660,24 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
+    private var _subtitleLiveVadProvider by mutableStateOf("silero")
+    var subtitleLiveVadProvider: String
+        get() = _subtitleLiveVadProvider
+        set(value) {
+            _subtitleLiveVadProvider = value
+            Configs.subtitleLiveVadProvider = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
+    private var _subtitleLiveAsrMode by mutableStateOf("batch")
+    var subtitleLiveAsrMode: String
+        get() = _subtitleLiveAsrMode
+        set(value) {
+            _subtitleLiveAsrMode = value
+            Configs.subtitleLiveAsrMode = value
+            afterSetWhenCloudSyncAutoPull()
+        }
+
     private var _themeAppCurrent by mutableStateOf<AppThemeDef?>(null)
     var themeAppCurrent: AppThemeDef?
         get() = _themeAppCurrent
@@ -877,6 +895,8 @@ class SettingsViewModel : ViewModel() {
         _subtitleLiveTextColor = Configs.subtitleLiveTextColor
         _subtitleLiveBgColor = Configs.subtitleLiveBgColor
         _subtitleLivePosition = Configs.subtitleLivePosition
+        _subtitleLiveVadProvider = Configs.subtitleLiveVadProvider
+        _subtitleLiveAsrMode = Configs.subtitleLiveAsrMode
         _themeAppCurrent = Configs.themeAppCurrent
         _themeTextureAlpha = Configs.themeTextureAlpha
         _cloudSyncAutoPull = Configs.cloudSyncAutoPull

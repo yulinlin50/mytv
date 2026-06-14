@@ -144,6 +144,12 @@ object Configs {
         /** 字幕显示位置：bottom / center / top */
         SUBTITLE_LIVE_POSITION,
 
+        /** VAD 检测模式：energy / silero */
+        SUBTITLE_LIVE_VAD_PROVIDER,
+
+        /** ASR 推理模式：batch / streaming */
+        SUBTITLE_LIVE_ASR_MODE,
+
         /** ==================== 节目单 ==================== */
         /** 启用节目单 */
         EPG_ENABLE,
@@ -730,6 +736,16 @@ object Configs {
     var subtitleLivePosition: String
         get() = SP.getString(KEY.SUBTITLE_LIVE_POSITION.name, "bottom")
         set(value) = SP.putString(KEY.SUBTITLE_LIVE_POSITION.name, value)
+
+    /** VAD 检测模式：energy（RMS 能量）/ silero（DNN 模型） */
+    var subtitleLiveVadProvider: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_VAD_PROVIDER.name, "silero")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_VAD_PROVIDER.name, value)
+
+    /** ASR 推理模式：batch（批处理）/ streaming（流式） */
+    var subtitleLiveAsrMode: String
+        get() = SP.getString(KEY.SUBTITLE_LIVE_ASR_MODE.name, "batch")
+        set(value) = SP.putString(KEY.SUBTITLE_LIVE_ASR_MODE.name, value)
 
 
     /** ==================== 主题 ==================== */

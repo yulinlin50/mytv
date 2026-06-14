@@ -45,6 +45,7 @@ fun SettingsLiveSubtitleScreen(
     var voskZhDownloaded by remember { mutableStateOf(false) }
     var whisperTinyDownloaded by remember { mutableStateOf(false) }
     var whisperBaseDownloaded by remember { mutableStateOf(false) }
+    var senseVoiceDownloaded by remember { mutableStateOf(false) }
     var mlKitDownloadedLangs by remember { mutableStateOf(emptySet<String>()) }
 
     // 模型下载中状态
@@ -56,6 +57,7 @@ fun SettingsLiveSubtitleScreen(
         voskZhDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_ZH)
         whisperTinyDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_TINY)
         whisperBaseDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_BASE)
+        senseVoiceDownloaded = ModelManager.isDownloaded(context, ModelManager.SENSE_VOICE_INT8)
     }
 
     LaunchedEffect(Unit) {
@@ -63,6 +65,7 @@ fun SettingsLiveSubtitleScreen(
         voskZhDownloaded = ModelManager.isDownloaded(context, ModelManager.VOSK_ZH)
         whisperTinyDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_TINY)
         whisperBaseDownloaded = ModelManager.isDownloaded(context, ModelManager.WHISPER_BASE)
+        senseVoiceDownloaded = ModelManager.isDownloaded(context, ModelManager.SENSE_VOICE_INT8)
         mlKitDownloadedLangs = ModelManager.getDownloadedMlKitModels()
     }
 
@@ -79,6 +82,8 @@ fun SettingsLiveSubtitleScreen(
     var showTextColorSelector by remember { mutableStateOf(false) }
     var showBgColorSelector by remember { mutableStateOf(false) }
     var showPositionSelector by remember { mutableStateOf(false) }
+    var showVadProviderSelector by remember { mutableStateOf(false) }
+    var showAsrModeSelector by remember { mutableStateOf(false) }
 
     val asrProvider = settingsViewModel.subtitleLiveAsrProvider
     val translateProvider = settingsViewModel.subtitleLiveTranslateProvider
@@ -106,6 +111,7 @@ fun SettingsLiveSubtitleScreen(
                     supportingContent = asrProviderLabel(asrProvider) + when (asrProvider) {
                         "vosk" -> if (voskEnDownloaded || voskZhDownloaded) " (已下载)" else " (未下载)"
                         "whisper" -> if (whisperTinyDownloaded || whisperBaseDownloaded) " (已下载)" else " (未下载)"
+                        "sensevoice" -> if (senseVoiceDownloaded) " (已下载)" else " (未下载)"
                         else -> ""
                     },
                     onSelect = { showAsrProviderSelector = true },
@@ -176,6 +182,26 @@ fun SettingsLiveSubtitleScreen(
                         link = true,
                     )
                 }
+            }
+
+            // VAD 检测模式
+            item {
+                SettingsListItem(
+                    headlineContent = "语音检测模式",
+                    supportingContent = vadProviderLabel(settingsViewModel.subtitleLiveVadProvider),
+                    onSelect = { showVadProviderSelector = true },
+                    link = true,
+                )
+            }
+
+            // ASR 推理模式
+            item {
+                SettingsListItem(
+                    headlineContent = "推理模式",
+                    supportingContent = asrModeLabel(settingsViewModel.subtitleLiveAsrMode),
+                    onSelect = { showAsrModeSelector = true },
+                    link = true,
+                )
             }
 
             // 翻译部分
@@ -310,8 +336,9 @@ fun SettingsLiveSubtitleScreen(
             SettingsSelectionScreen(
                 title = "语音识别引擎",
                 options = listOf(
+                    SelectionOption("sensevoice", "SenseVoice（离线，推荐）", "非自回归模型，推理极快，中英日韩粤5语"),
+                    SelectionOption("whisper", "Whisper.cpp（离线）", "高准确度，多语种支持，推理较慢"),
                     SelectionOption("vosk", "Vosk（离线）", "低延迟，需单独下载模型"),
-                    SelectionOption("whisper", "Whisper.cpp（离线）", "高准确度，多语种支持"),
                     SelectionOption("azure", "Azure Speech（云端）", "免费5小时/月"),
                     SelectionOption("baidu", "百度语音（云端）", "免费5万次/天"),
                     SelectionOption("google", "Google Speech（云端）", "免费60分钟/月"),
@@ -321,7 +348,7 @@ fun SettingsLiveSubtitleScreen(
                     settingsViewModel.subtitleLiveAsrProvider = value
                     showAsrProviderSelector = false
                     // 选择离线引擎时自动下载模型
-                    if (value == "vosk" || value == "whisper") {
+                    if (value == "vosk" || value == "whisper" || value == "sensevoice") {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 when (value) {
@@ -343,6 +370,12 @@ fun SettingsLiveSubtitleScreen(
                                             ModelManager.ensureModel(context, model)
                                         }
                                     }
+                                    "sensevoice" -> {
+                                        if (!ModelManager.isDownloaded(context, ModelManager.SENSE_VOICE_INT8)) {
+                                            downloadingModel = ModelManager.SENSE_VOICE_INT8.name
+                                            ModelManager.ensureModel(context, ModelManager.SENSE_VOICE_INT8)
+                                        }
+                                    }
                                 }
                             } catch (_: Exception) {
                                 // 下载失败不阻塞，用户开启实时字幕时会重试
@@ -358,6 +391,7 @@ fun SettingsLiveSubtitleScreen(
                     val downloaded = when (value) {
                         "vosk" -> voskEnDownloaded || voskZhDownloaded
                         "whisper" -> whisperTinyDownloaded || whisperBaseDownloaded
+                        "sensevoice" -> senseVoiceDownloaded
                         else -> false
                     }
                     if (downloaded) {
@@ -638,12 +672,74 @@ fun SettingsLiveSubtitleScreen(
                 onBackPressed = { showPositionSelector = false },
             )
         }
+
+        // 覆盖层：VAD 检测模式选择器
+        if (showVadProviderSelector) {
+            SettingsSelectionScreen(
+                title = "语音检测模式",
+                options = listOf(
+                    SelectionOption("silero", "Silero VAD（推荐）", "DNN 模型，精准区分人声/噪声，需下载2MB模型"),
+                    SelectionOption("energy", "RMS 能量检测", "简单阈值判断，无需额外模型，噪声环境误判率高"),
+                ),
+                selectedProvider = { settingsViewModel.subtitleLiveVadProvider },
+                onSelected = { value ->
+                    settingsViewModel.subtitleLiveVadProvider = value
+                    showVadProviderSelector = false
+                    if (value == "silero") {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                if (!ModelManager.isDownloaded(context, ModelManager.SILERO_VAD)) {
+                                    downloadingModel = ModelManager.SILERO_VAD.name
+                                    ModelManager.ensureModel(context, ModelManager.SILERO_VAD)
+                                }
+                            } catch (_: Exception) {
+                            } finally {
+                                downloadingModel = null
+                            }
+                        }
+                    }
+                },
+                onBackPressed = { showVadProviderSelector = false },
+            )
+        }
+
+        // 覆盖层：ASR 推理模式选择器
+        if (showAsrModeSelector) {
+            SettingsSelectionScreen(
+                title = "推理模式",
+                options = listOf(
+                    SelectionOption("batch", "批处理（默认）", "整段音频一次性推理，准确度高，适合 SenseVoice/Whisper"),
+                    SelectionOption("streaming", "流式（低延迟）", "持续送入音频实时出结果，延迟极低，需下载流式模型"),
+                ),
+                selectedProvider = { settingsViewModel.subtitleLiveAsrMode },
+                onSelected = { value ->
+                    settingsViewModel.subtitleLiveAsrMode = value
+                    showAsrModeSelector = false
+                    if (value == "streaming") {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                if (!ModelManager.isDownloaded(context, ModelManager.STREAMING_PARAFORMER)) {
+                                    downloadingModel = ModelManager.STREAMING_PARAFORMER.name
+                                    ModelManager.ensureModel(context, ModelManager.STREAMING_PARAFORMER)
+                                }
+                            } catch (_: Exception) {
+                            } finally {
+                                downloadingModel = null
+                                refreshDownloadStates()
+                            }
+                        }
+                    }
+                },
+                onBackPressed = { showAsrModeSelector = false },
+            )
+        }
     }
 }
 
 private fun asrProviderLabel(provider: String): String = when (provider) {
     "vosk" -> "Vosk（离线）"
     "whisper" -> "Whisper.cpp（离线）"
+    "sensevoice" -> "SenseVoice（离线，推荐）"
     "azure" -> "Azure Speech（云端）"
     "baidu" -> "百度语音（云端）"
     "google" -> "Google Speech（云端）"
@@ -719,6 +815,18 @@ private fun positionLabel(position: String): String = when (position) {
     "center" -> "居中"
     "top" -> "顶部"
     else -> position
+}
+
+private fun vadProviderLabel(provider: String): String = when (provider) {
+    "silero" -> "Silero VAD（推荐）"
+    "energy" -> "RMS 能量检测"
+    else -> provider
+}
+
+private fun asrModeLabel(mode: String): String = when (mode) {
+    "batch" -> "批处理"
+    "streaming" -> "流式（低延迟）"
+    else -> mode
 }
 
 private fun apiKeyDisplay(key: String): String =

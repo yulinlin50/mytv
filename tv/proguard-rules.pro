@@ -43,3 +43,10 @@
 
 # ========== 实时字幕：ML Kit ==========
 -keep class com.google.mlkit.** { *; }
+
+# ========== 实时字幕：sherpa-onnx ==========
+-keep class com.k2fsa.sherpa.onnx.** { *; }
+
+# ========== 实时字幕：Apache Commons Compress ==========
+-dontwarn org.apache.commons.compress.**
+-keep class org.apache.commons.compress.** { *; }
